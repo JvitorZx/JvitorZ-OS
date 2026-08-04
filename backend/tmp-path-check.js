@@ -1,0 +1,12 @@
+const fs = require('fs');
+const path = require('path');
+const authDir = path.resolve('src/routes');
+const serviceDir = path.resolve('src/integrations/youtube');
+const authToken = path.resolve(authDir, '../../google-tokens.json');
+const serviceToken = path.resolve(serviceDir, '../../../google-tokens.json');
+console.log('auth __dirname:', authDir);
+console.log('auth tokenFile:', authToken);
+console.log('auth exists:', fs.existsSync(authToken));
+console.log('service __dirname:', serviceDir);
+console.log('service tokenFile:', serviceToken);
+console.log('service exists:', fs.existsSync(serviceToken));
