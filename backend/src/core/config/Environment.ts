@@ -1,8 +1,8 @@
-import dotenv from 'dotenv';
+import { loadEnv } from './loadEnv';
 
 export default class Environment {
   constructor() {
-    dotenv.config();
+    loadEnv();
   }
 
   validate(): void {

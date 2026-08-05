@@ -4,10 +4,12 @@ import fs from 'fs';
 import GoogleAuth from '../integrations/google/GoogleAuth';
 
 const router = Router();
-const googleAuth = new GoogleAuth();
 const tokenFile = path.resolve(__dirname, '../../google-tokens.json');
 
+const getGoogleAuth = (): GoogleAuth => new GoogleAuth();
+
 router.get('/google', (_req, res) => {
+  const googleAuth = getGoogleAuth();
   const authUrl = googleAuth.getAuthUrl();
   console.log('Google OAuth URL:', authUrl);
   return res.redirect(authUrl);
@@ -21,6 +23,7 @@ router.get('/google/callback', async (req, res) => {
   }
 
   try {
+    const googleAuth = getGoogleAuth();
     const tokens = await googleAuth.getToken(code);
     console.log('Auth callback __dirname:', __dirname);
     console.log('Auth callback process.cwd():', process.cwd());

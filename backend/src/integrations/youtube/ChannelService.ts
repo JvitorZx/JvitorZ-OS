@@ -2,20 +2,20 @@ import { google, youtube_v3 } from 'googleapis';
 import { GoogleService } from '../../services/GoogleService';
 
 export default class ChannelService {
-  private youtubeClient: youtube_v3.Youtube;
-
-  constructor() {
+  private getYouTubeClient(): youtube_v3.Youtube {
     const googleService = new GoogleService();
     const client = googleService.getClient();
 
-    this.youtubeClient = google.youtube({
+    return google.youtube({
       version: 'v3',
       auth: client,
     });
   }
 
   async getChannelInfo(): Promise<Record<string, unknown>> {
-    const response = await this.youtubeClient.channels.list({
+    const youtubeClient = this.getYouTubeClient();
+
+    const response = await youtubeClient.channels.list({
       part: ['snippet', 'statistics'],
       mine: true,
     });
