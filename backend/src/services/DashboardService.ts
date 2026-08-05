@@ -1,23 +1,39 @@
-import { YouTubeService } from './YouTubeService';
+import { ChannelModule } from '../modules/dashboard/canal/ChannelModule';
+import { AnalyticsModule } from '../modules/dashboard/analytics/AnalyticsModule';
+import { OperatorsModule } from '../modules/dashboard/operadores/OperatorsModule';
+import { SupervisorModule } from '../modules/dashboard/supervisor/SupervisorModule';
+import { SettingsModule } from '../modules/dashboard/configuracoes/SettingsModule';
 
 export class DashboardService {
-  async getDashboard(): Promise<Record<string, unknown>> {
-    const youtubeService = new YouTubeService();
-    const channelResponse = await youtubeService.getChannel();
+  private channelModule = new ChannelModule();
+  private analyticsModule = new AnalyticsModule();
+  private operatorsModule = new OperatorsModule();
+  private supervisorModule = new SupervisorModule();
+  private settingsModule = new SettingsModule();
 
-    // Organiza os dados do canal em um objeto simplificado para consumo do frontend
-    const channel = (channelResponse as { data?: { items?: Array<Record<string, any>> } }).data?.items?.[0] ?? {};
-    const snippet = channel.snippet ?? {};
-    const statistics = channel.statistics ?? {};
+  async getDashboard(): Promise<Record<string, unknown>> {
+    const channel = await this.channelModule.getChannelSummary();
+    const analytics = await this.analyticsModule.getDashboardAnalytics();
+    const operators = await this.operatorsModule.getOperatorsStatus();
+    const supervisor = await this.supervisorModule.getSupervisorOverview();
+    const settings = await this.settingsModule.getSettings();
 
     return {
-      title: snippet.title ?? null,
-      id: channel.id ?? null,
-      subscribers: statistics.subscriberCount ?? null,
-      videos: statistics.videoCount ?? null,
-      views: statistics.viewCount ?? null,
-      country: snippet.country ?? null,
-      publishedAt: snippet.publishedAt ?? null,
+      channel,
+      analytics,
+      operators,
+      supervisor,
+      settings,
+      metrics: {
+        subscribers: channel.subscribers,
+        videos: channel.videoCount,
+        views: channel.viewCount,
+      },
+      status: {
+        youtubeConnected: true,
+        automationsEnabled: false,
+        aiEnabled: false,
+      },
     };
   }
 }
