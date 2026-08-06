@@ -1,4 +1,4 @@
-import { createPanel, html } from '../components.js';
+import { createPanel, html } from '../design-system/index.js';
 import { formatNumber } from '../utils/formatters.js';
 
 export const analyticsModule = {

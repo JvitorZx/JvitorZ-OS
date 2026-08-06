@@ -1,4 +1,4 @@
-import { createDetailList, createPanel } from '../components.js';
+import { createDetailList, createPanel } from '../design-system/index.js';
 
 export const settingsModule = {
   id: 'settings',

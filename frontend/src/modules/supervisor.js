@@ -1,4 +1,4 @@
-import { createPanel, createStatusPill, html } from '../components.js';
+import { createPanel, createStatusPill, html } from '../design-system/index.js';
 
 export const supervisorModule = {
   id: 'supervisor',

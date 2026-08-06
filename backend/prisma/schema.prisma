@@ -1,0 +1,102 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model User {
+  id        String    @id @default(cuid())
+  email     String    @unique
+  name      String?
+  role      String?    @default("user")
+  projects  Project[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+}
+
+model Project {
+  id               String             @id @default(cuid())
+  name             String
+  description      String?
+  ownerId          String
+  owner            User               @relation(fields: [ownerId], references: [id])
+  conversations    Conversation[]
+  libraryItems     LibraryItem[]
+  automations      Automation[]
+  analyticsSnapshots AnalyticsSnapshot[]
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+}
+
+model Conversation {
+  id          String    @id @default(cuid())
+  projectId   String?
+  project     Project?  @relation(fields: [projectId], references: [id])
+  title       String?
+  context     String?
+  messages    Message[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model Message {
+  id             String    @id @default(cuid())
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id])
+  sender         String
+  text           String
+  createdAt      DateTime  @default(now())
+}
+
+model Operator {
+  id          String    @id @default(cuid())
+  name        String
+  description String?
+  status      String?   @default("pending")
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model LibraryItem {
+  id         String    @id @default(cuid())
+  projectId  String?
+  project    Project?  @relation(fields: [projectId], references: [id])
+  title      String
+  type       String?
+  content    String?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+}
+
+model Automation {
+  id          String    @id @default(cuid())
+  projectId   String?
+  project     Project?  @relation(fields: [projectId], references: [id])
+  name        String
+  description String?
+  trigger     String?
+  action      String?
+  enabled     Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model Setting {
+  id          String    @id @default(cuid())
+  key         String    @unique
+  value       String
+  description String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model AnalyticsSnapshot {
+  id          String    @id @default(cuid())
+  projectId   String?
+  project     Project?  @relation(fields: [projectId], references: [id])
+  metrics     Json
+  summary     String?
+  createdAt   DateTime  @default(now())
+}

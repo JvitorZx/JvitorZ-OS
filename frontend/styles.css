@@ -33,6 +33,154 @@ body {
   grid-template-columns: 260px 1fr;
 }
 
+/* Planner operator styles */
+.planner-panel {
+  display: block;
+}
+.planner-shell {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+.planner-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--line);
+  background: linear-gradient(180deg, rgba(255,255,255,0.01), transparent);
+}
+.planner-subtitle {
+  margin: 0.2rem 0 0 0;
+  color: var(--muted);
+  font-weight: 500;
+}
+.planner-main {
+  display: flex;
+  gap: 1rem;
+  align-items: stretch;
+}
+.planner-chat {
+  flex: 1 1 72%;
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - 220px);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  overflow: hidden;
+  background: linear-gradient(180deg, var(--surface), var(--surface-soft));
+  box-shadow: 0 8px 24px rgba(2,6,23,0.6);
+}
+.chat-header {
+  padding: 0.75rem 1rem;
+  background: transparent;
+  border-bottom: 1px solid rgba(255,255,255,0.03);
+}
+.chat-body {
+  padding: 1rem;
+  overflow-y: auto;
+  flex: 1 1 auto;
+  background: transparent;
+}
+.chat-message {
+  margin-bottom: 0.75rem;
+  display: flex;
+}
+.chat-message.me .chat-message-body {
+  margin-left: auto;
+  background: linear-gradient(180deg, rgba(56,189,248,0.12), rgba(56,189,248,0.08));
+  color: var(--text);
+}
+.chat-message.them .chat-message-body {
+  background: rgba(255,255,255,0.02);
+  color: var(--text);
+}
+.chat-message-body {
+  max-width: 78%;
+  padding: 0.75rem 1rem;
+  border-radius: 10px;
+  border: 1px solid rgba(255,255,255,0.02);
+}
+.chat-message-meta {
+  font-size: 0.75rem;
+  color: var(--muted);
+  margin-top: 0.35rem;
+}
+.planner-side {
+  width: 340px;
+  flex: 0 0 340px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+.sidebar-section {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 0.75rem 0.9rem;
+  background: linear-gradient(180deg, rgba(255,255,255,0.01), transparent);
+  color: var(--text);
+  min-height: 80px;
+}
+.sidebar-section h4 { margin: 0 0 0.5rem 0; color: var(--text); }
+.prompt-base[contenteditable="true"] {
+  min-height: 90px;
+  border: 1px dashed rgba(255,255,255,0.04);
+  padding: 0.6rem;
+  border-radius: 8px;
+  background: rgba(255,255,255,0.01);
+  color: var(--text);
+}
+.fixed-input {
+  display: flex;
+  gap: 0.6rem;
+  padding: 0.65rem;
+  border-top: 1px solid rgba(255,255,255,0.03);
+  background: linear-gradient(180deg, rgba(255,255,255,0.01), transparent);
+}
+.fixed-input-textarea { flex: 1; resize: none; padding: 0.7rem; background: var(--surface-strong); color: var(--text); border: 1px solid rgba(255,255,255,0.02); border-radius: 8px; }
+.fixed-input-textarea::placeholder { color: var(--muted); }
+.fixed-input-send { background: linear-gradient(180deg, #0ea5e9, #0284c7); color: #fff; border: none; padding: 0.55rem 0.9rem; border-radius: 10px; cursor: pointer; box-shadow: 0 6px 18px rgba(2,6,23,0.6); }
+
+@media (max-width: 900px) {
+  .planner-main { flex-direction: column; }
+  .planner-side { width: 100%; flex: none; }
+  .chat-body { height: 40vh; }
+}
+
+/* Workspace fullscreen mode */
+.workspace.workspace-fullscreen .topbar {
+  display: none;
+}
+.workspace.workspace-fullscreen {
+  padding: 12px 28px;
+}
+.workspace.workspace-fullscreen .workspace-wrap {
+  width: 100%;
+}
+.workspace.workspace-fullscreen .workspace-module {
+  min-height: calc(100vh - 48px);
+}
+.workspace-back {
+  background: rgba(0,0,0,0.04);
+  border: none;
+  padding: 8px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  margin-bottom: 12px;
+}
+
+/* Workspace fullscreen styles */
+.workspace-wrap { display: flex; flex-direction: column; gap: 8px; }
+.workspace-back { align-self: flex-start; margin: 8px 0; background: transparent; border: none; color: var(--accent); cursor: pointer; font-size: 0.95rem; }
+.workspace-module { min-height: calc(100vh - 140px); }
+
+/* Make the operator occupy the available workspace area */
+.workspace .module-grid { display: block; }
+.workspace .workspace-module .panel { height: calc(100vh - 160px); display: flex; flex-direction: column; }
+.workspace .workspace-module .planner-shell { height: 100%; }
+.workspace .workspace-module .planner-main { flex: 1 1 auto; }
+.workspace .workspace-module .planner-chat { height: 100%; }
+
 #dashboardRoot {
   display: contents;
 }

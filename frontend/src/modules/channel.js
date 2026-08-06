@@ -1,4 +1,4 @@
-import { createDetailList, createMetricCard, createPanel, createStatusPill, html } from '../components.js';
+import { createDetailList, createMetricCard, createPanel, createStatusPill, html } from '../design-system/index.js';
 import { emptyValue, formatDate, formatNumber } from '../utils/formatters.js';
 
 export const channelModule = {

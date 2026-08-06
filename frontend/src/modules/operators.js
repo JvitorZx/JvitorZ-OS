@@ -1,4 +1,4 @@
-import { createPanel, html } from '../components.js';
+import { createPanel, html } from '../design-system/index.js';
 import { operatorRegistry } from '../operators/registry.js';
 
 const getStatusLabel = (status) => {
@@ -25,11 +25,13 @@ export const operatorsModule = {
             .map(
               (operator) => html`
                 <li>
-                  <div>
-                    <span>${operator.name}</span>
-                    <small>${operator.description}</small>
-                  </div>
-                  <strong class="operator-status ${operator.status}">${getStatusLabel(operator.status)}</strong>
+                  <a class="operator-link" href="#${operator.id}" data-operator="${operator.id}">
+                    <div>
+                      <span>${operator.name}</span>
+                      <small>${operator.description}</small>
+                    </div>
+                    <strong class="operator-status ${operator.status}">${getStatusLabel(operator.status)}</strong>
+                  </a>
                 </li>
               `,
             )

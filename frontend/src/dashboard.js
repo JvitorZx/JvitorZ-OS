@@ -1,5 +1,5 @@
 import { createApiClient } from './api/client.js';
-import { createIcon, html } from './components.js';
+import { createIcon, html } from './design-system/index.js';
 import { dashboardModules } from './modules/index.js';
 
 const createShell = (modules) => html`
@@ -95,8 +95,41 @@ export const createDashboard = ({ root, apiBaseUrl }) => {
       link.classList.toggle('active', link.dataset.moduleLink === activeModule.id);
     });
 
+    // If module requests fullscreen workspace view, replace main content
+    if (activeModule.fullscreen) {
+      elements.moduleHost.innerHTML = html`
+        <div class="workspace-wrap">
+          <button id="workspaceBack" class="workspace-back" type="button">← Voltar</button>
+          <section id="${activeModule.id}" class="module-section workspace-module">
+            ${activeModule.render(dashboardData, context)}
+          </section>
+        </div>
+      `;
+
+      // mark workspace mode on the main workspace element
+      const workspaceMain = root.querySelector('.workspace');
+      if (workspaceMain) workspaceMain.classList.add('workspace-fullscreen');
+
+      const backBtn = root.querySelector('#workspaceBack');
+      if (backBtn) {
+        backBtn.addEventListener('click', () => {
+          // remove workspace mode and return to default dashboard view (first module)
+          if (workspaceMain) workspaceMain.classList.remove('workspace-fullscreen');
+          window.location.hash = dashboardModules[0].id;
+        });
+      }
+
+      // ensure focus/scroll to top of module
+      const targetSection = root.querySelector(`#${activeModule.id}`);
+      if (targetSection) targetSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      return;
+    }
+
     const targetSection = root.querySelector(`#${activeModule.id}`);
     if (targetSection) {
+      // ensure non-fullscreen modules remove workspace fullscreen class
+      const workspaceMain = root.querySelector('.workspace');
+      if (workspaceMain) workspaceMain.classList.remove('workspace-fullscreen');
       targetSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
   };
