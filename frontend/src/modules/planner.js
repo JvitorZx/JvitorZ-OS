@@ -1,4 +1,4 @@
-import { createPanel, html, createChatMessage, createSidebarSection, createEditablePrompt, createFixedInput, createOperatorHeader, createChatArea, createSidebar, createWorkspaceLayout } from '../design-system/index.js';
+import { createPanel, html, createChatMessageElement, createSidebarSection, createEditablePrompt, createFixedInput, createOperatorHeader, createChatArea, createSidebar, createWorkspaceLayout } from '../design-system/index.js';
 
 export const plannerModule = {
   id: 'content-planner',
@@ -28,14 +28,20 @@ export function initPlanner(root = document) {
   const panel = root.querySelector('.planner-panel');
   if (!panel) return;
 
+  if (panel.dataset.plannerInitialized === 'true') return;
+
   const chatBody = panel.querySelector('[data-chat-body]');
   const sendBtn = panel.querySelector('.fixed-input-send');
   const textarea = panel.querySelector('.fixed-input-textarea');
   const promptBase = panel.querySelector('[data-prompt-id="planner-prompt"]');
 
+  if (!chatBody || !sendBtn || !textarea) return;
+
+  panel.dataset.plannerInitialized = 'true';
+
   const appendMessage = (text) => {
-    const msg = createChatMessage({ who: 'me', text, time: new Date().toLocaleTimeString() });
-    chatBody.insertAdjacentHTML('beforeend', msg);
+    const message = createChatMessageElement({ who: 'me', text, time: new Date().toLocaleTimeString() });
+    chatBody.append(message);
     chatBody.scrollTop = chatBody.scrollHeight;
   };
 

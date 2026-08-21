@@ -1,12 +1,16 @@
-import { backendEnvPath, loadEnv } from './core/config/loadEnv';
+import { loadEnv } from './core/config/loadEnv';
 import app from './app';
 
 loadEnv();
 
 const port = Number(process.env.PORT || 4000);
+const host = process.env.HOST?.trim() || '127.0.0.1';
 
-app.listen(port, () => {
-  console.log(`JvitorZ OS backend running on port ${port}`);
-  console.log(`Google OAuth env loaded from ${backendEnvPath}`);
-  console.log(`Google OAuth CLIENT_ID in use: ${process.env.GOOGLE_CLIENT_ID ?? 'undefined'}`);
+const server = app.listen(port, host, () => {
+  const address = server.address();
+  const listeningPort = typeof address === 'object' && address ? address.port : port;
+
+  console.log(`JvitorZ OS backend running at http://${host}:${listeningPort}`);
 });
+
+export default server;

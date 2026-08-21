@@ -1,15 +1,29 @@
 import { html } from './html.js';
 import { createFixedInput } from './FixedInput.js';
 
-export const createChatMessage = ({ id = '', who = 'me', text = '', time = '' } = {}) =>
-  html`
-    <div class="chat-message ${who}" data-id="${id}">
-      <div class="chat-message-body">
-        <div class="chat-message-text">${text}</div>
-        <div class="chat-message-meta">${time}</div>
-      </div>
-    </div>
-  `;
+export const createChatMessageElement = ({ id = '', who = 'me', text = '', time = '' } = {}) => {
+  const message = document.createElement('div');
+  message.className = `chat-message ${who}`;
+  message.dataset.id = id;
+
+  const body = document.createElement('div');
+  body.className = 'chat-message-body';
+
+  const messageText = document.createElement('div');
+  messageText.className = 'chat-message-text';
+  messageText.textContent = text;
+
+  const messageMeta = document.createElement('div');
+  messageMeta.className = 'chat-message-meta';
+  messageMeta.textContent = time;
+
+  body.append(messageText, messageMeta);
+  message.append(body);
+
+  return message;
+};
+
+export const createChatMessage = (options = {}) => createChatMessageElement(options).outerHTML;
 
 export const createChatArea = ({ initial = [] } = {}) =>
   html`

@@ -48,7 +48,7 @@ const createShell = (modules) => html`
   </main>
 `;
 
-export const createDashboard = ({ root, apiBaseUrl }) => {
+export const createDashboard = ({ root, apiBaseUrl, onModulesRendered = () => {} }) => {
   if (!root) {
     throw new Error('Dashboard root element not found');
   }
@@ -88,6 +88,11 @@ export const createDashboard = ({ root, apiBaseUrl }) => {
       )
       .join('');
 
+  const setModuleContent = (content) => {
+    elements.moduleHost.innerHTML = content;
+    onModulesRendered(elements.moduleHost);
+  };
+
   const setActiveModule = (moduleId) => {
     const activeModule = dashboardModules.find((module) => module.id === moduleId) ?? dashboardModules[0];
 
@@ -97,14 +102,14 @@ export const createDashboard = ({ root, apiBaseUrl }) => {
 
     // If module requests fullscreen workspace view, replace main content
     if (activeModule.fullscreen) {
-      elements.moduleHost.innerHTML = html`
+      setModuleContent(html`
         <div class="workspace-wrap">
           <button id="workspaceBack" class="workspace-back" type="button">← Voltar</button>
           <section id="${activeModule.id}" class="module-section workspace-module">
             ${activeModule.render(dashboardData, context)}
           </section>
         </div>
-      `;
+      `);
 
       // mark workspace mode on the main workspace element
       const workspaceMain = root.querySelector('.workspace');
@@ -125,7 +130,13 @@ export const createDashboard = ({ root, apiBaseUrl }) => {
       return;
     }
 
-    const targetSection = root.querySelector(`#${activeModule.id}`);
+    let targetSection = root.querySelector(`#${activeModule.id}`);
+
+    if (!targetSection) {
+      setModuleContent(renderModules());
+      targetSection = root.querySelector(`#${activeModule.id}`);
+    }
+
     if (targetSection) {
       // ensure non-fullscreen modules remove workspace fullscreen class
       const workspaceMain = root.querySelector('.workspace');
@@ -155,7 +166,7 @@ export const createDashboard = ({ root, apiBaseUrl }) => {
         setState('');
       }
 
-      elements.moduleHost.innerHTML = renderModules();
+      setModuleContent(renderModules());
       setActiveModule(window.location.hash.replace('#', '') || dashboardModules[0].id);
     } catch (error) {
       setState(`Nao foi possivel carregar o dashboard: ${error.message}`, 'error');

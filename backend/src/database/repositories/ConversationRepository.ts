@@ -1,5 +1,9 @@
-import { PrismaClient, Conversation } from '@prisma/client';
+import { PrismaClient, Conversation, Prisma } from '@prisma/client';
 import { PrismaRepository } from './PrismaRepository';
+
+export type ConversationWithMessages = Prisma.ConversationGetPayload<{
+  include: { messages: true };
+}>;
 
 export class ConversationRepository extends PrismaRepository<Conversation> {
   constructor(client: PrismaClient) {
@@ -16,7 +20,7 @@ export class ConversationRepository extends PrismaRepository<Conversation> {
     });
   }
 
-  async findById(id: string): Promise<Conversation | null> {
+  async findById(id: string): Promise<ConversationWithMessages | null> {
     return this.delegate.findUnique({
       where: { id },
       include: { messages: { orderBy: { createdAt: 'asc' } } },
