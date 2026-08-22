@@ -62,8 +62,8 @@ JvitorZ OS
 ### Planejador de Conteúdo
 - **Objetivo**: oferecer uma workspace para planejar pautas, escrever prompts e conduzir conversas de planejamento.
 - **O que faz**: apresenta chat, biblioteca, histórico e prompt base editável; funciona como workspace de operador.
-- **Dados que consome**: estado do dashboard, prompts locais, e eventualmente dados do canal/analytics.
-- **Dados que gera**: mensagens de chat locais e prompt base persistido no browser.
+- **Dados que consome**: histórico, mensagens e contexto persistidos das conversas do Planejador.
+- **Dados que gera**: novas conversas, mensagens e contexto persistidos pelo backend em SQLite.
 - **Componentes reutilizados**: header, chat, sidebar, painel, input fixo, prompt editável.
 - **Próximas integrações**: integração com LLMs, análise de tendências, importação de roteiros e automação de publicações.
 
@@ -100,12 +100,17 @@ Os itens abaixo são parte da visão futura da plataforma e devem reaproveitar a
 ### Backend API
 - `GET /api/dashboard`: retorna dados de canal, analytics, operadores, supervisor e configurações.
 - `GET /api/operators/planner`: endpoint de teste do operador Planejador.
+- `/api/operators/planner/conversations`: endpoints persistentes de criação e listagem de conversas.
+- `/api/operators/planner/conversations/:id`: abertura de conversa com mensagens.
+- `/api/operators/planner/conversations/:id/messages`: criação persistida de mensagens.
+- `/api/operators/planner/conversations/:id/context`: atualização do prompt-base da conversa.
 - `GET /api/auth/google`: foco em autenticação de Google OAuth (documentado no backend, não modificado nesta sprint).
 
 ### Serviços backend
 - `DashboardService`: orquestra a agregação de módulos.
 - `ChannelModule`, `AnalyticsModule`, `OperatorsModule`, `SupervisorModule`, `SettingsModule`: retornam dados estruturados para o dashboard.
 - `PlannerModule`: endpoint de operador de teste.
+- `PlannerService`: coordena conversas, mensagens e contexto usando `ConversationRepository` e `MessageRepository`.
 
 ## Organização de pastas
 - `backend/`: código do servidor, rotas, serviços e integrações.

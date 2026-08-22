@@ -100,5 +100,5 @@ Este documento descreve cada entidade do modelo de dados inicial do JvitorZ OS e
 
 ## Observações
 
-- O modelo inicial está preparado para evolução com persistência em banco.
+- `Conversation` e `Message` possuem persistência real no fluxo atual do Planejador.
 - As relações entre entidades suportam projetos, conversas e coleta de dados analíticos.

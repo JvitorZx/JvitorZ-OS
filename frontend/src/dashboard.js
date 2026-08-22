@@ -48,12 +48,16 @@ const createShell = (modules) => html`
   </main>
 `;
 
-export const createDashboard = ({ root, apiBaseUrl, onModulesRendered = () => {} }) => {
+export const createDashboard = ({
+  root,
+  apiBaseUrl,
+  api = createApiClient(apiBaseUrl),
+  onModulesRendered = () => {},
+}) => {
   if (!root) {
     throw new Error('Dashboard root element not found');
   }
 
-  const api = createApiClient(apiBaseUrl);
   const context = { apiBaseUrl };
   let dashboardData = {};
 
@@ -88,9 +92,9 @@ export const createDashboard = ({ root, apiBaseUrl, onModulesRendered = () => {}
       )
       .join('');
 
-  const setModuleContent = (content) => {
+  const setModuleContent = (content, activeModuleId = null) => {
     elements.moduleHost.innerHTML = content;
-    onModulesRendered(elements.moduleHost);
+    onModulesRendered(elements.moduleHost, activeModuleId);
   };
 
   const setActiveModule = (moduleId) => {
@@ -109,7 +113,7 @@ export const createDashboard = ({ root, apiBaseUrl, onModulesRendered = () => {}
             ${activeModule.render(dashboardData, context)}
           </section>
         </div>
-      `);
+      `, activeModule.id);
 
       // mark workspace mode on the main workspace element
       const workspaceMain = root.querySelector('.workspace');

@@ -26,4 +26,11 @@ export class ConversationRepository extends PrismaRepository<Conversation> {
       include: { messages: { orderBy: { createdAt: 'asc' } } },
     });
   }
+
+  async updateContext(id: string, context: string | null): Promise<Conversation> {
+    return this.delegate.update({
+      where: { id },
+      data: { context },
+    });
+  }
 }

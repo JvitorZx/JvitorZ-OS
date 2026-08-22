@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { PlannerModule } from '../modules/planner/PlannerModule';
-import { PlannerService } from '../services/PlannerService';
+import { isPlannerMessageSender, PlannerService } from '../services/PlannerService';
 
 const router = Router();
 const planner = new PlannerModule();
@@ -46,6 +46,89 @@ router.get('/planner/conversations/:id', async (req, res) => {
     const errorName = error instanceof Error ? error.name : 'UnknownError';
     console.error(`Failed to fetch planner conversation (${errorName})`);
     return res.status(500).json({ error: 'Failed to fetch conversation' });
+  }
+});
+
+router.patch('/planner/conversations/:id/context', async (req, res) => {
+  const id = req.params.id?.trim();
+
+  if (!id) {
+    return res.status(400).json({ error: 'id must be a non-empty string' });
+  }
+
+  if (!req.body || typeof req.body !== 'object' || Array.isArray(req.body)) {
+    return res.status(400).json({ error: 'body must be an object' });
+  }
+
+  const body = req.body as Record<string, unknown>;
+  const unsupportedFields = Object.keys(body).filter((field) => field !== 'context');
+
+  if (unsupportedFields.length > 0) {
+    return res.status(400).json({ error: 'body contains unsupported fields' });
+  }
+
+  if (typeof body.context !== 'string') {
+    return res.status(400).json({ error: 'context must be a string' });
+  }
+
+  try {
+    const conversation = await plannerService.updateConversationContext(id, {
+      context: body.context,
+    });
+
+    if (!conversation) {
+      return res.status(404).json({ error: 'Conversation not found' });
+    }
+
+    return res.status(200).json(conversation);
+  } catch (error) {
+    const errorName = error instanceof Error ? error.name : 'UnknownError';
+    console.error(`Failed to update planner conversation context (${errorName})`);
+    return res.status(500).json({ error: 'Failed to update conversation context' });
+  }
+});
+
+router.post('/planner/conversations/:id/messages', async (req, res) => {
+  const id = req.params.id?.trim();
+
+  if (!id) {
+    return res.status(400).json({ error: 'id must be a non-empty string' });
+  }
+
+  if (!req.body || typeof req.body !== 'object' || Array.isArray(req.body)) {
+    return res.status(400).json({ error: 'body must be an object' });
+  }
+
+  const body = req.body as Record<string, unknown>;
+  const unsupportedFields = Object.keys(body).filter((field) => !['sender', 'text'].includes(field));
+
+  if (unsupportedFields.length > 0) {
+    return res.status(400).json({ error: 'body contains unsupported fields' });
+  }
+
+  if (!isPlannerMessageSender(body.sender)) {
+    return res.status(400).json({ error: 'sender must be user, system, or operator' });
+  }
+
+  if (typeof body.text !== 'string' || body.text.trim().length === 0) {
+    return res.status(400).json({ error: 'text must be a non-empty string' });
+  }
+
+  try {
+    const message = await plannerService.createMessage(id, {
+      sender: body.sender,
+      text: body.text,
+    });
+
+    if (!message) {
+      return res.status(404).json({ error: 'Conversation not found' });
+    }
+
+    return res.status(201).json(message);
+  } catch (error) {
+    const errorName = error instanceof Error ? error.name : 'UnknownError';
+    console.error(`Failed to create planner message (${errorName})`);
+    return res.status(500).json({ error: 'Failed to create message' });
   }
 });
 

@@ -1,81 +1,96 @@
-# DATA_FLOW.md
+# Fluxo de Dados
 
 ## Visão Geral
-Este documento descreve o fluxo de dados entre frontend, backend e operadores do JvitorZ OS.
 
-## Fluxo principal
-1. O frontend inicializa e monta o `dashboard` em `frontend/app.js`.
-2. O dashboard cria a shell de UI usando `createShell()` em `frontend/src/dashboard.js`.
-3. O frontend consome a API principal `GET /api/dashboard` por meio de `createApiClient()`.
-4. O backend processa a requisição no `DashboardService` e suas dependências de módulo.
-5. O backend retorna um objeto JSON que contém dados de canal, analytics, operadores, supervisor e configurações.
-6. O frontend renderiza os módulos do dashboard com base em `dashboardModules` e nos dados retornados.
+O frontend monta o dashboard em `frontend/app.js`, compartilha uma instância de `createApiClient()` e inicializa o controller do Planejador quando o módulo `content-planner` está ativo.
 
-## Componentes de dados do backend
-### DashboardService
-- Orquestra a agregação de dados de vários módulos.
-- Consulta:
-  - `ChannelModule.getChannelSummary()`
-  - `AnalyticsModule.getDashboardAnalytics()`
-  - `OperatorsModule.getOperatorsStatus()`
-  - `SupervisorModule.getSupervisorOverview()`
-  - `SettingsModule.getSettings()`
-- Retorna um payload composto com dados de métricas e status.
+O fluxo persistente do Planejador é:
 
-### Operators API
-- `backend/src/routes/operators.ts` expõe:
-  - `GET /api/operators/planner`
-- O endpoint usa `PlannerModule.getInfo()` para retornar um objeto de teste.
+```text
+Frontend Planner
+  -> frontend/src/api/client.js
+    -> /api/operators/planner/conversations
+      -> PlannerService
+        -> ConversationRepository / MessageRepository
+          -> Prisma Client
+            -> SQLite
+```
 
-## Fluxo de dados do frontend
-### Inicialização
-- `frontend/app.js` chama `createDashboard({ root, apiBaseUrl })`.
-- `frontend/src/dashboard.js` monta o layout e guarda referências dos elementos principais.
+As rotas fazem validação HTTP e delegam ao `PlannerService`. O serviço aplica regras de domínio e usa repositories; não há acesso Prisma direto pelo frontend ou pelas rotas.
 
-### Requisições de API
-- `createApiClient(apiBaseUrl)` define os métodos de chamada ao backend.
-- O dashboard chama `api.getDashboard()` para carregar dados iniciais.
-- Outros módulos podem chamar `api.getOperator('planner')` ou endpoints específicos, conforme necessário.
+## Inicialização do Planner
 
-### Atualização de estado
-- O botão `refreshButton` dispara `loadDashboard()` novamente.
-- O painel de estado `statePanel` mostra mensagens de carregamento, erros e avisos.
-- `hashchange` atualiza o módulo ativo exibido na tela.
+1. `dashboard.js` renderiza o módulo ativo e chama `plannerController.init()`.
+2. O controller chama `GET /api/operators/planner/conversations` para carregar o histórico persistido.
+3. Se o `activeConversationId` em memória ainda existir na lista, ele é reutilizado.
+4. Sem uma conversa ativa válida, o controller escolhe a primeira conversa retornada pelo backend.
+5. Se o histórico estiver vazio, chama `POST /api/operators/planner/conversations` e cria uma conversa automaticamente.
+6. A conversa escolhida é aberta com `GET /api/operators/planner/conversations/:id`.
+7. Mensagens e `context` retornados são renderizados como estado da conversa ativa.
 
-## Fluxo de workspace de operador
-1. Usuário clica em um link de módulo na sidebar.
-2. Se o módulo tiver `fullscreen = true`, `dashboard.js` monta a tela de workspace completa.
-3. O workspace renderiza `workspace-wrap` e o botão `workspaceBack`.
-4. O módulo é exibido em `workspace-module` e o frontend aplica `workspace-fullscreen` na `main.workspace`.
-5. O botão de retorno remove o modo fullscreen e volta ao módulo padrão.
+`activeConversationId` existe somente no controller durante a execução. Ele não é persistido em `localStorage`; após recarregar toda a página, a seleção volta a seguir a ordenação retornada pelo backend.
 
-## Dados e dependências do Planejador de Conteúdo
-- O módulo `planner` recebe `dashboardData` e `context` do frontend.
-- O workspace de planejamento processa dados locais e ações do usuário.
-- Ele pode ser estendido para buscar dados de `/api/operators/planner` e outros serviços do backend.
+## Histórico e Nova Conversa
 
-## Integração com YouTube e autenticação
-- O backend se integra ao Google/YouTube em `backend/src/integrations/`.
-- A autenticação do Google é necessária para obter dados reais do canal e das métricas.
-- `DashboardService` assume que o canal está conectado e retorna `status.youtubeConnected`.
-- Se o usuário não estiver autenticado, o frontend deve exibir aviso e link para conexão.
+- O histórico usa a listagem real da API e preserva sua ordenação.
+- Cada item contém o ID necessário para abrir a conversa e indica visualmente a conversa ativa.
+- O controle **Nova Conversa** chama o endpoint de criação uma única vez enquanto a operação está em andamento.
+- Após sucesso, a conversa criada se torna ativa, a área de mensagens é limpa e o histórico é atualizado.
+- Falhas não criam uma conversa apenas visual nem substituem a conversa ativa.
 
-## Estado atual vs evolução prevista
-### Estado atual
-- `GET /api/dashboard` retorna dados de dashboard básicos.
-- `GET /api/operators/planner` retorna dados de teste do planner.
-- O frontend renderiza dashboard e permite workspace fullscreen para operadores.
+## Troca de Conversa
 
-### Evolução prevista
-- Suporte a operadores adicionais via backend e frontend.
-- Endpoints REST expandidos para cada operador.
-- Fluxo de dados bidirecionais entre frontend, backend e APIs externas.
-- Autenticação e autorização mais robusta para operadores e dados sensíveis.
+1. O usuário seleciona um item do histórico.
+2. O controller solicita a conversa completa por ID.
+3. Somente uma resposta ainda atual pode alterar `activeConversationId`.
+4. As mensagens e o contexto anteriores são substituídos pelos dados da conversa selecionada.
 
-## Diagramas de fluxo sugeridos
-- Frontend → `/api/dashboard` → `DashboardService` → módulos de dados
-- Frontend → `/api/operators/planner` → `PlannerModule`
-- Frontend hash-navegação → renderização de módulo ou workspace fullscreen
+As mensagens de conversas diferentes nunca são combinadas no mesmo painel.
 
-## Conclusão
-O fluxo de dados do JvitorZ OS é simples e modular, com um backend centralizado para agregação de dashboard e um frontend que compõe módulos de UI de forma dinâmica. Esta base permite acrescentar operadores e integrações sem alterar a estrutura de renderização do dashboard.
+## Persistência de Mensagens
+
+1. O usuário envia texto pelo botão ou por `Enter`; `Shift+Enter` permanece disponível para quebra de linha.
+2. O frontend chama `POST /api/operators/planner/conversations/:id/messages` com `sender: "user"` e `text`.
+3. A rota valida o payload e delega a criação ao `PlannerService`.
+4. O serviço confirma que a conversa existe e usa `MessageRepository`.
+5. Prisma grava a mensagem no SQLite.
+6. O frontend acrescenta a mensagem ao chat somente depois da resposta `201`.
+
+Não há resposta automática, IA ou criação implícita de mensagens `system` ou `operator` nesta Sprint.
+
+## Persistência de Contexto
+
+- O editor de Prompt Base representa `Conversation.context` da conversa ativa.
+- Ao abrir ou trocar de conversa, o frontend restaura o valor retornado pela API.
+- Ao perder foco após uma alteração, o editor chama `PATCH /api/operators/planner/conversations/:id/context`.
+- Texto vazio ou somente com espaços limpa o campo, que passa a ser `null`.
+- Se a atualização falhar, o editor restaura o último valor confirmado e não apresenta a alteração como salva.
+- Não existe mais dependência de `localStorage["planner.prompt.base"]`.
+
+## Respostas Assíncronas Obsoletas
+
+O controller usa uma geração de montagem e tokens por operação:
+
+- navegar para outro módulo invalida a montagem anterior;
+- remontar o Planner cria uma nova geração;
+- trocas, criações, envios e atualizações de contexto verificam se sua requisição ainda é atual;
+- mensagens e contextos também verificam o ID da conversa capturado no início da operação.
+
+Respostas antigas são ignoradas silenciosamente e não alteram conversa ativa, mensagens, contexto, histórico ou feedback visual.
+
+## Tratamento Visual de Erros
+
+O Planner possui uma região de status com `role="status"` e `aria-live="polite"`. Ela mostra mensagens curtas para falhas de:
+
+- inicialização;
+- criação de conversa;
+- atualização do histórico;
+- troca de conversa;
+- envio de mensagem;
+- salvamento de contexto.
+
+O feedback não expõe payloads, stack traces ou detalhes internos. Uma ação posterior bem-sucedida limpa a mensagem correspondente.
+
+## Testes do Fluxo
+
+`npm test`, executado em `backend/`, cobre a API real com Prisma e SQLite em memória e o controller frontend com DOM controlado. Os testes não dependem de OAuth, YouTube, rede externa ou `dev.db`.

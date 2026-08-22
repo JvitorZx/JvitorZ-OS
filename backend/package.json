@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "ts-node-dev --respawn --transpile-only src/server.ts",
     "build": "tsc",
+    "test": "npm run build && node --test tests/planner-api.test.cjs ../frontend/tests/planner-controller.test.mjs",
     "start": "node dist/server.js",
     "lint": "eslint . --ext .ts"
   },

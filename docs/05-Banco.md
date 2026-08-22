@@ -1,24 +1,22 @@
 # Banco
 
-Este documento serve como base para a documentação do banco de dados do JvitorZ OS.
+O JvitorZ OS usa Prisma com SQLite no ambiente atual. O Planejador já persiste conversas, mensagens e contexto no banco real.
 
-## Objetivo
+## Documentação relacionada
 
-Descrever o modelo de dados, a arquitetura do banco e os principais elementos de persistência.
+- `DATABASE.md`: tecnologia, conexão, repositories e fluxo de persistência.
+- `DATA_MODEL.md`: campos e responsabilidades das entidades.
+- `ERD.md`: relacionamentos entre as entidades.
+- `04-APIs.md`: contratos HTTP que acessam os dados do Planejador.
 
-## Modelo de Dados
+## Estado atual do Planejador
 
-- Entidades principais
-- Relacionamentos
-- Regras de integridade
+- `Conversation` armazena título, projeto opcional e contexto.
+- `Message` armazena mensagens vinculadas à conversa.
+- `PlannerService` coordena `ConversationRepository` e `MessageRepository`.
+- Prisma grava os dados no SQLite.
+- Os testes automatizados usam SQLite em memória e não alteram `dev.db`.
 
-## Configuração
+## Evolução
 
-- Tipos de banco suportados
-- Conexão e variáveis de ambiente
-- Backup e recuperação
-
-## Observações
-
-- Estrutura futura de tabelas
-- Regras de migrações
+Migração futura para PostgreSQL, backup e recuperação permanecem fora da Sprint 13.
