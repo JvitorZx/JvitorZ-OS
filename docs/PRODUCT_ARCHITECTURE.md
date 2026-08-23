@@ -53,6 +53,7 @@ JvitorZ OS
 - Conjunto de ferramentas especializadas para criação, planejamento e automação.
 - Atualmente há um `Planejador de Conteúdo` funcional e um módulo de listagem `Operadores`.
 - A visão de operadores deve evoluir para incluir todos os itens da lista acima.
+- A página Operadores atua como catálogo; a sidebar e o hash formam a navegação principal das ferramentas realmente disponíveis.
 
 ### Configurações
 - Módulo de ajustes do sistema e das integrações.
@@ -95,6 +96,30 @@ Os itens abaixo são parte da visão futura da plataforma e devem reaproveitar a
 - Longos
 - SEO
 - Automações
+
+## Workspace e ciclo de vida dos operadores
+
+A Sprint 14 concluiu a estabilização desta camada. Módulos interativos podem declarar o contrato:
+
+```js
+module.createController(context) => ({
+  mount(container, context),
+  unmount(),
+})
+```
+
+- a sidebar permanece disponível e é o mecanismo principal para entrar e sair das workspaces;
+- módulos navegáveis são registrados em um catálogo único e resolvidos pela rota em hash;
+- hash ausente ou inválido é normalizado para `#channel` sem duplicar o lifecycle;
+- cada módulo mantém sua função de renderização e pode associar um controller com montagem e desmontagem explícitas;
+- o Dashboard coordena o ciclo de vida sem conhecer detalhes do Planejador ou de qualquer operador específico;
+- a desmontagem ocorre antes da substituição do DOM e a montagem ocorre uma única vez depois da renderização;
+- workspaces fullscreen usam um contêiner compartilhado e não dependem de botão `Voltar`;
+- a página Operadores lista ferramentas, mas apenas itens com módulo registrado iniciam navegação;
+- operadores indisponíveis permanecem no catálogo com status não interativo e sem produzir hash;
+- o `statePanel` pertence ao estado global do Dashboard; feedback de execução e erro pertence à workspace do operador.
+
+O Planejador é a referência de regressão desse contrato: persistência, histórico, Nova Conversa, troca de conversas, mensagens, contexto, feedback local, listeners únicos e proteção contra respostas obsoletas permanecem funcionais após montagens e desmontagens.
 
 ## Backend e integração
 ### Backend API

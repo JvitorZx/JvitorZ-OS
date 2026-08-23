@@ -46,6 +46,11 @@ class FakeElement {
     this.listeners.set(type, listeners);
   }
 
+  removeEventListener(type, listener) {
+    const listeners = this.listeners.get(type) ?? [];
+    this.listeners.set(type, listeners.filter((current) => current !== listener));
+  }
+
   dispatch(type, event = {}) {
     const payload = {
       target: this,
@@ -197,9 +202,13 @@ const createPlannerDom = () => {
   const historyList = new FakeElement('div');
   const newConversationBtn = new FakeElement('button');
   const feedback = new FakeElement('div');
+  const globalStatePanel = new FakeElement('section');
   feedback.hidden = true;
+  globalStatePanel.textContent = 'Estado global preservado';
+  globalStatePanel.hidden = false;
 
   root.selectorMap.set('.planner-panel', panel);
+  root.selectorMap.set('#statePanel', globalStatePanel);
   panel.selectorMap.set('[data-chat-body]', chatBody);
   panel.selectorMap.set('.fixed-input-send', sendBtn);
   panel.selectorMap.set('.fixed-input-textarea', textarea);
@@ -218,13 +227,14 @@ const createPlannerDom = () => {
     historyList,
     newConversationBtn,
     feedback,
+    globalStatePanel,
   };
 };
 
 const mount = async (api) => {
   const controller = createPlannerController({ api });
   const dom = createPlannerDom();
-  controller.init(dom.root, plannerModule.id);
+  controller.mount(dom.root);
   await flush();
   return { controller, dom };
 };
@@ -301,8 +311,8 @@ test('sends each message once and keeps one listener per action', async () => {
   const api = createMemoryApi([conversation('A')]);
   const controller = createPlannerController({ api });
   const dom = createPlannerDom();
-  controller.init(dom.root, plannerModule.id);
-  controller.init(dom.root, plannerModule.id);
+  controller.mount(dom.root);
+  controller.mount(dom.root);
   await flush();
 
   dom.textarea.value = 'Mensagem única';
@@ -363,6 +373,8 @@ test('does not show false state after API errors and clears feedback after retry
     assert.equal(dom.chatBody.children.length, 0);
     assert.equal(dom.textarea.value, 'Mensagem não persistida');
     assert.match(dom.feedback.textContent, /enviar a mensagem/);
+    assert.equal(dom.globalStatePanel.textContent, 'Estado global preservado');
+    assert.equal(dom.globalStatePanel.hidden, false);
 
     dom.sendBtn.click();
     await flush();
@@ -377,6 +389,15 @@ test('does not show false state after API errors and clears feedback after retry
     assert.equal(dom.promptBase.getAttribute('aria-invalid'), 'true');
     assert.match(dom.feedback.textContent, /salvar o contexto/);
   });
+});
+
+test('Planner exposes an accessible local feedback channel without statePanel', () => {
+  const markup = plannerModule.render();
+
+  assert.match(markup, /data-planner-feedback/);
+  assert.match(markup, /role="status"/);
+  assert.match(markup, /aria-live="polite"/);
+  assert.doesNotMatch(markup, /statePanel/);
 });
 
 test('ignores stale conversation responses resolved out of order', async () => {
@@ -436,8 +457,8 @@ test('ignores initialization, creation and message responses from old mounts', a
   api.listConversations = () => list.promise;
   const controller = createPlannerController({ api });
   const firstDom = createPlannerDom();
-  controller.init(firstDom.root, plannerModule.id);
-  controller.init(new FakeElement('main'), 'channel');
+  controller.mount(firstDom.root);
+  controller.unmount();
   list.resolve([conversation('A')]);
   await flush();
   assert.equal(firstDom.historyList.children.length, 0);
@@ -447,10 +468,10 @@ test('ignores initialization, creation and message responses from old mounts', a
   api.getConversation = async () => conversation('A');
   api.createConversation = () => create.promise;
   const secondDom = createPlannerDom();
-  controller.init(secondDom.root, plannerModule.id);
+  controller.mount(secondDom.root);
   await flush();
   secondDom.newConversationBtn.click();
-  controller.init(new FakeElement('main'), 'channel');
+  controller.unmount();
   create.resolve(conversation('late-new'));
   await flush();
   assert.equal(secondDom.historyList.children.length, 1);
@@ -458,16 +479,16 @@ test('ignores initialization, creation and message responses from old mounts', a
   const send = deferred();
   api.createMessage = () => send.promise;
   const thirdDom = createPlannerDom();
-  controller.init(thirdDom.root, plannerModule.id);
+  controller.mount(thirdDom.root);
   await flush();
   thirdDom.textarea.value = 'Mensagem tardia';
   thirdDom.sendBtn.click();
-  controller.init(new FakeElement('main'), 'channel');
+  controller.unmount();
 
   api.listConversations = async () => [conversation('B', { context: 'Contexto B' })];
   api.getConversation = async () => conversation('B', { context: 'Contexto B' });
   const currentDom = createPlannerDom();
-  controller.init(currentDom.root, plannerModule.id);
+  controller.mount(currentDom.root);
   await flush();
 
   send.resolve(message('late-message', 'A', 'Mensagem tardia'));
@@ -475,4 +496,47 @@ test('ignores initialization, creation and message responses from old mounts', a
   assert.equal(thirdDom.chatBody.children.length, 0);
   assert.equal(currentDom.chatBody.children.length, 0);
   assert.equal(currentDom.promptBase.textContent, 'Contexto B');
+});
+
+test('preserves persisted Planner state and unique listeners after leaving and returning', async () => {
+  const persisted = conversation('A', {
+    context: 'Contexto persistido',
+    messages: [message('M1', 'A', 'Mensagem persistida')],
+  });
+  const api = createMemoryApi([persisted]);
+  const controller = createPlannerController({ api });
+  const firstDom = createPlannerDom();
+
+  controller.mount(firstDom.root);
+  await flush();
+  controller.unmount();
+
+  assert.equal(firstDom.sendBtn.listeners.get('click').length, 0);
+  assert.equal(firstDom.newConversationBtn.listeners.get('click').length, 0);
+  assert.equal(firstDom.historyList.listeners.get('click').length, 0);
+  assert.equal(firstDom.textarea.listeners.get('keydown').length, 0);
+  assert.equal(firstDom.promptBase.listeners.get('blur').length, 0);
+
+  const secondDom = createPlannerDom();
+  controller.mount(secondDom.root);
+  controller.mount(secondDom.root);
+  await flush();
+
+  assert.equal(secondDom.historyList.children.length, 1);
+  assert.equal(secondDom.promptBase.textContent, 'Contexto persistido');
+  assert.equal(secondDom.chatBody.children.length, 1);
+  assert.equal(secondDom.chatBody.children[0].dataset.id, 'M1');
+  assert.equal(secondDom.sendBtn.listeners.get('click').length, 1);
+  assert.equal(secondDom.newConversationBtn.listeners.get('click').length, 1);
+  assert.equal(secondDom.historyList.listeners.get('click').length, 1);
+  assert.equal(secondDom.textarea.listeners.get('keydown').length, 1);
+  assert.equal(secondDom.promptBase.listeners.get('blur').length, 1);
+
+  secondDom.textarea.value = 'Mensagem depois da volta';
+  secondDom.sendBtn.click();
+  await flush();
+
+  assert.equal(api.calls.createMessage, 1);
+  assert.equal(secondDom.chatBody.children.length, 2);
+  assert.equal(firstDom.chatBody.children.length, 1);
 });

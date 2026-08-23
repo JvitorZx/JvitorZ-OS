@@ -3,25 +3,38 @@
 ## Visão geral
 Esta revisão analisa a experiência atual do dashboard e da workspace do Planejador de Conteúdo, focando em navegação, consistência visual e oportunidades de simplificação.
 
+## Atualização após a Sprint 14
+
+Os achados estruturais desta revisão são mantidos abaixo como registro histórico. A Sprint 14 concluiu:
+
+- sidebar e hash como navegação oficial, com fallback para `#channel`;
+- remoção do botão `Voltar` e do `workspace-back`;
+- workspace fullscreen compartilhada para operadores;
+- lifecycle genérico com montagem e desmontagem explícitas;
+- página Operadores como catálogo seguro, sem links para módulos inexistentes;
+- `statePanel` restrito a estados globais e feedback local sob responsabilidade de cada operador.
+
+As recomendações de redesign, breadcrumb, refinamento visual, responsividade e reorganização ampla de componentes permanecem no backlog.
+
 ## Pontos positivos
 - Arquitetura modular clara: o frontend já separa módulos (`dashboard`, `planner`, `operators`, `settings`, `supervisor`) e usa renderização baseada em módulos.
 - Navegação baseada em hash simples e previsível (`#channel`, `#analytics`, `#content-planner`), o que facilita o comportamento SPA sem recarregar a página.
 - Sidebar fixa e bem posicionada à esquerda, servindo como âncora principal da navegação.
 - Aparência dark já consistente no dashboard principal, com sistema de cards e painéis que transmite identidade visual.
 - O Planejador de Conteúdo já foi convertido em workspace full‑screen, o que é um bom ponto para uma experiência de editor/operator.
-- Componentização inicial no `frontend/src/components.js` fornece uma base reutilizável para `createPanel`, `createChatMessage`, `createSidebarSection` e `createFixedInput`.
+- O design system em `frontend/src/design-system/` fornece uma base reutilizável para painéis, chat, sidebar, input e workspace.
 
 ## Problemas encontrados
 ### 1. Navegação e fluxo do usuário
-- O botão `Voltar` aparece como solução temporária e confunde o fluxo principal; o usuário final espera usar a sidebar para alternar entre visões.
-- O hash `#content-planner` abre a workspace em full screen, mas não há indicação clara de retorno à vista principal além do botão `Voltar`.
-- O módulo `Operadores` apresenta links redundantes para operadores que também estão acessíveis diretamente via sidebar; isso pode gerar duplicidade de navegação.
-- A sidebar do dashboard ainda mostra todos os módulos mesmo quando um operador em fullscreen está ativo; isso pode criar expectativa de navegação parcial mas não total.
+- Resolvido na Sprint 14: a sidebar e o hash são a navegação oficial, sem botão de retorno dentro da workspace.
+- Resolvido na Sprint 14: hash ausente ou inválido é normalizado para `#channel`.
+- Resolvido na Sprint 14: Operadores é um catálogo e somente ferramentas com módulo registrado geram links.
+- A sidebar permanece visível em fullscreen por decisão arquitetural, permitindo trocar ou sair de operadores.
 
 ### 2. Elementos redundantes ou em conflito
-- O `statePanel` de status do dashboard ainda é renderizado em workspace full screen, mas em modo workspace ele não possui uso claro além de mensagens de carregamento/erro.
-- O `workspace-back` é um elemento de desenvolvimento que precisa ser removido ou substituído por navegação de sidebar mais natural.
-- A listagem dos operadores dentro de `Operadores` repete o mesmo destino de navegação que já existe na sidebar, criando redundância de caminhos.
+- Resolvido na Sprint 14: `statePanel` possui escopo global; feedback de operadores permanece local.
+- Resolvido na Sprint 14: o elemento `workspace-back` foi removido.
+- Resolvido na Sprint 14: a listagem Operadores tem papel explícito de catálogo seguro.
 - A área principal do Planejador está encapsulada dentro de um `createPanel` e dentro de `workspace-wrap`; essa hierarquia pode ser simplificada para reduzir wrappers visuais.
 
 ### 3. Componentes que podem ser unificados
@@ -38,17 +51,16 @@ Esta revisão analisa a experiência atual do dashboard e da workspace do Planej
 - A altura do chat (`height: calc(100vh - 220px)`) e o tratamento de `workspace-module` criam diferenças de espaço em relação a outros módulos do dashboard.
 
 ### 5. Oportunidades de simplificação
-- Centralizar a navegação apenas na sidebar e remover o botão `Voltar` na experiência final.
-- Fundir `Operators` e o próprio item de operador em uma única navegação, evitando duas formas de acessar o mesmo recurso.
+- Concluído na Sprint 14: navegação centralizada na sidebar e no hash.
+- Avaliar futuramente se o catálogo Operadores e os atalhos da sidebar devem ser consolidados visualmente.
 - Tornar a workspace uma experiência mais limpa, reduzindo wrappers extras e deixando apenas `header + body` na tela.
 - Reutilizar menos HTML manual e mais componentes de alto nível para `header`, `chat`, `sidebar`, `prompt` e `input`.
 - Limitar o uso de classes específicas do planner e preferir classes genéricas de workspace para permitir que outros operadores reutilizem o mesmo layout.
 
 ## Sugestões de melhoria
 ### Navegação
-- Remover ou ocultar o botão `Voltar` em versões de usuário. A navegação deve ser feita exclusivamente pela sidebar através de módulos e submódulos.
 - Se necessário, introduzir breadcrumb leve ou título de contexto no workspace para mostrar ao usuário onde está.
-- Consolidar o módulo `Operadores` com o item específico `Planejador de Conteúdo`, evitando dois caminhos diferentes para o mesmo destino.
+- Avaliar em sprint futura a consolidação visual entre catálogo e atalhos da sidebar.
 
 ### Componentização
 - Criar um conjunto de componentes de workspace verdadeiramente reutilizáveis, por exemplo:
@@ -72,13 +84,11 @@ Esta revisão analisa a experiência atual do dashboard e da workspace do Planej
 - Remover wrappers duplicados como `workspace-wrap` quando não agregarem valor visual.
 - Usar classes utilitárias genéricas de layout para dividir a tela em áreas reutilizáveis.
 
-## Recomendações para a próxima sprint
-- Priorizar a extração de componentes de workspace em `frontend/src/components.js`, não apenas para o Planejador, mas para qualquer operador futuro.
-- Revisar a navegação de hash e garantir que a sidebar seja a única forma de navegação no produto final.
-- Remover o botão `Voltar` após estabilizar a navegação e substituir sua função por navegação de sidebar ou breadcrumb.
+## Recomendações mantidas no backlog
+- Evoluir componentes de workspace em `frontend/src/design-system/` somente quando houver uso concreto.
 - Uniformizar a UI do planner em um sistema de design escuro único, com painéis e input reutilizáveis.
-- Avaliar se o módulo `Operadores` deve existir como página separada ou ser convertido em um índice/atalho dentro da sidebar para evitar redundância.
-- Ajustar o `statePanel` para uso somente em mensagens de status global, não em workspace local.
+- Avaliar futuramente se o módulo Operadores deve permanecer como página separada.
+- Considerar breadcrumb, refinamentos responsivos e testes em navegador real.
 
 ## Conclusão
-A interface atual já possui boa base modular e navegação SPA simples, mas precisa de estabilização na experiência do usuário final. A próxima fase deve focar em unificar componentes de workspace, reduzir caminhos redundantes de navegação e estabilizar a aparência do Planjador de Conteúdo com o tema dark existente.
+A Sprint 14 concluiu a estabilização estrutural da navegação, workspace e lifecycle. Os pontos restantes desta revisão são melhorias visuais e de organização que não bloqueiam a adição de novos operadores.

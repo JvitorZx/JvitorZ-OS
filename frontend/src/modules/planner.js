@@ -4,7 +4,9 @@ export const plannerModule = {
   id: 'content-planner',
   fullscreen: true,
   label: 'Planejador de Conteúdo',
-  fullscreen: true,
+  createController(context) {
+    return createPlannerController(context);
+  },
   render() {
     const header = createOperatorHeader({ title: 'Planejador de Conteúdo', subtitle: 'Organize ideias, pautas e próximas publicações.', status: 'Pronto' });
     const chat = createChatArea();
@@ -52,6 +54,7 @@ export const createPlannerController = ({ api }) => {
   let conversationCreationPromise = null;
   let mountGeneration = 0;
   let mountedPanel = null;
+  let removeMountedListeners = null;
 
   const createConversationOnce = async () => {
     if (!conversationCreationPromise) {
@@ -65,25 +68,22 @@ export const createPlannerController = ({ api }) => {
     return conversationCreationPromise;
   };
 
-  const init = (root = document, activeModuleId = null) => {
-    if (activeModuleId !== plannerModule.id) {
-      if (mountedPanel) {
-        mountedPanel = null;
-        mountGeneration += 1;
-      }
-      return;
-    }
+  const unmount = () => {
+    if (!mountedPanel) return;
 
+    removeMountedListeners?.();
+    removeMountedListeners = null;
+    mountedPanel = null;
+    mountGeneration += 1;
+  };
+
+  const mount = (root = document) => {
     const panel = root.querySelector('.planner-panel');
-    if (!panel) {
-      if (mountedPanel) {
-        mountedPanel = null;
-        mountGeneration += 1;
-      }
-      return;
-    }
+    if (!panel) return;
 
     if (panel === mountedPanel && panel.dataset.plannerInitialized === 'true') return;
+
+    unmount();
 
     const mountToken = ++mountGeneration;
     mountedPanel = panel;
@@ -373,22 +373,20 @@ export const createPlannerController = ({ api }) => {
       }
     };
 
-    sendBtn.addEventListener('click', sendMessage);
-    newConversationBtn.addEventListener('click', createNewConversation);
-    historyList.addEventListener('click', (event) => {
+    const handleHistoryClick = (event) => {
       const item = event.target?.closest?.('[data-conversation-id]');
       const conversationId = item?.dataset?.conversationId;
       if (conversationId) selectConversation(conversationId);
-    });
+    };
 
-    textarea.addEventListener('keydown', (event) => {
+    const handleTextareaKeydown = (event) => {
       if (event.key === 'Enter' && !event.shiftKey) {
         event.preventDefault();
         sendBtn.click();
       }
-    });
+    };
 
-    promptBase.addEventListener('blur', async () => {
+    const saveContext = async () => {
       const conversationId = activeConversationId;
       if (!conversationId) return;
 
@@ -421,8 +419,22 @@ export const createPlannerController = ({ api }) => {
           error_name: getSafeErrorName(error),
         });
       }
-    });
+    };
+
+    sendBtn.addEventListener('click', sendMessage);
+    newConversationBtn.addEventListener('click', createNewConversation);
+    historyList.addEventListener('click', handleHistoryClick);
+    textarea.addEventListener('keydown', handleTextareaKeydown);
+    promptBase.addEventListener('blur', saveContext);
+
+    removeMountedListeners = () => {
+      sendBtn.removeEventListener('click', sendMessage);
+      newConversationBtn.removeEventListener('click', createNewConversation);
+      historyList.removeEventListener('click', handleHistoryClick);
+      textarea.removeEventListener('keydown', handleTextareaKeydown);
+      promptBase.removeEventListener('blur', saveContext);
+    };
   };
 
-  return { init };
+  return { mount, unmount };
 };

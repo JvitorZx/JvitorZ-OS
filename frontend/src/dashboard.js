@@ -1,6 +1,7 @@
 import { createApiClient } from './api/client.js';
-import { createIcon, html } from './design-system/index.js';
+import { createFullscreenWorkspace, createIcon, html } from './design-system/index.js';
 import { dashboardModules } from './modules/index.js';
+import { createModuleLifecycle } from './modules/lifecycle.js';
 
 const createShell = (modules) => html`
   <aside class="sidebar" aria-label="Navegacao principal">
@@ -43,7 +44,15 @@ const createShell = (modules) => html`
       </button>
     </header>
 
-    <section id="statePanel" class="state-panel" hidden></section>
+    <section
+      id="statePanel"
+      class="state-panel"
+      data-state-scope="global"
+      role="status"
+      aria-live="polite"
+      aria-atomic="true"
+      hidden
+    ></section>
     <section id="moduleHost" class="module-grid"></section>
   </main>
 `;
@@ -52,28 +61,32 @@ export const createDashboard = ({
   root,
   apiBaseUrl,
   api = createApiClient(apiBaseUrl),
-  onModulesRendered = () => {},
+  modules = dashboardModules,
 }) => {
   if (!root) {
     throw new Error('Dashboard root element not found');
   }
 
-  const context = { apiBaseUrl };
+  const context = { apiBaseUrl, api, modules };
   let dashboardData = {};
+  let activeModule = null;
+  const lifecycles = new Map(
+    modules.map((module) => [module.id, createModuleLifecycle(module, context)]),
+  );
 
-  root.innerHTML = createShell(dashboardModules);
+  root.innerHTML = createShell(modules);
 
   const elements = {
-    statePanel: root.querySelector('#statePanel'),
+    globalStatePanel: root.querySelector('#statePanel'),
     moduleHost: root.querySelector('#moduleHost'),
     refreshButton: root.querySelector('#refreshButton'),
     navLinks: root.querySelectorAll('[data-module-link]'),
   };
 
-  const setState = (message, variant = 'info') => {
-    elements.statePanel.hidden = !message;
-    elements.statePanel.className = `state-panel ${variant}`;
-    elements.statePanel.innerHTML = message || '';
+  const setGlobalState = (message, variant = 'info') => {
+    elements.globalStatePanel.hidden = !message;
+    elements.globalStatePanel.className = `state-panel ${variant}`;
+    elements.globalStatePanel.innerHTML = message || '';
   };
 
   const setLoading = (isLoading) => {
@@ -82,7 +95,7 @@ export const createDashboard = ({
   };
 
   const renderModules = () =>
-    dashboardModules
+    modules
       .map(
         (module) => html`
           <section id="${module.id}" class="module-section">
@@ -92,72 +105,87 @@ export const createDashboard = ({
       )
       .join('');
 
-  const setModuleContent = (content, activeModuleId = null) => {
+  const setModuleContent = (content) => {
     elements.moduleHost.innerHTML = content;
-    onModulesRendered(elements.moduleHost, activeModuleId);
   };
 
-  const setActiveModule = (moduleId) => {
-    const activeModule = dashboardModules.find((module) => module.id === moduleId) ?? dashboardModules[0];
+  const unmountActiveModule = () => {
+    if (!activeModule) return;
+
+    lifecycles.get(activeModule.id)?.unmount();
+    activeModule = null;
+  };
+
+  const setActiveModule = (moduleId, { rerender = false } = {}) => {
+    const nextModule = modules.find((module) => module.id === moduleId) ?? modules[0];
+    if (activeModule?.id === nextModule.id && !rerender) return;
+
+    unmountActiveModule();
 
     elements.navLinks.forEach((link) => {
-      link.classList.toggle('active', link.dataset.moduleLink === activeModule.id);
+      link.classList.toggle('active', link.dataset.moduleLink === nextModule.id);
     });
 
     // If module requests fullscreen workspace view, replace main content
-    if (activeModule.fullscreen) {
-      setModuleContent(html`
-        <div class="workspace-wrap">
-          <button id="workspaceBack" class="workspace-back" type="button">← Voltar</button>
-          <section id="${activeModule.id}" class="module-section workspace-module">
-            ${activeModule.render(dashboardData, context)}
-          </section>
-        </div>
-      `, activeModule.id);
+    if (nextModule.fullscreen) {
+      setModuleContent(createFullscreenWorkspace({
+        moduleId: nextModule.id,
+        content: nextModule.render(dashboardData, context),
+      }));
 
       // mark workspace mode on the main workspace element
       const workspaceMain = root.querySelector('.workspace');
       if (workspaceMain) workspaceMain.classList.add('workspace-fullscreen');
 
-      const backBtn = root.querySelector('#workspaceBack');
-      if (backBtn) {
-        backBtn.addEventListener('click', () => {
-          // remove workspace mode and return to default dashboard view (first module)
-          if (workspaceMain) workspaceMain.classList.remove('workspace-fullscreen');
-          window.location.hash = dashboardModules[0].id;
-        });
-      }
-
       // ensure focus/scroll to top of module
-      const targetSection = root.querySelector(`#${activeModule.id}`);
+      const targetSection = root.querySelector(`#${nextModule.id}`);
+      activeModule = nextModule;
+      lifecycles.get(nextModule.id)?.mount(targetSection);
       if (targetSection) targetSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
       return;
     }
 
-    let targetSection = root.querySelector(`#${activeModule.id}`);
+    let targetSection = rerender ? null : root.querySelector(`#${nextModule.id}`);
 
     if (!targetSection) {
       setModuleContent(renderModules());
-      targetSection = root.querySelector(`#${activeModule.id}`);
+      targetSection = root.querySelector(`#${nextModule.id}`);
     }
 
     if (targetSection) {
       // ensure non-fullscreen modules remove workspace fullscreen class
       const workspaceMain = root.querySelector('.workspace');
       if (workspaceMain) workspaceMain.classList.remove('workspace-fullscreen');
+      activeModule = nextModule;
+      lifecycles.get(nextModule.id)?.mount(targetSection);
       targetSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
   };
 
+  const activateModuleFromHash = (options) => {
+    const requestedModuleId = window.location.hash.replace('#', '');
+    const requestedModule = modules.find((module) => module.id === requestedModuleId);
+
+    if (!requestedModule) {
+      const defaultHash = `#${modules[0].id}`;
+      if (window.location.hash !== defaultHash) {
+        window.location.hash = defaultHash;
+        return;
+      }
+    }
+
+    setActiveModule(requestedModule?.id ?? modules[0].id, options);
+  };
+
   const loadDashboard = async () => {
     setLoading(true);
-    setState('Carregando dados do dashboard...');
+    setGlobalState('Carregando dados do dashboard...');
 
     try {
       const data = await api.getDashboard();
 
       if (data.unauthorized) {
-        setState(`Google OAuth ainda nao conectado. <a href="${data.authUrl}">Conectar agora</a>.`, 'warning');
+        setGlobalState(`Google OAuth ainda nao conectado. <a href="${data.authUrl}">Conectar agora</a>.`, 'warning');
         dashboardData = {
           status: {
             youtubeConnected: false,
@@ -167,13 +195,14 @@ export const createDashboard = ({
         };
       } else {
         dashboardData = data;
-        setState('');
+        setGlobalState('');
       }
 
-      setModuleContent(renderModules());
-      setActiveModule(window.location.hash.replace('#', '') || dashboardModules[0].id);
+      activateModuleFromHash({
+        rerender: true,
+      });
     } catch (error) {
-      setState(`Nao foi possivel carregar o dashboard: ${error.message}`, 'error');
+      setGlobalState(`Nao foi possivel carregar o dashboard: ${error.message}`, 'error');
     } finally {
       setLoading(false);
     }
@@ -182,7 +211,7 @@ export const createDashboard = ({
   elements.refreshButton.addEventListener('click', loadDashboard);
 
   window.addEventListener('hashchange', () => {
-    setActiveModule(window.location.hash.replace('#', '') || dashboardModules[0].id);
+    activateModuleFromHash();
   });
 
   loadDashboard();
