@@ -122,3 +122,128 @@ A Sprint trata apenas de mudanças estruturais e funcionais necessárias à evol
 ### Resultado
 
 A Sprint 14 estabiliza a base de navegação e lifecycle necessária para adicionar operadores futuros sem condições específicas no Dashboard. Nenhuma feature de operador ou redesign visual foi incluído.
+
+## Sprint 15 — Primeira Resposta Inteligente do Planejador
+
+**Status: CONCLUÍDA**
+
+**Fase principal: FASE 5 - OpenAI**
+
+**Aplicação: primeiro operador funcional da FASE 7 - Primeiro Operador.**
+
+### Objetivo
+
+Permitir que o Planner gere e persista uma resposta de IA baseada no contexto e no histórico da conversa, transformando o Planner de chat persistente em operador inteligente funcional.
+
+### Problema que resolve
+
+Antes desta Sprint, o Planner persistia conversas, mensagens e contexto, mas não produzia uma resposta inteligente. A entrega conecta essa base a um provider de linguagem sem acoplar o domínio ao SDK da OpenAI e sem tornar a inicialização do sistema dependente de credenciais de IA.
+
+### Escopo obrigatório
+
+1. **Provider de linguagem desacoplado**
+   - definir contrato injetável e neutro em relação ao fornecedor;
+   - manter o `PlannerService` independente do SDK OpenAI;
+   - permitir testes determinísticos com provider fake e sem rede.
+2. **Entrada da IA**
+   - construir a entrada com `Conversation.context`;
+   - incluir mensagens persistidas em ordem cronológica;
+   - incluir a mensagem atual somente depois de sua persistência.
+3. **Limites básicos**
+   - limitar o contexto a 4.000 caracteres;
+   - limitar o histórico às 30 mensagens mais recentes e a 16.000 caracteres;
+   - limitar a saída a 4.000 caracteres, convertidos conservadoramente em até 1.000 tokens para a OpenAI;
+   - manter o modelo configurável fora da interface do usuário;
+   - evitar custo e payload desnecessários.
+4. **PlannerService**
+   - validar a existência da conversa;
+   - carregar contexto e histórico;
+   - chamar o provider injetado;
+   - persistir a resposta com `sender: "operator"`;
+   - retornar somente a mensagem persistida.
+5. **Adapter OpenAI**
+   - usar o SDK oficial e a Responses API;
+   - carregar configuração e chave de ambiente de forma lazy;
+   - ler `OPENAI_API_KEY` e `OPENAI_MODEL` do ambiente, com fallback `gpt-5-mini`;
+   - permitir que o sistema inicie sem a chave configurada;
+   - não registrar chave, prompt completo, resposta completa ou payload sensível.
+6. **API**
+   - expor `POST /api/operators/planner/conversations/:id/reply` para solicitar a próxima resposta inteligente de uma conversa existente.
+7. **Frontend**
+   - solicitar exatamente uma resposta depois de persistir a mensagem do usuário;
+   - renderizar a resposta somente depois de sua persistência;
+   - impedir duplicação;
+   - preservar a mensagem do usuário quando a IA falhar;
+   - manter o feedback de erro local ao Planner.
+8. **Concorrência**
+   - ignorar na UI respostas tardias depois de troca de conversa, navegação ou `unmount`;
+   - preservar as proteções existentes contra respostas assíncronas obsoletas.
+9. **Testes**
+   - usar provider fake, sem chamada real à OpenAI ou outra rede externa;
+   - usar banco isolado, sem alterar `dev.db`;
+   - preservar a regressão das Sprints 13 e 14 dentro da suíte completa de 104 testes.
+
+### Fora de escopo
+
+- streaming;
+- escolha de modelo pela UI;
+- múltiplos providers;
+- títulos automáticos;
+- RAG e Biblioteca;
+- dados do YouTube no prompt;
+- tools/function calling;
+- n8n e automações;
+- regeneração de resposta;
+- edição ou ramificação de mensagens;
+- novos operadores;
+- redesign;
+- testes em navegador real.
+
+### Critérios de conclusão
+
+- uma mensagem `user` persistida gera exatamente uma mensagem `operator` persistida;
+- `Conversation.context` e o histórico cronológico corretos são enviados ao provider;
+- a resposta `operator` é persistida no SQLite e sobrevive a reload e troca de conversa;
+- mensagens e respostas permanecem isoladas entre conversas;
+- chave ausente ou configuração inválida da IA não impede o startup do sistema;
+- falha do provider não cria mensagem ou sucesso visual falso;
+- respostas obsoletas não alteram a conversa exibida;
+- chaves, prompts completos, respostas completas e payloads sensíveis não aparecem em logs;
+- testes são determinísticos, sem rede externa e sem uso de `dev.db`;
+- suíte completa, build, sintaxe do frontend e `git diff --check` passam;
+- contratos HTTP e documentação refletem o fluxo entregue.
+
+### Tarefas concluídas
+
+1. contrato do provider e mapeamento da entrada;
+2. geração no `PlannerService` com provider fake;
+3. adapter OpenAI, configuração lazy e limites;
+4. endpoint de geração;
+5. API client do frontend;
+6. integração com o controller do Planner;
+7. testes de concorrência, falhas e regressão;
+8. documentação e contratos finais.
+
+### Entregas
+
+- contrato neutro e injetável `LanguageProvider`;
+- entrada neutra com contexto, histórico cronológico, roles e limites;
+- `PlannerService.generateReply()` desacoplado do SDK externo;
+- persistência da resposta gerada com `sender: "operator"`;
+- `OpenAILanguageProvider` com SDK oficial, Responses API e configuração lazy;
+- configuração por `OPENAI_API_KEY` e `OPENAI_MODEL`, com fallback `gpt-5-mini`;
+- endpoint `/reply` com respostas seguras para sucesso, validação, ausência de conversa, indisponibilidade e falha do provider;
+- integração frontend/backend após a persistência da mensagem `user`;
+- bloqueio de geração concorrente, listeners únicos e proteção contra respostas obsoletas;
+- feedback de erro local ao Planner, sem alterar o `statePanel` global;
+- 104 testes automatizados determinísticos, sem rede externa e sem uso de `dev.db`.
+
+### Validação externa pendente — não bloqueadora
+
+> Executar smoke test manual com `OPENAI_API_KEY` válida para confirmar uma chamada real HTTP 201 e resposta `operator` produzida pela API OpenAI.
+
+O smoke test não bloqueia a conclusão da Sprint: o adapter possui cobertura determinística com client injetável, o startup sem chave foi validado e `/reply` retorna `503` seguro quando a configuração não está disponível. A suíte automatizada não depende de chave nem de rede.
+
+### Resultado
+
+A Sprint 15 transforma o Planner persistente no primeiro operador inteligente funcional do produto. A resposta só chega ao frontend depois de persistida, falhas preservam a mensagem do usuário e nenhuma credencial ou payload sensível é exposto.

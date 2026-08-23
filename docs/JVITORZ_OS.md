@@ -70,9 +70,9 @@ JvitorZ OS
 
 #### Planejador de Conteúdo
 - Objetivo: organizar ideias, pautas e próximos conteúdos em uma workspace de planejamento.
-- Responsabilidade: oferecer chat, histórico, biblioteca de apoio e prompt base editável.
+- Responsabilidade: oferecer chat persistente, histórico, biblioteca de apoio, prompt base editável e resposta inteligente baseada no contexto da conversa.
 - Dados consumidos: histórico, mensagens e contexto de conversas carregados pela API do Planejador.
-- Dados produzidos: conversas, mensagens e prompt-base persistidos no SQLite por meio do backend.
+- Dados produzidos: conversas, mensagens de usuário, respostas `operator` e prompt-base persistidos no SQLite por meio do backend.
 - Componentes reutilizados: `createChatArea`, `createSidebar`, `createPanel` e os controles do chat.
 - Integrações futuras: geração de roteiros, importação de pautas, sugestões de títulos e integração com calendário.
 

@@ -1,10 +1,21 @@
 import { Router } from 'express';
 import { PlannerModule } from '../modules/planner/PlannerModule';
-import { isPlannerMessageSender, PlannerService } from '../services/PlannerService';
+import {
+  isPlannerMessageSender,
+  PlannerLanguageGenerationError,
+  PlannerLanguageProviderUnavailableError,
+  PlannerService,
+} from '../services/PlannerService';
+import { OpenAILanguageProvider } from '../services/language/OpenAILanguageProvider';
 
-const router = Router();
-const planner = new PlannerModule();
-const plannerService = new PlannerService();
+const createDefaultPlannerService = (): PlannerService =>
+  new PlannerService(undefined, undefined, new OpenAILanguageProvider());
+
+export const createOperatorsRouter = (
+  plannerService: PlannerService = createDefaultPlannerService(),
+): Router => {
+  const router = Router();
+  const planner = new PlannerModule();
 
 router.get('/planner', async (_req, res) => {
   try {
@@ -132,6 +143,45 @@ router.post('/planner/conversations/:id/messages', async (req, res) => {
   }
 });
 
+router.post('/planner/conversations/:id/reply', async (req, res) => {
+  const id = req.params.id?.trim();
+
+  if (!id) {
+    return res.status(400).json({ error: 'id must be a non-empty string' });
+  }
+
+  if (
+    req.body !== undefined &&
+    (typeof req.body !== 'object' || Array.isArray(req.body) || Object.keys(req.body).length > 0)
+  ) {
+    return res.status(400).json({ error: 'body must be empty' });
+  }
+
+  try {
+    const reply = await plannerService.generateReply(id);
+
+    if (!reply) {
+      return res.status(404).json({ error: 'Conversation not found' });
+    }
+
+    return res.status(201).json(reply);
+  } catch (error) {
+    if (error instanceof PlannerLanguageProviderUnavailableError) {
+      console.error(`Planner reply provider unavailable (${error.name})`);
+      return res.status(503).json({ error: 'Language provider is unavailable' });
+    }
+
+    if (error instanceof PlannerLanguageGenerationError) {
+      console.error(`Planner reply generation failed (${error.name})`);
+      return res.status(502).json({ error: 'Failed to generate planner reply' });
+    }
+
+    const errorName = error instanceof Error ? error.name : 'UnknownError';
+    console.error(`Failed to persist planner reply (${errorName})`);
+    return res.status(500).json({ error: 'Failed to persist planner reply' });
+  }
+});
+
 router.post('/planner/conversations', async (req, res) => {
   const { title, projectId } = req.body ?? {};
 
@@ -153,4 +203,7 @@ router.post('/planner/conversations', async (req, res) => {
   }
 });
 
-export default router;
+  return router;
+};
+
+export default createOperatorsRouter();

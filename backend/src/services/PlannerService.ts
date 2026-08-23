@@ -5,6 +5,11 @@ import {
   ConversationWithMessages,
 } from '../database/repositories/ConversationRepository';
 import { MessageRepository } from '../database/repositories/MessageRepository';
+import {
+  LanguageProviderUnavailableError,
+  type LanguageProvider,
+} from './language/LanguageProvider';
+import { mapConversationToLanguageInput } from './language/PlannerLanguageInput';
 
 export interface CreateConversationInput {
   title?: string;
@@ -37,16 +42,33 @@ export type PlannerConversationDetails = PlannerConversationSummary & Pick<Conve
 
 const DEFAULT_CONVERSATION_TITLE = 'Nova conversa';
 
+export class PlannerLanguageGenerationError extends Error {
+  constructor(message = 'Unable to generate planner reply') {
+    super(message);
+    this.name = 'PlannerLanguageGenerationError';
+  }
+}
+
+export class PlannerLanguageProviderUnavailableError extends PlannerLanguageGenerationError {
+  constructor() {
+    super('Language provider is not configured');
+    this.name = 'PlannerLanguageProviderUnavailableError';
+  }
+}
+
 export class PlannerService {
   private conversationRepository?: ConversationRepository;
   private messageRepository?: MessageRepository;
+  private readonly languageProvider?: LanguageProvider;
 
   constructor(
     conversationRepository?: ConversationRepository,
     messageRepository?: MessageRepository,
+    languageProvider?: LanguageProvider,
   ) {
     this.conversationRepository = conversationRepository;
     this.messageRepository = messageRepository;
+    this.languageProvider = languageProvider;
   }
 
   private get repository(): ConversationRepository {
@@ -119,6 +141,41 @@ export class PlannerService {
       conversationId: conversation.id,
       sender: input.sender,
       text: input.text.trim(),
+    });
+  }
+
+  async generateReply(conversationId: string): Promise<Message | null> {
+    const conversation = await this.repository.findById(conversationId.trim());
+
+    if (!conversation) {
+      return null;
+    }
+
+    if (!this.languageProvider) {
+      throw new PlannerLanguageProviderUnavailableError();
+    }
+
+    const input = mapConversationToLanguageInput(conversation);
+    let generatedText: unknown;
+
+    try {
+      generatedText = await this.languageProvider.generate(input);
+    } catch (error) {
+      if (error instanceof LanguageProviderUnavailableError) {
+        throw new PlannerLanguageProviderUnavailableError();
+      }
+
+      throw new PlannerLanguageGenerationError();
+    }
+
+    if (typeof generatedText !== 'string' || generatedText.trim().length === 0) {
+      throw new PlannerLanguageGenerationError();
+    }
+
+    return this.messages.create({
+      conversationId: conversation.id,
+      sender: 'operator',
+      text: generatedText.trim(),
     });
   }
 

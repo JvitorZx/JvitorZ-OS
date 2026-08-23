@@ -125,10 +125,10 @@ const conversation = (id, { context = null, messages = [] } = {}) => ({
   messages,
 });
 
-const message = (id, conversationId, text) => ({
+const message = (id, conversationId, text, sender = 'user') => ({
   id,
   conversationId,
-  sender: 'user',
+  sender,
   text,
   createdAt: '2026-08-21T12:00:00.000Z',
 });
@@ -139,16 +139,19 @@ const createMemoryApi = (initialConversations = []) => {
     createConversation: 0,
     getConversation: [],
     createMessage: 0,
+    generatePlannerReply: 0,
     updateConversationContext: 0,
   };
   let nextConversation = records.size + 1;
   let nextMessage = 1;
+  let nextReply = 1;
   const failures = new Set();
 
   const api = {
     records,
     calls,
     failures,
+    replyFailureStatus: null,
 
     async createConversation() {
       calls.createConversation += 1;
@@ -176,6 +179,21 @@ const createMemoryApi = (initialConversations = []) => {
       if (failures.delete('createMessage')) throw new TypeError('message failed');
       const current = records.get(id);
       const created = message(`message-${nextMessage++}`, id, input.text);
+      current.messages.push(created);
+      return clone(created);
+    },
+
+    async generatePlannerReply(id) {
+      calls.generatePlannerReply += 1;
+      if (failures.delete('generatePlannerReply')) throw new TypeError('reply failed');
+      if (api.replyFailureStatus) {
+        const error = new Error('safe API error');
+        error.status = api.replyFailureStatus;
+        throw error;
+      }
+      const current = records.get(id);
+      const created = message(`reply-${nextReply}`, id, `Resposta ${nextReply}`, 'operator');
+      nextReply += 1;
       current.messages.push(created);
       return clone(created);
     },
@@ -320,7 +338,8 @@ test('sends each message once and keeps one listener per action', async () => {
   await flush();
 
   assert.equal(api.calls.createMessage, 1);
-  assert.equal(dom.chatBody.children.length, 1);
+  assert.equal(api.calls.generatePlannerReply, 1);
+  assert.equal(dom.chatBody.children.length, 2);
   assert.equal(dom.sendBtn.listeners.get('click').length, 1);
   assert.equal(dom.newConversationBtn.listeners.get('click').length, 1);
   assert.equal(dom.historyList.listeners.get('click').length, 1);
@@ -342,6 +361,7 @@ test('Shift+Enter adds a line while Enter sends', async () => {
   await flush();
   assert.equal(enter.defaultPrevented, true);
   assert.equal(api.calls.createMessage, 1);
+  assert.equal(api.calls.generatePlannerReply, 1);
 });
 
 test('keeps context independent for each conversation', async () => {
@@ -378,7 +398,7 @@ test('does not show false state after API errors and clears feedback after retry
 
     dom.sendBtn.click();
     await flush();
-    assert.equal(dom.chatBody.children.length, 1);
+    assert.equal(dom.chatBody.children.length, 2);
     assert.equal(dom.feedback.hidden, true);
 
     api.failures.add('updateConversationContext');
@@ -537,6 +557,177 @@ test('preserves persisted Planner state and unique listeners after leaving and r
   await flush();
 
   assert.equal(api.calls.createMessage, 1);
-  assert.equal(secondDom.chatBody.children.length, 2);
+  assert.equal(api.calls.generatePlannerReply, 1);
+  assert.equal(secondDom.chatBody.children.length, 3);
   assert.equal(firstDom.chatBody.children.length, 1);
+});
+
+test('persists user before requesting and rendering one operator reply', async () => {
+  const reply = deferred();
+  const api = createMemoryApi([conversation('A')]);
+  const sequence = [];
+  const originalCreateMessage = api.createMessage;
+  api.createMessage = async (...args) => {
+    sequence.push('persist-user');
+    return originalCreateMessage(...args);
+  };
+  api.generatePlannerReply = async (id) => {
+    api.calls.generatePlannerReply += 1;
+    sequence.push('request-reply');
+    assert.equal(api.records.get(id).messages.at(-1).sender, 'user');
+    return reply.promise;
+  };
+  const { dom } = await mount(api);
+
+  dom.textarea.value = 'Mensagem para IA';
+  dom.sendBtn.click();
+  await flush();
+
+  assert.deepEqual(sequence, ['persist-user', 'request-reply']);
+  assert.equal(dom.chatBody.children.length, 1);
+  assert.equal(dom.chatBody.children[0].dataset.id, 'message-1');
+  assert.equal(dom.chatBody.getAttribute('aria-busy'), 'true');
+  assert.equal(dom.sendBtn.disabled, true);
+  assert.equal(dom.newConversationBtn.disabled, false);
+
+  const operator = message('operator-1', 'A', 'Resposta persistida', 'operator');
+  api.records.get('A').messages.push(operator);
+  reply.resolve(clone(operator));
+  await flush();
+
+  assert.equal(api.calls.generatePlannerReply, 1);
+  assert.deepEqual(dom.chatBody.children.map(({ dataset }) => dataset.id), [
+    'message-1',
+    'operator-1',
+  ]);
+  assert.equal(dom.chatBody.getAttribute('aria-busy'), 'false');
+});
+
+test('keeps the persisted user message and local feedback when reply generation fails', async (t) => {
+  await withoutConsoleError(async () => {
+    for (const scenario of [
+      { status: 503, expected: 'A IA não está configurada no momento.' },
+      { status: 502, expected: 'Não foi possível gerar a resposta. Tente novamente.' },
+      { status: 500, expected: 'Não foi possível obter a resposta da IA. Tente novamente.' },
+    ]) {
+      await t.test(`status ${scenario.status}`, async () => {
+        const api = createMemoryApi([conversation('A')]);
+        api.replyFailureStatus = scenario.status;
+        const { dom } = await mount(api);
+
+        dom.textarea.value = `Mensagem ${scenario.status}`;
+        dom.sendBtn.click();
+        await flush();
+
+        assert.equal(api.records.get('A').messages.length, 1);
+        assert.equal(api.records.get('A').messages[0].sender, 'user');
+        assert.equal(dom.chatBody.children.length, 1);
+        assert.equal(dom.feedback.textContent, scenario.expected);
+        assert.equal(dom.feedback.hidden, false);
+        assert.equal(dom.globalStatePanel.textContent, 'Estado global preservado');
+        assert.equal(dom.globalStatePanel.hidden, false);
+      });
+    }
+  });
+});
+
+test('ignores a late reply after switching conversations and reloads it when returning', async () => {
+  const lateReply = deferred();
+  const api = createMemoryApi([conversation('B'), conversation('A')]);
+  api.generatePlannerReply = async () => {
+    api.calls.generatePlannerReply += 1;
+    return lateReply.promise;
+  };
+  const { dom } = await mount(api);
+
+  dom.textarea.value = 'Mensagem A';
+  dom.sendBtn.click();
+  await flush();
+  await selectConversation(dom, 'B');
+
+  const persistedReply = message('reply-A', 'A', 'Resposta tardia A', 'operator');
+  api.records.get('A').messages.push(persistedReply);
+  lateReply.resolve(clone(persistedReply));
+  await flush();
+
+  assert.equal(dom.chatBody.children.length, 0);
+  await selectConversation(dom, 'A');
+  assert.deepEqual(dom.chatBody.children.map(({ dataset }) => dataset.id), [
+    'message-1',
+    'reply-A',
+  ]);
+});
+
+test('ignores a late reply after creating a new active conversation', async () => {
+  const lateReply = deferred();
+  const api = createMemoryApi([conversation('A')]);
+  api.generatePlannerReply = () => lateReply.promise;
+  const { dom } = await mount(api);
+
+  dom.textarea.value = 'Mensagem A';
+  dom.sendBtn.click();
+  await flush();
+  dom.newConversationBtn.click();
+  await flush();
+
+  const active = dom.historyList.children.find((item) => item.className.includes('active'));
+  assert.notEqual(active.dataset.conversationId, 'A');
+
+  const persistedReply = message('reply-A', 'A', 'Resposta tardia A', 'operator');
+  api.records.get('A').messages.push(persistedReply);
+  lateReply.resolve(clone(persistedReply));
+  await flush();
+
+  assert.equal(dom.chatBody.children.length, 0);
+});
+
+test('ignores a late reply after unmount without changing the detached DOM', async () => {
+  const lateReply = deferred();
+  const api = createMemoryApi([conversation('A')]);
+  api.generatePlannerReply = () => lateReply.promise;
+  const controller = createPlannerController({ api });
+  const dom = createPlannerDom();
+  controller.mount(dom.root);
+  await flush();
+
+  dom.textarea.value = 'Mensagem antes do unmount';
+  dom.sendBtn.click();
+  await flush();
+  controller.unmount();
+
+  const persistedReply = message('reply-after-unmount', 'A', 'Resposta tardia', 'operator');
+  api.records.get('A').messages.push(persistedReply);
+  lateReply.resolve(clone(persistedReply));
+  await flush();
+
+  assert.deepEqual(dom.chatBody.children.map(({ dataset }) => dataset.id), ['message-1']);
+  assert.equal(dom.feedback.hidden, true);
+});
+
+test('blocks repeated send triggers while persistence and generation are pending', async () => {
+  const pendingUser = deferred();
+  const api = createMemoryApi([conversation('A')]);
+  api.createMessage = async () => {
+    api.calls.createMessage += 1;
+    return pendingUser.promise;
+  };
+  const { dom } = await mount(api);
+
+  dom.textarea.value = 'Mensagem única';
+  dom.sendBtn.click();
+  dom.sendBtn.dispatch('click');
+  dom.textarea.dispatch('keydown', { key: 'Enter', shiftKey: false });
+  await flush();
+
+  assert.equal(api.calls.createMessage, 1);
+  assert.equal(api.calls.generatePlannerReply, 0);
+
+  const persistedUser = message('persisted-user', 'A', 'Mensagem única');
+  api.records.get('A').messages.push(persistedUser);
+  pendingUser.resolve(clone(persistedUser));
+  await flush();
+
+  assert.equal(api.calls.createMessage, 1);
+  assert.equal(api.calls.generatePlannerReply, 1);
+  assert.equal(dom.chatBody.children.length, 2);
 });

@@ -191,6 +191,51 @@ Cria e persiste uma mensagem em uma conversa existente.
 - `404`: conversa não encontrada.
 - `500`: falha inesperada de persistência.
 
+## Gerar próxima resposta do Planner
+
+### `POST /api/operators/planner/conversations/:id/reply`
+
+Solicita ao provider de linguagem a próxima resposta para uma conversa existente e persiste o resultado como mensagem `operator` antes de responder.
+
+**Parâmetros de rota:**
+
+- `id`: identificador não vazio da conversa.
+
+**Body:** não possui campos. A requisição pode omitir o body ou enviar `{}`; qualquer campo é rejeitado.
+
+**Sucesso — `201 Created`:** retorna somente a mensagem `operator` persistida.
+
+```json
+{
+  "id": "cm789",
+  "conversationId": "cm123",
+  "sender": "operator",
+  "text": "Resposta gerada e persistida",
+  "createdAt": "2026-08-23T12:07:00.000Z"
+}
+```
+
+O endpoint não cria mensagem `user`. Cada chamada bem-sucedida gera e persiste exatamente uma resposta `operator`.
+
+**Status possíveis:**
+
+- `201`: resposta gerada e persistida.
+- `400`: parâmetro `id` vazio ou body com conteúdo não permitido.
+- `404`: conversa não encontrada; o provider não é chamado.
+- `502`: provider falhou ou retornou resposta sem texto útil.
+- `503`: provider ou configuração de linguagem indisponível.
+- `500`: falha interna inesperada, inclusive persistência.
+
+Respostas e logs de erro não incluem chave, contexto, histórico, request/response do provider, payload ou stack externa.
+
+**Configuração do provider:**
+
+- `OPENAI_API_KEY`: lida somente quando a geração é solicitada; sua ausência não impede o backend de iniciar e resulta em `503` neste endpoint.
+- `OPENAI_MODEL`: opcional; o fallback atual é `gpt-5-mini`.
+- O adapter usa o SDK oficial, a Responses API e `max_output_tokens: 1000` para o limite padrão de saída.
+
+Os testes deste contrato usam provider fake e não fazem chamadas externas. Permanece pendente, como validação externa não bloqueadora, um smoke test manual com chave válida para confirmar uma chamada real HTTP `201`.
+
 ## Atualizar contexto
 
 ### `PATCH /api/operators/planner/conversations/:id/context`

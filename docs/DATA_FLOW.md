@@ -18,6 +18,18 @@ Frontend Planner
 
 As rotas fazem validação HTTP e delegam ao `PlannerService`. O serviço aplica regras de domínio e usa repositories; não há acesso Prisma direto pelo frontend ou pelas rotas.
 
+Para geração inteligente, o serviço também usa uma fronteira independente do fornecedor:
+
+```text
+Conversation.context + mensagens persistidas
+  -> PlannerLanguageInput
+    -> LanguageProvider
+      -> OpenAILanguageProvider (Responses API)
+        -> texto normalizado
+          -> MessageRepository (sender: "operator")
+            -> Prisma -> SQLite
+```
+
 ## Inicialização do Planner
 
 1. `dashboard.js` renderiza o módulo ativo e chama `plannerController.init()`.
@@ -55,8 +67,22 @@ As mensagens de conversas diferentes nunca são combinadas no mesmo painel.
 4. O serviço confirma que a conversa existe e usa `MessageRepository`.
 5. Prisma grava a mensagem no SQLite.
 6. O frontend acrescenta a mensagem ao chat somente depois da resposta `201`.
+7. O frontend chama `POST /api/operators/planner/conversations/:id/reply` exatamente uma vez.
+8. `PlannerService.generateReply()` carrega a conversa completa e mapeia contexto e histórico cronológico para a entrada neutra.
+9. O `LanguageProvider` gera texto sem persistir dados diretamente.
+10. O serviço valida a saída e usa `MessageRepository` para persistir uma única mensagem `operator`.
+11. A rota retorna `201` somente com a mensagem persistida; então o frontend a renderiza depois da mensagem `user`.
 
-Não há resposta automática, IA ou criação implícita de mensagens `system` ou `operator` nesta Sprint.
+Se a geração falhar, a mensagem `user` permanece persistida e nenhuma mensagem `operator` falsa é criada. Um novo envio fica bloqueado durante a geração atual para evitar respostas duplicadas.
+
+## Entrada e Limites de Linguagem
+
+- `Conversation.context` é enviado como instrução, limitado a 4.000 caracteres.
+- O histórico preserva ordem cronológica, roles `user`, `operator` e `system`, as 30 mensagens mais recentes e até 16.000 caracteres.
+- `operator` é convertido em `assistant` apenas dentro do adapter OpenAI.
+- A saída é limitada a 4.000 caracteres e a estimativa conservadora de quatro caracteres por token aplica `max_output_tokens: 1000`.
+- `OPENAI_MODEL` configura o modelo; quando ausente, o adapter usa `gpt-5-mini`.
+- A chave é lida de `OPENAI_API_KEY` somente quando `generate()` é chamado. Sua ausência não impede o startup.
 
 ## Persistência de Contexto
 
@@ -73,7 +99,7 @@ O controller usa uma geração de montagem e tokens por operação:
 
 - navegar para outro módulo invalida a montagem anterior;
 - remontar o Planner cria uma nova geração;
-- trocas, criações, envios e atualizações de contexto verificam se sua requisição ainda é atual;
+- trocas, criações, envios, gerações e atualizações de contexto verificam se sua requisição ainda é atual;
 - mensagens e contextos também verificam o ID da conversa capturado no início da operação.
 
 Respostas antigas são ignoradas silenciosamente e não alteram conversa ativa, mensagens, contexto, histórico ou feedback visual.
@@ -87,10 +113,13 @@ O Planner possui uma região de status com `role="status"` e `aria-live="polite"
 - atualização do histórico;
 - troca de conversa;
 - envio de mensagem;
+- geração de resposta inteligente;
 - salvamento de contexto.
 
 O feedback não expõe payloads, stack traces ou detalhes internos. Uma ação posterior bem-sucedida limpa a mensagem correspondente.
 
 ## Testes do Fluxo
 
-`npm test`, executado em `backend/`, cobre a API real com Prisma e SQLite em memória e o controller frontend com DOM controlado. Os testes não dependem de OAuth, YouTube, rede externa ou `dev.db`.
+`npm test`, executado em `backend/`, cobre a API real com Prisma e SQLite em memória, providers/clients de linguagem injetáveis e o controller frontend com DOM controlado. As 104 verificações não dependem de OAuth, YouTube, OpenAI real, chave, rede externa ou `dev.db`.
+
+Permanece pendente, sem bloquear a Sprint, um smoke test manual com `OPENAI_API_KEY` válida para confirmar uma chamada real HTTP `201`. Chave, prompt e resposta do teste não devem ser registrados na documentação.

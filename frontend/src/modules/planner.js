@@ -47,6 +47,11 @@ const getSafeErrorName = (error) =>
     ? error.name
     : 'UnknownError';
 
+const getSafeErrorStatus = (error) =>
+  Number.isInteger(error?.status) && error.status >= 400 && error.status <= 599
+    ? error.status
+    : null;
+
 export const createPlannerController = ({ api }) => {
   let activeConversationId = null;
   let conversations = [];
@@ -167,19 +172,21 @@ export const createPlannerController = ({ api }) => {
       renderHistory();
     };
 
-    const setBusy = (isBusy) => {
-      sendBtn.disabled = isBusy;
-      textarea.disabled = isBusy;
-      newConversationBtn.disabled = isBusy;
-      sendBtn.setAttribute('aria-busy', String(isBusy));
-      newConversationBtn.setAttribute('aria-busy', String(isBusy));
+    const setBusy = ({ inputBusy, navigationBusy, generating }) => {
+      sendBtn.disabled = inputBusy;
+      textarea.disabled = inputBusy;
+      newConversationBtn.disabled = navigationBusy;
+      sendBtn.setAttribute('aria-busy', String(inputBusy));
+      newConversationBtn.setAttribute('aria-busy', String(navigationBusy));
+      chatBody.setAttribute('aria-busy', String(generating));
       historyList.querySelectorAll('[data-conversation-id]').forEach((item) => {
-        item.disabled = isBusy;
+        item.disabled = navigationBusy;
       });
     };
 
     let isInitializing = true;
-    let isSending = false;
+    let isPersistingMessage = false;
+    let isGeneratingReply = false;
     let isCreating = false;
     let isSwitching = false;
     let pendingConversationId = null;
@@ -187,7 +194,16 @@ export const createPlannerController = ({ api }) => {
     let switchRequestGeneration = 0;
     let messageRequestGeneration = 0;
     let contextRequestGeneration = 0;
-    const updateBusy = () => setBusy(isInitializing || isSending || isCreating || isSwitching);
+    const updateBusy = () => setBusy({
+      inputBusy:
+        isInitializing
+        || isPersistingMessage
+        || isGeneratingReply
+        || isCreating
+        || isSwitching,
+      navigationBusy: isInitializing || isPersistingMessage || isCreating || isSwitching,
+      generating: isGeneratingReply,
+    });
 
     updateBusy();
     const hydrationPromise = (async () => {
@@ -233,7 +249,7 @@ export const createPlannerController = ({ api }) => {
     })();
 
     const createNewConversation = async () => {
-      if (isInitializing || isSending || isCreating || isSwitching) return;
+      if (isInitializing || isPersistingMessage || isCreating || isSwitching) return;
 
       const requestToken = ++createRequestGeneration;
       const isCurrentRequest = () =>
@@ -293,7 +309,7 @@ export const createPlannerController = ({ api }) => {
         conversationId === activeConversationId
         || conversationId === pendingConversationId
         || isInitializing
-        || isSending
+        || isPersistingMessage
         || isCreating
       ) return;
 
@@ -332,7 +348,14 @@ export const createPlannerController = ({ api }) => {
 
     const sendMessage = async () => {
       const text = textarea.value.trim();
-      if (!text || isInitializing || isSending || isCreating || isSwitching) return;
+      if (
+        !text
+        || isInitializing
+        || isPersistingMessage
+        || isGeneratingReply
+        || isCreating
+        || isSwitching
+      ) return;
 
       const conversationId = activeConversationId;
       const requestToken = ++messageRequestGeneration;
@@ -341,7 +364,8 @@ export const createPlannerController = ({ api }) => {
         && requestToken === messageRequestGeneration
         && activeConversationId === conversationId;
 
-      isSending = true;
+      let userMessagePersisted = false;
+      isPersistingMessage = true;
       updateBusy();
 
       try {
@@ -357,18 +381,46 @@ export const createPlannerController = ({ api }) => {
         appendMessage(message);
         textarea.value = '';
         setFeedback();
+
+        userMessagePersisted = true;
+        isPersistingMessage = false;
+        isGeneratingReply = true;
+        updateBusy();
+
+        const reply = await api.generatePlannerReply(conversationId);
+        if (!isCurrentRequest()) return;
+
+        appendMessage(reply);
+        setFeedback();
       } catch (error) {
         if (!isCurrentRequest()) return;
 
-        setFeedback('Não foi possível enviar a mensagem. Tente novamente.');
-        console.error('Planner message persistence failed', {
+        if (!userMessagePersisted) {
+          setFeedback('Não foi possível enviar a mensagem. Tente novamente.');
+          console.error('Planner message persistence failed', {
+            error_name: getSafeErrorName(error),
+          });
+          return;
+        }
+
+        const status = getSafeErrorStatus(error);
+        const feedbackMessage = status === 503
+          ? 'A IA não está configurada no momento.'
+          : status === 502
+            ? 'Não foi possível gerar a resposta. Tente novamente.'
+            : 'Não foi possível obter a resposta da IA. Tente novamente.';
+
+        setFeedback(feedbackMessage);
+        console.error('Planner reply generation failed', {
           error_name: getSafeErrorName(error),
+          status,
         });
       } finally {
         if (isCurrentMount() && requestToken === messageRequestGeneration) {
-          isSending = false;
+          isPersistingMessage = false;
+          isGeneratingReply = false;
           updateBusy();
-          textarea.focus();
+          if (activeConversationId === conversationId) textarea.focus();
         }
       }
     };

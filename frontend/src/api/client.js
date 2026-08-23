@@ -1,8 +1,16 @@
+export class ApiRequestError extends Error {
+  constructor(message, status) {
+    super(`${message} (${status})`);
+    this.name = 'ApiRequestError';
+    this.status = status;
+  }
+}
+
 const requestJson = async (url, options, errorMessage) => {
   const response = await fetch(url, options);
 
   if (!response.ok) {
-    throw new Error(`${errorMessage} (${response.status})`);
+    throw new ApiRequestError(errorMessage, response.status);
   }
 
   return response.json();
@@ -75,6 +83,14 @@ export const createApiClient = (baseUrl) => ({
         body: JSON.stringify({ sender, text }),
       },
       'Erro ao salvar mensagem do Planner',
+    );
+  },
+
+  async generatePlannerReply(conversationId) {
+    return requestJson(
+      `${baseUrl}/api/operators/planner/conversations/${encodeURIComponent(conversationId)}/reply`,
+      { method: 'POST' },
+      'Erro ao gerar resposta do Planner',
     );
   },
 });

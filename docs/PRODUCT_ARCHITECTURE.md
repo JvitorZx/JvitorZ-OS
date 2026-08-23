@@ -64,9 +64,30 @@ JvitorZ OS
 - **Objetivo**: oferecer uma workspace para planejar pautas, escrever prompts e conduzir conversas de planejamento.
 - **O que faz**: apresenta chat, biblioteca, histórico e prompt base editável; funciona como workspace de operador.
 - **Dados que consome**: histórico, mensagens e contexto persistidos das conversas do Planejador.
-- **Dados que gera**: novas conversas, mensagens e contexto persistidos pelo backend em SQLite.
+- **Dados que gera**: novas conversas, mensagens, contexto e respostas inteligentes persistidos pelo backend em SQLite.
 - **Componentes reutilizados**: header, chat, sidebar, painel, input fixo, prompt editável.
-- **Próximas integrações**: integração com LLMs, análise de tendências, importação de roteiros e automação de publicações.
+- **Próximas integrações**: análise de tendências, importação de roteiros e automação de publicações.
+
+#### Resposta inteligente concluída na Sprint 15
+
+A Sprint 15 aplica a FASE 5 - OpenAI ao primeiro operador funcional da FASE 7 - Primeiro Operador. O fluxo implementado acrescenta uma resposta inteligente persistida ao comportamento existente:
+
+```text
+Conversation.context + mensagens persistidas em ordem cronológica
+  -> entrada neutra do provider de linguagem
+    -> resposta textual
+      -> mensagem persistida com sender "operator"
+```
+
+O `PlannerService` coordena conversa, histórico, provider e persistência sem depender diretamente do SDK OpenAI. O contrato injetável `LanguageProvider` separa o domínio do adapter externo e permite testes com provider fake, sem rede. O mapper neutro limita o contexto a 4.000 caracteres, o histórico às 30 mensagens mais recentes e a 16.000 caracteres, e a saída a 4.000 caracteres.
+
+O `OpenAILanguageProvider` usa o SDK oficial e a Responses API. A configuração é avaliada somente em `generate()`: `OPENAI_API_KEY` é obrigatória apenas para gerar e `OPENAI_MODEL` é opcional, com fallback `gpt-5-mini`. A saída de 4.000 caracteres é convertida conservadoramente em `max_output_tokens: 1000`. O backend inicia sem chave e retorna `503` seguro quando o provider está indisponível.
+
+O frontend solicita `/reply` somente após persistir a mensagem do usuário e renderiza a mensagem `operator` retornada pelo backend, que já está persistida. Enquanto a geração está em andamento, novos envios são bloqueados. Respostas tardias de outra conversa ou montagem são ignoradas pela UI; ao reabrir a conversa correta, a resposta persistida é carregada normalmente. Falhas preservam a mensagem do usuário e aparecem apenas no feedback local do Planner.
+
+Os testes automatizados usam providers e clients injetáveis, sem chave ou rede externa. Permanece como validação externa não bloqueadora executar um smoke test manual com uma `OPENAI_API_KEY` válida para confirmar uma chamada real HTTP `201`.
+
+Streaming, seleção de modelo pela UI, múltiplos providers, RAG, Biblioteca, dados do YouTube no prompt, tools/function calling, automações e novos operadores permanecem fora desta Sprint.
 
 ### Supervisor (conceitual)
 - **Objetivo**: monitorar saúde do sistema, status de operações e alertas de fluxo.
@@ -129,13 +150,15 @@ O Planejador é a referência de regressão desse contrato: persistência, hist�
 - `/api/operators/planner/conversations/:id`: abertura de conversa com mensagens.
 - `/api/operators/planner/conversations/:id/messages`: criação persistida de mensagens.
 - `/api/operators/planner/conversations/:id/context`: atualização do prompt-base da conversa.
+- `/api/operators/planner/conversations/:id/reply`: geração e persistência da próxima resposta `operator`.
 - `GET /api/auth/google`: foco em autenticação de Google OAuth (documentado no backend, não modificado nesta sprint).
 
 ### Serviços backend
 - `DashboardService`: orquestra a agregação de módulos.
 - `ChannelModule`, `AnalyticsModule`, `OperatorsModule`, `SupervisorModule`, `SettingsModule`: retornam dados estruturados para o dashboard.
 - `PlannerModule`: endpoint de operador de teste.
-- `PlannerService`: coordena conversas, mensagens e contexto usando `ConversationRepository` e `MessageRepository`.
+- `PlannerService`: coordena conversas, mensagens, contexto e geração de respostas usando repositories e um `LanguageProvider` injetável.
+- `OpenAILanguageProvider`: encapsula SDK, Responses API, configuração lazy, mapeamento de roles e parsing seguro da saída.
 
 ## Organização de pastas
 - `backend/`: código do servidor, rotas, serviços e integrações.
