@@ -7,16 +7,28 @@ export interface LanguageMessage {
   content: string;
 }
 
+// Artifacts are user-selected reference data. Providers must not promote them to system instructions.
+export interface LanguageArtifact {
+  id: string;
+  title: string;
+  type: string | null;
+  content: string;
+}
+
 export interface LanguageGenerationLimits {
   maxContextCharacters: number;
   maxMessages: number;
   maxHistoryCharacters: number;
+  maxArtifacts: number;
+  maxArtifactCharacters: number;
+  maxTotalArtifactCharacters: number;
   maxOutputCharacters: number;
 }
 
 export interface LanguageGenerationInput {
   context: string | null;
   messages: readonly LanguageMessage[];
+  artifacts: readonly LanguageArtifact[];
   limits: Readonly<LanguageGenerationLimits>;
 }
 

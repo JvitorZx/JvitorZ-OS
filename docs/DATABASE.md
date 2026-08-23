@@ -88,6 +88,24 @@ A relação entre `LibraryItem` e `Message` usa `ON DELETE SET NULL`: remover um
 
 `LibraryItemRepository` implementa criação, listagem determinística por `createdAt` e `id` decrescentes, busca por ID e busca por `sourceMessageId`.
 
+## ConversationLibraryItem
+
+`ConversationLibraryItem` representa quais artefatos estão explicitamente ativos como memória de uma conversa. A associação não copia título, tipo nem conteúdo do artefato.
+
+| Campo | Tipo | Regra atual |
+| --- | --- | --- |
+| `conversationId` | `String` | Referência obrigatória a `Conversation.id`. |
+| `libraryItemId` | `String` | Referência obrigatória a `LibraryItem.id`. |
+| `createdAt` | `DateTime` | Data do vínculo, usada na futura ordenação crescente. |
+
+`conversationId` e `libraryItemId` formam a chave primária composta, impedindo que o mesmo item seja vinculado duas vezes à mesma conversa. Uma conversa pode ter vários itens e um item pode participar de várias conversas. As duas relações usam `ON DELETE CASCADE`: excluir uma conversa ou um item remove somente seus vínculos. O índice `(conversationId, createdAt, libraryItemId)` suporta ordenação determinística, e o índice por `libraryItemId` suporta consultas inversas.
+
+A migration `20260823180000_conversation_library_items` é aditiva: cria a nova tabela vazia sem reescrever `Conversation`, `Message` ou `LibraryItem`.
+
+`ConversationLibraryItemRepository` cria e consulta vínculos, inclui o `LibraryItem` real na listagem, conta associações e remove somente o vínculo. A ordem é `createdAt ASC`, seguida de `libraryItemId ASC`.
+
+Para garantir o máximo de cinco itens mesmo com chamadas concorrentes, a criação limitada usa um único statement parametrizado: o banco insere apenas quando a contagem ainda é menor que cinco e ignora conflito da chave composta. No SQLite, o lock do statement de escrita serializa a decisão e a inserção; duas inclusões diferentes partindo de quatro resultam em uma criação e uma rejeição por limite, nunca seis registros.
+
 ## Organização
 
 - `backend/src/database/DatabaseService.ts`: ciclo de vida do `PrismaClient`.
@@ -95,8 +113,10 @@ A relação entre `LibraryItem` e `Message` usa `ON DELETE SET NULL`: remover um
 - `backend/src/database/repositories/ConversationRepository.ts`: persistência de conversas e contexto.
 - `backend/src/database/repositories/MessageRepository.ts`: persistência de mensagens.
 - `backend/src/database/repositories/LibraryItemRepository.ts`: persistência e consulta de artefatos.
+- `backend/src/database/repositories/ConversationLibraryItemRepository.ts`: persistência atômica e consulta dos vínculos de memória.
 - `backend/src/services/PlannerService.ts`: regras e coordenação do domínio do Planejador.
 - `backend/src/services/LibraryService.ts`: validação da origem, idempotência e coordenação da Biblioteca.
+- `backend/src/services/ConversationLibraryService.ts`: validação, limite e ciclo de vínculo dos artefatos ativos.
 - `backend/src/routes/operators.ts`: validação HTTP e delegação ao serviço.
 
 ## Testes

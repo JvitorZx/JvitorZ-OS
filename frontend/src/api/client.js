@@ -13,6 +13,8 @@ const requestJson = async (url, options, errorMessage) => {
     throw new ApiRequestError(errorMessage, response.status);
   }
 
+  if (response.status === 204) return undefined;
+
   return response.json();
 };
 
@@ -128,6 +130,38 @@ export const createApiClient = (baseUrl) => ({
       `${baseUrl}/api/operators/planner/library/${encodeURIComponent(validLibraryItemId)}`,
       undefined,
       'Erro ao abrir item da Biblioteca',
+    );
+  },
+
+  async linkLibraryItemToConversation(conversationId, libraryItemId) {
+    const validConversationId = requireIdentifier(conversationId, 'conversationId');
+    const validLibraryItemId = requireIdentifier(libraryItemId, 'libraryItemId');
+
+    return requestJson(
+      `${baseUrl}/api/operators/planner/conversations/${encodeURIComponent(validConversationId)}/library/${encodeURIComponent(validLibraryItemId)}`,
+      { method: 'POST' },
+      'Erro ao vincular item a conversa do Planner',
+    );
+  },
+
+  async listConversationLibraryItems(conversationId) {
+    const validConversationId = requireIdentifier(conversationId, 'conversationId');
+
+    return requestJson(
+      `${baseUrl}/api/operators/planner/conversations/${encodeURIComponent(validConversationId)}/library`,
+      undefined,
+      'Erro ao carregar memoria ativa do Planner',
+    );
+  },
+
+  async unlinkLibraryItemFromConversation(conversationId, libraryItemId) {
+    const validConversationId = requireIdentifier(conversationId, 'conversationId');
+    const validLibraryItemId = requireIdentifier(libraryItemId, 'libraryItemId');
+
+    return requestJson(
+      `${baseUrl}/api/operators/planner/conversations/${encodeURIComponent(validConversationId)}/library/${encodeURIComponent(validLibraryItemId)}`,
+      { method: 'DELETE' },
+      'Erro ao desvincular item da conversa do Planner',
     );
   },
 });

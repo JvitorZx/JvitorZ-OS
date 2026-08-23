@@ -69,6 +69,16 @@ Este documento descreve cada entidade do modelo de dados inicial do JvitorZ OS e
 
 A relação com `Message` usa `ON DELETE SET NULL`, preservando o artefato quando a mensagem de origem é removida. A unicidade de `sourceMessageId` impede duplicatas persistentes para a mesma resposta.
 
+### ConversationLibraryItem
+- Representa o vínculo explícito de memória entre uma conversa e um artefato existente.
+- Campos:
+  - `conversationId`: referência obrigatória à conversa.
+  - `libraryItemId`: referência obrigatória ao item da Biblioteca.
+  - `createdAt`: data de criação do vínculo.
+- A chave composta `conversationId + libraryItemId` impede duplicação do mesmo vínculo.
+- As relações com `Conversation` e `LibraryItem` usam `ON DELETE CASCADE`.
+- O model não copia conteúdo nem metadata do artefato.
+
 ### Automation
 - Representa uma automação configurável para o projeto.
 - Campos principais:

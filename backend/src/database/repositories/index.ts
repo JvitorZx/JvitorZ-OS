@@ -4,3 +4,4 @@ export * from './UserRepository';
 export * from './ConversationRepository';
 export * from './MessageRepository';
 export * from './LibraryItemRepository';
+export * from './ConversationLibraryItemRepository';

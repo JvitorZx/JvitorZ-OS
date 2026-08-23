@@ -315,6 +315,62 @@ Retorna um item persistido pelo seu identificador.
 
 Erros dos endpoints da Biblioteca usam mensagens seguras e não expõem stack, consultas ou detalhes do Prisma.
 
+## Memória ativa da conversa — Sprint 17
+
+**Status: implementados no backend.**
+
+Os endpoints abaixo trabalham somente com identificadores. Nenhum deles aceita título ou conteúdo de `LibraryItem` no body.
+
+### Vincular item à conversa
+
+#### `POST /api/operators/planner/conversations/:conversationId/library/:libraryItemId`
+
+Cria uma associação persistente entre a conversa e um item real da Biblioteca.
+
+**Parâmetros de rota:**
+
+- `conversationId`: identificador não vazio da conversa.
+- `libraryItemId`: identificador não vazio do item.
+
+**Body:** ausente ou `{}`. Campos adicionais serão rejeitados.
+
+**Sucesso:** retorna os campos seguros do `LibraryItem` persistido: `id`, `projectId`, `title`, `type`, `content`, `createdAt` e `updatedAt`.
+
+- `201`: vínculo criado.
+- `200`: vínculo já existia; retorna a mesma associação sem duplicar.
+- `400`: parâmetro inválido ou body com conteúdo.
+- `404`: conversa ou item inexistente.
+- `422`: a conversa já possui o máximo de cinco artefatos ativos.
+- `500`: erro interno seguro.
+
+### Listar memória ativa da conversa
+
+#### `GET /api/operators/planner/conversations/:conversationId/library`
+
+Retorna os `LibraryItem` vinculados, ordenados por `ConversationLibraryItem.createdAt` crescente e `libraryItemId` crescente como desempate. O conteúdo não é truncado neste endpoint.
+
+**Body:** nenhum.
+
+- `200`: lista retornada; ausência de vínculos produz `[]`.
+- `400`: parâmetro inválido.
+- `404`: conversa inexistente.
+- `500`: erro interno seguro.
+
+### Desvincular item da conversa
+
+#### `DELETE /api/operators/planner/conversations/:conversationId/library/:libraryItemId`
+
+Remove somente a associação. O `LibraryItem` permanece persistido na Biblioteca.
+
+**Body:** ausente ou `{}`. Campos adicionais serão rejeitados.
+
+- `204`: vínculo removido ou já ausente, desde que a conversa exista. O item não é excluído.
+- `400`: parâmetro inválido ou body com conteúdo.
+- `404`: conversa inexistente.
+- `500`: erro interno seguro.
+
+As respostas de erro não incluirão conteúdo de artefato, contexto, histórico, prompt, stack, detalhes Prisma ou payload do provider.
+
 ## Atualizar contexto
 
 ### `PATCH /api/operators/planner/conversations/:id/context`

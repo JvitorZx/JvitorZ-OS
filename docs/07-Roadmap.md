@@ -315,4 +315,186 @@ O contrato de salvamento é idempotente por `sourceMessageId`: a primeira chamad
 
 **SPRINT 16 — BIBLIOTECA DE ARTEFATOS DO PLANEJADOR — CONCLUÍDA**
 
-A Sprint 17 ainda não está definida. A próxima sessão deve começar com auditoria do roadmap e da arquitetura, comparação das próximas opções e formalização do escopo antes de qualquer implementação.
+O checkpoint da Sprint 16 foi seguido pela auditoria do roadmap e da arquitetura. A Sprint 17 foi formalizada abaixo antes de qualquer implementação.
+
+## Sprint 17 — Biblioteca como Memória Ativa do Planner
+
+**Status: EM ANDAMENTO — TAREFAS 1, 2, 3, 4 E 5 CONCLUÍDAS**
+
+**Fase principal: FASE 7 - Primeiro Operador**
+
+### Objetivo
+
+Transformar a Biblioteca de um destino passivo em uma fonte explícita de memória e contexto para o Planner. Artefatos persistidos poderão ser vinculados a uma conversa e, somente quando selecionados pelo usuário, participar da próxima geração inteligente.
+
+### Relação com a Sprint 16
+
+A Sprint 16 entregou criação, listagem, abertura e deduplicação de `LibraryItem`. A Sprint 17 não duplica nem edita esses itens: cria uma associação persistente entre `Conversation` e `LibraryItem` e fecha o ciclo funcional:
+
+```text
+Planner gera resposta
+  -> resposta vira LibraryItem
+    -> usuário vincula o artefato a uma Conversation
+      -> geração carrega somente artefatos vinculados
+        -> LanguageProvider recebe contexto estruturado e limitado
+```
+
+### Arquitetura formalizada
+
+- usar um join model explícito `ConversationLibraryItem`;
+- armazenar somente `conversationId`, `libraryItemId` e `createdAt`;
+- usar chave composta entre conversa e item para impedir vínculo duplicado;
+- remover vínculos quando a conversa ou o item for removido, sem copiar conteúdo para a associação;
+- resolver título, tipo e conteúdo sempre a partir do `LibraryItem` persistido;
+- manter o serviço de associação separado da rota e do adapter OpenAI;
+- preservar isolamento: uma conversa usa somente seus próprios vínculos explícitos.
+
+O model foi implementado como `ConversationLibraryItem`, com chave primária composta, relações inversas e remoção em cascata dos vínculos quando a conversa ou o item for removido.
+
+### Contrato neutro de linguagem
+
+O `LanguageGenerationInput` será evoluído para representar:
+
+- `context`: contexto da conversa;
+- `messages`: histórico cronológico;
+- `artifacts`: artefatos explicitamente vinculados;
+- `limits`: limites determinísticos de entrada e saída.
+
+Cada artefato neutro conterá somente:
+
+```text
+id, title, type, content
+```
+
+O contrato continuará independente da OpenAI. Conteúdo de artefato será tratado como referência não confiável, nunca promovido a instrução de sistema. O adapter será responsável apenas por serializar a estrutura neutra para o provider externo.
+
+### Limites formalizados
+
+- máximo de **5 artefatos ativos** por conversa;
+- máximo de **4.000 caracteres de conteúdo por artefato**;
+- máximo de **12.000 caracteres de conteúdo de artefatos por geração**;
+- ordem de inclusão por `ConversationLibraryItem.createdAt` crescente, com `libraryItemId` crescente como desempate;
+- o serviço rejeita um sexto vínculo com `422`;
+- o mapper limita defensivamente cada conteúdo e percorre os vínculos na ordem definida;
+- quando o orçamento total termina, o último artefato elegível é truncado ao espaço restante e os posteriores são omitidos;
+- os limites atuais de contexto, histórico e saída permanecem, respectivamente, 4.000, 16.000 e 4.000 caracteres, com até 30 mensagens.
+
+Não será usada contagem real de tokens nesta Sprint.
+
+### API implementada
+
+- `POST /api/operators/planner/conversations/:conversationId/library/:libraryItemId`: vincular item;
+- `GET /api/operators/planner/conversations/:conversationId/library`: listar itens vinculados;
+- `DELETE /api/operators/planner/conversations/:conversationId/library/:libraryItemId`: desvincular item.
+
+O frontend enviará somente IDs. Bodies ausentes ou `{}` serão aceitos nas operações sem payload; campos adicionais serão rejeitados. A criação será idempotente: `201` no primeiro vínculo e `200` quando o vínculo já existir. A remoção retornará `204` e também será idempotente para uma associação já ausente, desde que conversa e item existam.
+
+### Frontend planejado
+
+- reutilizar a Biblioteca real já exibida no Planner;
+- permitir adicionar um item à conversa ativa;
+- mostrar separadamente os artefatos ativos da conversa;
+- permitir remover um vínculo sem remover o `LibraryItem`;
+- atualizar a UI somente após confirmação da API;
+- preservar feedback local, XSS seguro, listeners únicos e tokens contra respostas obsoletas.
+
+### Geração planejada
+
+Ao final da Sprint, `PlannerService.generateReply()` deverá:
+
+1. validar e carregar a conversa;
+2. carregar mensagens em ordem cronológica;
+3. carregar `LibraryItem` vinculados em ordem determinística;
+4. aplicar os limites de contexto, histórico, artefatos e saída;
+5. montar a entrada neutra;
+6. chamar o `LanguageProvider` exatamente uma vez;
+7. persistir e retornar a resposta `operator` pelo fluxo já existente.
+
+Geração sem artefatos deve manter o comportamento atual.
+
+### Segurança e integridade
+
+- nenhum conteúdo arbitrário será aceito do frontend como memória;
+- conversa, item e vínculo serão validados no backend;
+- vínculo duplicado não criará registro adicional;
+- uma conversa não herdará artefatos de outra;
+- logs e erros não incluirão conteúdo, prompt, histórico, stack, detalhes Prisma ou payload externo;
+- testes não usarão OpenAI real, rede externa ou `dev.db`.
+
+### Riscos arquiteturais
+
+- conteúdo salvo pode conter instruções maliciosas; o mapper e o adapter devem mantê-lo delimitado como referência não confiável;
+- truncamento precisa ser estável para que testes, custo e comportamento sejam previsíveis;
+- operações concorrentes de vínculo exigem garantia final no banco, não apenas bloqueio de botão;
+- a API permanece no namespace do Planner nesta Sprint para evitar migração de contrato sem um segundo consumidor real;
+- a associação deve ser reutilizável no domínio, sem antecipar uma arquitetura global de memória ou RAG;
+- a migration aditiva preserva conversas, mensagens e itens existentes; sua validação usa SQLite temporário e não toca em `dev.db`.
+
+### Fora de escopo
+
+- RAG automático;
+- embeddings ou banco vetorial;
+- busca semântica;
+- seleção automática de artefatos;
+- edição ou exclusão da Biblioteca;
+- busca, tags ou pastas;
+- compartilhamento ou exportação;
+- Analytics real;
+- Supervisor;
+- novos operadores;
+- n8n e automações;
+- redesign amplo.
+
+### Tarefas oficiais
+
+1. **CONCLUÍDA — Contrato neutro, mapper e limites**: tipos de entrada evoluídos, artefatos mapeados em ordem recebida e limites cobertos sem banco, API, frontend ou OpenAI real.
+2. **CONCLUÍDA — Schema e migration**: join model explícito criado e migration SQLite validada com preservação dos dados existentes.
+3. **CONCLUÍDA — Repository e serviço de associação**: vínculo, listagem e remoção implementados com validação, isolamento, idempotência e limite concorrente.
+4. **CONCLUÍDA — API HTTP**: três contratos implementados com validação estrita, status seguros e testes em SQLite em memória.
+5. **CONCLUÍDA — API client frontend**: chamadas de vínculo, listagem e remoção centralizadas com validação local e status HTTP seguros.
+6. **PENDENTE — UI de memória ativa**: selecionar, visualizar e remover artefatos da conversa atual.
+7. **PENDENTE — Integração da geração**: carregar vínculos no `PlannerService`, evoluir o adapter OpenAI e preservar geração sem artefatos.
+8. **PENDENTE — Concorrência, regressão e fechamento**: validar lifecycle, XSS, limites, regressão completa e documentação final.
+
+### Resultado da Tarefa 1
+
+O contrato neutro agora inclui `artifacts` separado de contexto e mensagens. O mapper aceita artefatos ausentes, `undefined`, `null` ou vazios como `[]`, preserva a ordem recebida, considera os cinco primeiros e aplica limites de 4.000 caracteres por item e 12.000 no total. A contagem usa code points Unicode para não dividir caracteres compostos por surrogate pairs. Nenhuma integração com schema, associação persistente, API, frontend, `PlannerService.generateReply()` ou adapter OpenAI foi iniciada.
+
+### Resultado da Tarefa 2
+
+O schema agora contém `ConversationLibraryItem` com `conversationId`, `libraryItemId` e `createdAt`, chave primária composta e relações inversas em `Conversation` e `LibraryItem`. As duas relações usam `ON DELETE CASCADE`, removendo somente os vínculos quando uma das entidades relacionadas for excluída. A migration é aditiva, cria a tabela inicialmente vazia e preserva os dados existentes. Índices suportam a futura ordenação por `createdAt` e `libraryItemId`, além da consulta inversa por item. Repository, serviço, API, frontend e integração com a geração não foram iniciados na Tarefa 2.
+
+### Resultado da Tarefa 3
+
+`ConversationLibraryItemRepository` encapsula criação, busca específica, listagem com `LibraryItem` real, contagem e remoção. `ConversationLibraryService` valida conversa e item, oferece `linkItem()`, `listLinkedItems()` e `unlinkItem()`, retorna criação idempotente e aplica o máximo de cinco itens ativos. O limite e a inserção usam um único statement parametrizado `INSERT ... SELECT ... WHERE COUNT < 5 ... ON CONFLICT DO NOTHING`: o lock de escrita do SQLite serializa inclusões concorrentes, impedindo que duas chamadas partindo de quatro persistam seis vínculos. Repository e service não foram ligados a rotas, frontend ou geração nesta tarefa.
+
+### Resultado da Tarefa 4
+
+A API expõe `POST`, `GET` e `DELETE` no namespace da conversa do Planner e delega integralmente ao `ConversationLibraryService`. O primeiro vínculo retorna `201`, repetições retornam `200`, listagens retornam `200` e remoções existentes ou ausentes retornam `204`. Parâmetros e bodies são validados antes do service; conversa ou item ausente no POST retorna `404`, limite retorna `422` e falhas internas retornam `500` sanitizado. API client, UI e geração não foram iniciados naquela tarefa.
+
+### Resultado da Tarefa 5
+
+O API client central oferece `linkLibraryItemToConversation()`, `listConversationLibraryItems()` e `unlinkLibraryItemFromConversation()`. IDs são validados e codificados antes da rede; link aceita `201` e `200`, list preserva a ordem recebida e unlink trata `204` como sucesso sem inventar payload. Erros continuam representados por `ApiRequestError` com status seguro. Nenhuma UI ou integração com `planner.js` foi iniciada nesta tarefa.
+
+### Critérios de conclusão
+
+- usuário consegue vincular, listar e desvincular artefatos na conversa ativa;
+- vínculos persistem após reload e remontagem;
+- vínculo duplicado não cria duplicata;
+- conversa ou item inexistente é rejeitado com erro seguro;
+- conversas permanecem isoladas;
+- frontend envia somente IDs e não apresenta estado falso após falha;
+- `LanguageProvider` recebe contexto, histórico e artefatos na estrutura neutra;
+- somente artefatos explicitamente vinculados participam da geração;
+- limites de quantidade, conteúdo individual, conteúdo total e ordem são determinísticos;
+- geração sem artefatos continua funcionando;
+- conteúdo de artefato permanece dado não confiável e é renderizado como texto;
+- respostas tardias não alteram conversa, seleção ou montagem incorreta;
+- Planner preserva histórico, contexto, IA, Biblioteca, Nova Conversa, lifecycle e listeners únicos;
+- os 191 testes existentes permanecem passando e a nova cobertura é determinística;
+- build, Prisma validate, migration em SQLite em memória, sintaxe frontend e `git diff --check` passam;
+- `dev.db` permanece inalterado e a documentação reflete o fluxo entregue.
+
+### Caminho futuro
+
+A associação e o contrato neutro devem permitir que futuros operadores consumam a mesma Biblioteca sem introduzir RAG ou seleção automática nesta Sprint. A generalização para memória compartilhada entre operadores ocorrerá somente quando existir um segundo operador funcional e um caso de uso concreto.

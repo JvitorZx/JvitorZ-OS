@@ -115,6 +115,40 @@ Ao montar o Planner, o frontend chama `GET /api/operators/planner/library`. A li
 
 Listagens, aberturas e salvamentos usam tokens de montagem/operação. Respostas tardias depois de unmount, troca de conversa ou seleção de outro item são ignoradas e não criam estado visual falso.
 
+## Fluxo Planejado de Memória Ativa — Sprint 17
+
+**Status: Tarefas 1 a 5 concluídas; UI e geração ainda não implementadas.**
+
+O contrato neutro já aceita artefatos limitados e o schema persiste o vínculo por `ConversationLibraryItem`. A migration aditiva cria a associação vazia, com chave composta e remoção em cascata. Repository, service, API e API client frontend já vinculam, listam e desvinculam com validação, idempotência e limite de cinco. UI e carregamento na geração permanecem planejados.
+
+O usuário selecionará explicitamente itens já persistidos para a conversa ativa:
+
+```text
+Frontend envia conversationId + libraryItemId
+  -> API do Planner
+    -> serviço valida Conversation e LibraryItem
+      -> ConversationLibraryItem persiste o vínculo
+```
+
+O frontend nunca enviará título ou conteúdo como fonte da memória. Listagem e remoção também serão resolvidas pelos IDs persistidos. A criação do vínculo será idempotente e uma conversa não observará vínculos pertencentes a outra.
+
+No domínio já implementado, a criação limitada ocorre em um único statement de escrita parametrizado. Vínculo repetido retorna o item existente sem consumir limite; o sexto item diferente é rejeitado; remover um vínculo libera uma vaga. A listagem resolve os `LibraryItem` persistidos em `createdAt ASC` e `libraryItemId ASC`.
+
+Na geração, o fluxo planejado será:
+
+```text
+Conversation.context
+  + mensagens cronológicas
+  + LibraryItems explicitamente vinculados
+    -> mapper neutro e limites determinísticos
+      -> LanguageProvider.generate(input)
+        -> resposta operator persistida
+```
+
+Os artefatos serão carregados pela data do vínculo crescente, com ID como desempate. Serão aceitos no máximo cinco vínculos ativos, limitados a 4.000 caracteres por conteúdo e 12.000 caracteres totais por geração. O mapper truncará o último item ao orçamento restante e omitirá os posteriores. Os limites atuais de contexto, histórico e saída não serão ampliados.
+
+Conteúdo de artefato será tratado como referência não confiável. Troca de conversa, Nova Conversa, seleções rápidas e unmount invalidarão respostas assíncronas antigas antes de qualquer atualização visual.
+
 ## Respostas Assíncronas Obsoletas
 
 O controller usa uma geração de montagem e tokens por operação:

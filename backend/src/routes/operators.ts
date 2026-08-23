@@ -2,6 +2,13 @@ import type { LibraryItem } from '@prisma/client';
 import { Router } from 'express';
 import { PlannerModule } from '../modules/planner/PlannerModule';
 import {
+  ConversationLibraryConversationNotFoundError,
+  ConversationLibraryItemNotFoundError,
+  ConversationLibraryLimitReachedError,
+  ConversationLibraryPersistenceError,
+  ConversationLibraryService,
+} from '../services/ConversationLibraryService';
+import {
   LibraryConversationNotFoundError,
   LibraryMessageConversationMismatchError,
   LibraryMessageNotFoundError,
@@ -32,6 +39,7 @@ const toLibraryItemResponse = ({
 export const createOperatorsRouter = (
   plannerService: PlannerService = createDefaultPlannerService(),
   libraryService: LibraryService = new LibraryService(),
+  conversationLibraryService: ConversationLibraryService = new ConversationLibraryService(),
 ): Router => {
   const router = Router();
   const planner = new PlannerModule();
@@ -281,6 +289,122 @@ router.get('/planner/library/:id', async (req, res) => {
     return res.status(500).json({ error: 'Failed to fetch library item' });
   }
 });
+
+router.post(
+  '/planner/conversations/:conversationId/library/:libraryItemId',
+  async (req, res) => {
+    const conversationId = req.params.conversationId?.trim();
+    const libraryItemId = req.params.libraryItemId?.trim();
+
+    if (!conversationId) {
+      return res.status(400).json({ error: 'conversationId must be a non-empty string' });
+    }
+
+    if (!libraryItemId) {
+      return res.status(400).json({ error: 'libraryItemId must be a non-empty string' });
+    }
+
+    if (
+      req.body !== undefined &&
+      (typeof req.body !== 'object' || Array.isArray(req.body) || Object.keys(req.body).length > 0)
+    ) {
+      return res.status(400).json({ error: 'body must be empty' });
+    }
+
+    try {
+      const result = await conversationLibraryService.linkItem(conversationId, libraryItemId);
+      return res.status(result.created ? 201 : 200).json(toLibraryItemResponse(result.item));
+    } catch (error) {
+      if (error instanceof ConversationLibraryConversationNotFoundError) {
+        return res.status(404).json({ error: 'Conversation not found' });
+      }
+
+      if (error instanceof ConversationLibraryItemNotFoundError) {
+        return res.status(404).json({ error: 'Library item not found' });
+      }
+
+      if (error instanceof ConversationLibraryLimitReachedError) {
+        return res.status(422).json({ error: 'Conversation library limit reached' });
+      }
+
+      if (error instanceof ConversationLibraryPersistenceError) {
+        console.error(`Failed to link conversation library item (${error.name})`);
+        return res.status(500).json({ error: 'Failed to link library item' });
+      }
+
+      const errorName = error instanceof Error ? error.name : 'UnknownError';
+      console.error(`Failed to link conversation library item (${errorName})`);
+      return res.status(500).json({ error: 'Failed to link library item' });
+    }
+  },
+);
+
+router.get('/planner/conversations/:conversationId/library', async (req, res) => {
+  const conversationId = req.params.conversationId?.trim();
+
+  if (!conversationId) {
+    return res.status(400).json({ error: 'conversationId must be a non-empty string' });
+  }
+
+  try {
+    const items = await conversationLibraryService.listLinkedItems(conversationId);
+    return res.status(200).json(items.map(toLibraryItemResponse));
+  } catch (error) {
+    if (error instanceof ConversationLibraryConversationNotFoundError) {
+      return res.status(404).json({ error: 'Conversation not found' });
+    }
+
+    if (error instanceof ConversationLibraryPersistenceError) {
+      console.error(`Failed to list conversation library items (${error.name})`);
+      return res.status(500).json({ error: 'Failed to list conversation library items' });
+    }
+
+    const errorName = error instanceof Error ? error.name : 'UnknownError';
+    console.error(`Failed to list conversation library items (${errorName})`);
+    return res.status(500).json({ error: 'Failed to list conversation library items' });
+  }
+});
+
+router.delete(
+  '/planner/conversations/:conversationId/library/:libraryItemId',
+  async (req, res) => {
+    const conversationId = req.params.conversationId?.trim();
+    const libraryItemId = req.params.libraryItemId?.trim();
+
+    if (!conversationId) {
+      return res.status(400).json({ error: 'conversationId must be a non-empty string' });
+    }
+
+    if (!libraryItemId) {
+      return res.status(400).json({ error: 'libraryItemId must be a non-empty string' });
+    }
+
+    if (
+      req.body !== undefined &&
+      (typeof req.body !== 'object' || Array.isArray(req.body) || Object.keys(req.body).length > 0)
+    ) {
+      return res.status(400).json({ error: 'body must be empty' });
+    }
+
+    try {
+      await conversationLibraryService.unlinkItem(conversationId, libraryItemId);
+      return res.status(204).send();
+    } catch (error) {
+      if (error instanceof ConversationLibraryConversationNotFoundError) {
+        return res.status(404).json({ error: 'Conversation not found' });
+      }
+
+      if (error instanceof ConversationLibraryPersistenceError) {
+        console.error(`Failed to unlink conversation library item (${error.name})`);
+        return res.status(500).json({ error: 'Failed to unlink library item' });
+      }
+
+      const errorName = error instanceof Error ? error.name : 'UnknownError';
+      console.error(`Failed to unlink conversation library item (${errorName})`);
+      return res.status(500).json({ error: 'Failed to unlink library item' });
+    }
+  },
+);
 
 router.post('/planner/conversations', async (req, res) => {
   const { title, projectId } = req.body ?? {};

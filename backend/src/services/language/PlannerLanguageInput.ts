@@ -1,4 +1,5 @@
 import {
+  LanguageArtifact,
   LanguageGenerationInput,
   LanguageGenerationLimits,
   LanguageMessage,
@@ -11,15 +12,26 @@ export interface PlannerLanguageMessageSource {
   createdAt: Date | string;
 }
 
+export interface PlannerLanguageArtifactSource {
+  id: string;
+  title: string;
+  type?: string | null;
+  content: string | null;
+}
+
 export interface PlannerConversationLanguageSource {
   context: string | null;
   messages: readonly PlannerLanguageMessageSource[];
+  artifacts?: readonly PlannerLanguageArtifactSource[] | null;
 }
 
 export const DEFAULT_LANGUAGE_GENERATION_LIMITS: Readonly<LanguageGenerationLimits> = Object.freeze({
   maxContextCharacters: 4_000,
   maxMessages: 30,
   maxHistoryCharacters: 16_000,
+  maxArtifacts: 5,
+  maxArtifactCharacters: 4_000,
+  maxTotalArtifactCharacters: 12_000,
   maxOutputCharacters: 4_000,
 });
 
@@ -80,16 +92,50 @@ const selectRecentMessages = (
   return selected;
 };
 
+const selectArtifacts = (
+  artifacts: readonly PlannerLanguageArtifactSource[],
+  limits: LanguageGenerationLimits,
+): LanguageArtifact[] => {
+  const selected: LanguageArtifact[] = [];
+  let remainingCharacters = limits.maxTotalArtifactCharacters;
+
+  for (const source of artifacts.slice(0, limits.maxArtifacts)) {
+    if (remainingCharacters <= 0) break;
+
+    const availableCharacters = Math.min(
+      limits.maxArtifactCharacters,
+      remainingCharacters,
+    );
+    const content = Array.from(source.content ?? '')
+      .slice(0, availableCharacters)
+      .join('');
+
+    selected.push({
+      id: source.id,
+      title: source.title,
+      type: source.type ?? null,
+      content,
+    });
+    remainingCharacters -= Array.from(content).length;
+  }
+
+  return selected;
+};
+
 export const mapConversationToLanguageInput = (
   conversation: PlannerConversationLanguageSource,
-  configuredLimits: Readonly<LanguageGenerationLimits> = DEFAULT_LANGUAGE_GENERATION_LIMITS,
+  configuredLimits: Readonly<Partial<LanguageGenerationLimits>> = DEFAULT_LANGUAGE_GENERATION_LIMITS,
 ): LanguageGenerationInput => {
-  const limits: LanguageGenerationLimits = { ...configuredLimits };
+  const limits: LanguageGenerationLimits = {
+    ...DEFAULT_LANGUAGE_GENERATION_LIMITS,
+    ...configuredLimits,
+  };
   validateLimits(limits);
 
   return {
     context: conversation.context?.slice(0, limits.maxContextCharacters) ?? null,
     messages: selectRecentMessages(conversation.messages, limits),
+    artifacts: selectArtifacts(conversation.artifacts ?? [], limits),
     limits,
   };
 };

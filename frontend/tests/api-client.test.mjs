@@ -225,3 +225,180 @@ describe('Planner library API client', { concurrency: false }, () => {
     }
   });
 });
+
+describe('Planner active memory API client', { concurrency: false }, () => {
+  const baseUrl = 'http://localhost:4000';
+
+  const withFetch = async (implementation, assertion) => {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = implementation;
+
+    try {
+      await assertion();
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  };
+
+  const jsonResponse = (status, payload) => ({
+    ok: status >= 200 && status < 300,
+    status,
+    async json() {
+      return payload;
+    },
+  });
+
+  test('linkLibraryItemToConversation posts encoded ids without a body and accepts 201', async () => {
+    const calls = [];
+    const item = { id: 'library/item', content: 'Conteudo persistido' };
+
+    await withFetch(
+      async (...args) => {
+        calls.push(args);
+        return jsonResponse(201, item);
+      },
+      async () => {
+        const api = createApiClient(baseUrl);
+        const result = await api.linkLibraryItemToConversation(
+          'conversation/with space',
+          'library/item',
+        );
+
+        assert.deepEqual(result, item);
+        assert.deepEqual(calls, [[
+          `${baseUrl}/api/operators/planner/conversations/conversation%2Fwith%20space/library/library%2Fitem`,
+          { method: 'POST' },
+        ]]);
+        assert.equal(Object.hasOwn(calls[0][1], 'body'), false);
+      },
+    );
+  });
+
+  test('linkLibraryItemToConversation accepts an idempotent 200 response', async () => {
+    const existing = { id: 'library-existing' };
+
+    await withFetch(
+      async () => jsonResponse(200, existing),
+      async () => {
+        const api = createApiClient(baseUrl);
+        assert.deepEqual(
+          await api.linkLibraryItemToConversation('conversation-1', 'library-1'),
+          existing,
+        );
+      },
+    );
+  });
+
+  test('listConversationLibraryItems uses GET and preserves backend order and content', async () => {
+    const calls = [];
+    const items = [
+      { id: 'library-2', content: 'Segundo' },
+      { id: 'library-1', content: 'Primeiro' },
+    ];
+
+    await withFetch(
+      async (...args) => {
+        calls.push(args);
+        return jsonResponse(200, items);
+      },
+      async () => {
+        const api = createApiClient(baseUrl);
+        const result = await api.listConversationLibraryItems('conversation/one');
+
+        assert.deepEqual(result, items);
+        assert.deepEqual(calls, [[
+          `${baseUrl}/api/operators/planner/conversations/conversation%2Fone/library`,
+          undefined,
+        ]]);
+      },
+    );
+  });
+
+  test('unlinkLibraryItemFromConversation uses DELETE without a body and accepts 204', async () => {
+    const calls = [];
+
+    await withFetch(
+      async (...args) => {
+        calls.push(args);
+        return { ok: true, status: 204 };
+      },
+      async () => {
+        const api = createApiClient(baseUrl);
+        const result = await api.unlinkLibraryItemFromConversation(
+          'conversation/one',
+          'library item',
+        );
+
+        assert.equal(result, undefined);
+        assert.deepEqual(calls, [[
+          `${baseUrl}/api/operators/planner/conversations/conversation%2Fone/library/library%20item`,
+          { method: 'DELETE' },
+        ]]);
+        assert.equal(Object.hasOwn(calls[0][1], 'body'), false);
+      },
+    );
+  });
+
+  test('invalid active-memory identifiers fail before network access', async (t) => {
+    const originalFetch = globalThis.fetch;
+    let callCount = 0;
+    globalThis.fetch = async () => {
+      callCount += 1;
+      return jsonResponse(200, {});
+    };
+
+    try {
+      const api = createApiClient(baseUrl);
+      const cases = [
+        ['link empty conversationId', () => api.linkLibraryItemToConversation('', 'library-1')],
+        ['link spaces libraryItemId', () => api.linkLibraryItemToConversation('conversation-1', '  ')],
+        ['list null conversationId', () => api.listConversationLibraryItems(null)],
+        ['list undefined conversationId', () => api.listConversationLibraryItems(undefined)],
+        ['unlink numeric conversationId', () => api.unlinkLibraryItemFromConversation(123, 'library-1')],
+        ['unlink null libraryItemId', () => api.unlinkLibraryItemFromConversation('conversation-1', null)],
+      ];
+
+      for (const [name, operation] of cases) {
+        await t.test(name, async () => {
+          await assert.rejects(operation(), TypeError);
+        });
+      }
+
+      assert.equal(callCount, 0);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  test('active-memory errors preserve safe HTTP statuses', async (t) => {
+    const cases = [
+      [404, (api) => api.listConversationLibraryItems('conversation-1')],
+      [422, (api) => api.linkLibraryItemToConversation('conversation-1', 'library-1')],
+      [500, (api) => api.unlinkLibraryItemFromConversation('conversation-1', 'library-1')],
+    ];
+
+    for (const [status, operation] of cases) {
+      await t.test(`status ${status}`, async () => {
+        await withFetch(
+          async () => ({
+            ok: false,
+            status,
+            async json() {
+              return { stack: 'private stack', payload: 'private payload' };
+            },
+          }),
+          async () => {
+            const api = createApiClient(baseUrl);
+            await assert.rejects(
+              operation(api),
+              (error) => error instanceof ApiRequestError
+                && error.status === status
+                && !Object.hasOwn(error, 'response')
+                && !error.message.includes('private'),
+            );
+          },
+        );
+      });
+    }
+  });
+});
