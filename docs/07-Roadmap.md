@@ -247,3 +247,72 @@ O smoke test não bloqueia a conclusão da Sprint: o adapter possui cobertura de
 ### Resultado
 
 A Sprint 15 transforma o Planner persistente no primeiro operador inteligente funcional do produto. A resposta só chega ao frontend depois de persistida, falhas preservam a mensagem do usuário e nenhuma credencial ou payload sensível é exposto.
+
+## Sprint 16 — Biblioteca de Artefatos do Planejador
+
+**Status: CONCLUÍDA**
+
+**Fase principal: FASE 7 - Primeiro Operador**
+
+### Objetivo
+
+Permitir transformar respostas `operator` persistidas do Planner em artefatos reutilizáveis da Biblioteca, substituindo a Biblioteca estática atual por dados reais.
+
+### Problema que resolve
+
+Respostas úteis deixam de ficar enterradas no histórico de conversas e passam a existir como ativos persistidos e reutilizáveis dentro do JvitorZ OS.
+
+### Entregas
+
+- `LibraryItemRepository` com criação, listagem, busca por ID e busca pela mensagem de origem;
+- `LibraryService` para validar a origem e copiar o conteúdo persistido de mensagens `operator`;
+- endpoints HTTP para salvar, listar e abrir itens da Biblioteca;
+- API client centralizado no frontend;
+- ação **Salvar na Biblioteca** disponível somente em respostas `operator`;
+- listagem real, estado vazio, abertura segura e atualização após salvar;
+- `LibraryItem.sourceMessageId` opcional e único, relacionado a `Message` com `ON DELETE SET NULL`;
+- idempotência persistente: primeira gravação retorna `201`, repetições retornam `200` com o mesmo item;
+- concorrência protegida por constraint única e tratamento seguro de conflito `P2002`;
+- migration SQLite que preserva itens legados com origem nula;
+- lifecycle, tokens de operação, feedback local e renderização com APIs de DOM seguras preservados;
+- testes automatizados determinísticos com SQLite em memória, sem rede externa e sem uso de `dev.db`.
+
+### Fora de escopo
+
+- edição de itens;
+- exclusão de itens;
+- busca;
+- tags;
+- pastas;
+- RAG;
+- inclusão automática da Biblioteca nos prompts;
+- compartilhamento entre usuários;
+- exportação;
+- redesign amplo;
+- novos operadores;
+
+### Critérios de conclusão
+
+- uma resposta `operator` persistida pode ser salva na Biblioteca;
+- mensagem `user`, inexistente ou pertencente a outra conversa é rejeitada;
+- o item persiste após reload ou remontagem do Planner;
+- a listagem da Biblioteca usa dados reais do backend;
+- a abertura de item usa dados reais do backend;
+- chamadas sequenciais ou concorrentes para a mesma mensagem não criam duplicata persistente;
+- erro de API não cria item visual falso;
+- histórico, contexto, geração inteligente, lifecycle e listeners únicos do Planner permanecem funcionais;
+- testes determinísticos passam sem rede externa;
+- `dev.db` permanece inalterado;
+- contratos e documentação refletem o fluxo entregue.
+
+### Resultado
+
+A Biblioteca do Planner deixou de ser estática. O navegador envia somente os IDs da conversa e da mensagem; o backend valida conversa, pertencimento e `sender`, copia o conteúdo real persistido e grava o artefato no SQLite. A listagem e a abertura são carregadas pela API, sobrevivem a reload/remontagem e não alteram mensagens da conversa.
+
+O contrato de salvamento é idempotente por `sourceMessageId`: a primeira chamada cria o item e retorna `201`; chamadas posteriores, inclusive após concorrência, retornam `200` com o mesmo item. Nenhuma duplicata persistente é criada para a mesma mensagem.
+
+### Checkpoint
+
+**SPRINT 16 — BIBLIOTECA DE ARTEFATOS DO PLANEJADOR — CONCLUÍDA**
+
+A Sprint 17 ainda não está definida. A próxima sessão deve começar com auditoria do roadmap e da arquitetura, comparação das próximas opções e formalização do escopo antes de qualquer implementação.

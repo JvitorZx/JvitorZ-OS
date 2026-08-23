@@ -11,7 +11,16 @@ export const plannerModule = {
     const header = createOperatorHeader({ title: 'Planejador de Conteúdo', subtitle: 'Organize ideias, pautas e próximas publicações.', status: 'Pronto' });
     const chat = createChatArea();
     const sidebarHtml = createSidebar({ sections: [
-      { title: 'Biblioteca', body: '<p>Recursos e templates salvos.</p>' },
+      {
+        title: 'Biblioteca',
+        body: html`
+          <div class="planner-library-list" data-library-list></div>
+          <article class="planner-library-reader" data-library-reader hidden>
+            <h5 data-library-item-title></h5>
+            <div class="planner-library-content" data-library-item-content></div>
+          </article>
+        `,
+      },
       {
         title: 'Histórico',
         body: html`
@@ -56,6 +65,7 @@ export const createPlannerController = ({ api }) => {
   let activeConversationId = null;
   let conversations = [];
   const persistedContexts = new Map();
+  const savedLibraryMessages = new Set();
   let conversationCreationPromise = null;
   let mountGeneration = 0;
   let mountedPanel = null;
@@ -99,6 +109,10 @@ export const createPlannerController = ({ api }) => {
     const promptBase = panel.querySelector('[data-prompt-id="planner-prompt"]');
     const historyList = panel.querySelector('[data-conversation-history]');
     const newConversationBtn = panel.querySelector('[data-new-conversation]');
+    const libraryList = panel.querySelector('[data-library-list]');
+    const libraryReader = panel.querySelector('[data-library-reader]');
+    const libraryItemTitle = panel.querySelector('[data-library-item-title]');
+    const libraryItemContent = panel.querySelector('[data-library-item-content]');
     const feedback = panel.querySelector('[data-planner-feedback]');
 
     if (
@@ -108,17 +122,159 @@ export const createPlannerController = ({ api }) => {
       || !promptBase
       || !historyList
       || !newConversationBtn
+      || !libraryList
+      || !libraryReader
+      || !libraryItemTitle
+      || !libraryItemContent
       || !feedback
     ) return;
 
     panel.dataset.plannerInitialized = 'true';
 
     const isCurrentMount = () => mountedPanel === panel && mountGeneration === mountToken;
+    const pendingLibrarySaves = new Set();
+    let conversationViewGeneration = 0;
+    let libraryFeedbackGeneration = 0;
+    let libraryFeedbackMessage = '';
+    let libraryItems = [];
+    let libraryHasLoaded = false;
+    let openedLibraryItemId = null;
+    let pendingLibraryItemId = null;
+    let libraryListGeneration = 0;
+    let libraryOpenGeneration = 0;
 
     const setFeedback = (message = '') => {
       if (!isCurrentMount()) return;
       feedback.textContent = message;
       feedback.hidden = !message;
+    };
+
+    const clearLibraryFeedback = (feedbackToken) => {
+      if (feedbackToken !== libraryFeedbackGeneration) return;
+      if (libraryFeedbackMessage && feedback.textContent === libraryFeedbackMessage) {
+        setFeedback();
+      }
+      libraryFeedbackMessage = '';
+    };
+
+    const showLibraryFeedback = (feedbackToken, message) => {
+      if (feedbackToken !== libraryFeedbackGeneration) return;
+      libraryFeedbackMessage = message;
+      setFeedback(message);
+    };
+
+    const renderLibraryList = () => {
+      if (!libraryHasLoaded) {
+        libraryList.replaceChildren();
+        return;
+      }
+
+      if (libraryItems.length === 0) {
+        const empty = document.createElement('p');
+        empty.className = 'planner-library-empty';
+        empty.textContent = 'Biblioteca vazia.';
+        libraryList.replaceChildren(empty);
+        return;
+      }
+
+      const elements = libraryItems.map((item) => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'planner-library-item';
+        button.dataset.libraryItemId = item.id;
+        button.setAttribute('aria-current', item.id === openedLibraryItemId ? 'true' : 'false');
+        button.setAttribute('aria-busy', item.id === pendingLibraryItemId ? 'true' : 'false');
+        button.classList.toggle('active', item.id === openedLibraryItemId);
+
+        const title = document.createElement('span');
+        title.className = 'planner-library-item-title';
+        title.textContent = item.title?.trim() || 'Item da Biblioteca';
+
+        const type = document.createElement('small');
+        type.className = 'planner-library-item-type';
+        type.textContent = item.type?.trim() || 'resource';
+
+        button.append(title, type);
+        return button;
+      });
+
+      libraryList.replaceChildren(...elements);
+    };
+
+    const loadLibraryItems = async () => {
+      const requestToken = ++libraryListGeneration;
+      const feedbackToken = ++libraryFeedbackGeneration;
+      const isCurrentRequest = () =>
+        isCurrentMount() && requestToken === libraryListGeneration;
+
+      try {
+        const items = await api.listLibraryItems();
+        if (!isCurrentRequest()) return;
+        if (!Array.isArray(items)) throw new TypeError('Invalid library list');
+
+        libraryItems = items;
+        libraryHasLoaded = true;
+        renderLibraryList();
+        clearLibraryFeedback(feedbackToken);
+      } catch (error) {
+        if (!isCurrentRequest()) return;
+
+        showLibraryFeedback(
+          feedbackToken,
+          'Não foi possível carregar a Biblioteca. Tente novamente.',
+        );
+        console.error('Planner library listing failed', {
+          error_name: getSafeErrorName(error),
+          status: getSafeErrorStatus(error),
+        });
+      }
+    };
+
+    const openLibraryItem = async (id) => {
+      if (!id || id === pendingLibraryItemId) return;
+
+      const requestToken = ++libraryOpenGeneration;
+      const viewToken = conversationViewGeneration;
+      const feedbackToken = ++libraryFeedbackGeneration;
+      const isCurrentRequest = () =>
+        isCurrentMount()
+        && requestToken === libraryOpenGeneration
+        && conversationViewGeneration === viewToken;
+
+      pendingLibraryItemId = id;
+      renderLibraryList();
+
+      try {
+        const item = await api.getLibraryItem(id);
+        if (!isCurrentRequest()) return;
+
+        openedLibraryItemId = item.id;
+        pendingLibraryItemId = null;
+        libraryItemTitle.textContent = item.title?.trim() || 'Item da Biblioteca';
+        libraryItemContent.textContent = typeof item.content === 'string' ? item.content : '';
+        libraryReader.hidden = false;
+        renderLibraryList();
+        clearLibraryFeedback(feedbackToken);
+      } catch (error) {
+        if (!isCurrentRequest()) return;
+
+        pendingLibraryItemId = null;
+        renderLibraryList();
+        const message = getSafeErrorStatus(error) === 404
+          ? 'Este item não está mais disponível.'
+          : 'Não foi possível carregar a Biblioteca. Tente novamente.';
+        showLibraryFeedback(feedbackToken, message);
+        console.error('Planner library item loading failed', {
+          error_name: getSafeErrorName(error),
+          status: getSafeErrorStatus(error),
+        });
+      }
+    };
+
+    const invalidatePendingLibraryItem = () => {
+      libraryOpenGeneration += 1;
+      pendingLibraryItemId = null;
+      renderLibraryList();
     };
 
     const appendMessage = (message) => {
@@ -132,6 +288,26 @@ export const createPlannerController = ({ api }) => {
         text: message.text,
         time,
       });
+
+      if (message.sender === 'operator' && message.id) {
+        const libraryKey = `${activeConversationId}:${message.id}`;
+        const isSaved = savedLibraryMessages.has(libraryKey);
+        const actions = document.createElement('div');
+        actions.className = 'chat-message-actions';
+
+        const saveButton = document.createElement('button');
+        saveButton.type = 'button';
+        saveButton.className = 'chat-message-library-action';
+        saveButton.dataset.saveToLibrary = 'true';
+        saveButton.dataset.messageId = message.id;
+        saveButton.textContent = isSaved ? 'Salvo na Biblioteca' : 'Salvar na Biblioteca';
+        saveButton.disabled = isSaved;
+        saveButton.setAttribute('aria-busy', 'false');
+
+        actions.append(saveButton);
+        element.children[0]?.append(actions);
+      }
+
       chatBody.append(element);
       chatBody.scrollTop = chatBody.scrollHeight;
     };
@@ -166,6 +342,8 @@ export const createPlannerController = ({ api }) => {
     const applyConversation = (conversation) => {
       const context = conversation.context ?? '';
       persistedContexts.set(conversation.id, context);
+      conversationViewGeneration += 1;
+      invalidatePendingLibraryItem();
       activeConversationId = conversation.id;
       renderMessages(conversation.messages ?? []);
       renderPrompt(context);
@@ -247,6 +425,9 @@ export const createPlannerController = ({ api }) => {
         updateBusy();
       }
     })();
+    hydrationPromise.then(() => {
+      if (isCurrentMount()) loadLibraryItems();
+    });
 
     const createNewConversation = async () => {
       if (isInitializing || isPersistingMessage || isCreating || isSwitching) return;
@@ -263,6 +444,8 @@ export const createPlannerController = ({ api }) => {
         if (!isCurrentRequest()) return;
 
         activeConversationId = conversation.id;
+        conversationViewGeneration += 1;
+        invalidatePendingLibraryItem();
         persistedContexts.set(conversation.id, conversation.context ?? '');
         conversations = [
           conversation,
@@ -431,6 +614,72 @@ export const createPlannerController = ({ api }) => {
       if (conversationId) selectConversation(conversationId);
     };
 
+    const saveMessageToLibrary = async (button, messageId) => {
+      const conversationId = activeConversationId;
+      if (!conversationId || !messageId) return;
+
+      const libraryKey = `${conversationId}:${messageId}`;
+      if (pendingLibrarySaves.has(libraryKey) || savedLibraryMessages.has(libraryKey)) return;
+
+      const viewToken = conversationViewGeneration;
+      const feedbackToken = ++libraryFeedbackGeneration;
+      const isCurrentView = () =>
+        isCurrentMount()
+        && activeConversationId === conversationId
+        && conversationViewGeneration === viewToken;
+
+      pendingLibrarySaves.add(libraryKey);
+      button.disabled = true;
+      button.setAttribute('aria-busy', 'true');
+      button.textContent = 'Salvando...';
+
+      try {
+        await api.saveMessageToLibrary(conversationId, messageId);
+        if (!isCurrentView()) return;
+
+        savedLibraryMessages.add(libraryKey);
+        button.textContent = 'Salvo na Biblioteca';
+        button.setAttribute('aria-busy', 'false');
+        clearLibraryFeedback(feedbackToken);
+        await loadLibraryItems();
+      } catch (error) {
+        if (!isCurrentView()) return;
+
+        button.disabled = false;
+        button.setAttribute('aria-busy', 'false');
+        button.textContent = 'Salvar na Biblioteca';
+
+        const status = getSafeErrorStatus(error);
+        const feedbackMessage = status === 404
+          ? 'Não foi possível localizar a resposta para salvar.'
+          : status === 409
+            ? 'Esta resposta não pertence à conversa atual.'
+            : status === 422
+              ? 'Apenas respostas do operador podem ser salvas.'
+              : 'Não foi possível salvar na Biblioteca. Tente novamente.';
+
+        showLibraryFeedback(feedbackToken, feedbackMessage);
+        console.error('Planner library save failed', {
+          error_name: getSafeErrorName(error),
+          status,
+        });
+      } finally {
+        pendingLibrarySaves.delete(libraryKey);
+      }
+    };
+
+    const handleChatClick = (event) => {
+      const button = event.target?.closest?.('[data-save-to-library]');
+      const messageId = button?.dataset?.messageId;
+      if (button && messageId) saveMessageToLibrary(button, messageId);
+    };
+
+    const handleLibraryClick = (event) => {
+      const item = event.target?.closest?.('[data-library-item-id]');
+      const id = item?.dataset?.libraryItemId;
+      if (id) openLibraryItem(id);
+    };
+
     const handleTextareaKeydown = (event) => {
       if (event.key === 'Enter' && !event.shiftKey) {
         event.preventDefault();
@@ -474,6 +723,8 @@ export const createPlannerController = ({ api }) => {
     };
 
     sendBtn.addEventListener('click', sendMessage);
+    chatBody.addEventListener('click', handleChatClick);
+    libraryList.addEventListener('click', handleLibraryClick);
     newConversationBtn.addEventListener('click', createNewConversation);
     historyList.addEventListener('click', handleHistoryClick);
     textarea.addEventListener('keydown', handleTextareaKeydown);
@@ -481,6 +732,8 @@ export const createPlannerController = ({ api }) => {
 
     removeMountedListeners = () => {
       sendBtn.removeEventListener('click', sendMessage);
+      chatBody.removeEventListener('click', handleChatClick);
+      libraryList.removeEventListener('click', handleLibraryClick);
       newConversationBtn.removeEventListener('click', createNewConversation);
       historyList.removeEventListener('click', handleHistoryClick);
       textarea.removeEventListener('keydown', handleTextareaKeydown);

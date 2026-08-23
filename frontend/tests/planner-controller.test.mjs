@@ -81,13 +81,19 @@ class FakeElement {
   }
 
   querySelectorAll(selector) {
-    return selector === '[data-conversation-id]'
-      ? this.children.filter((child) => child.dataset.conversationId)
-      : [];
+    if (selector === '[data-conversation-id]') {
+      return this.children.filter((child) => child.dataset.conversationId);
+    }
+    if (selector === '[data-library-item-id]') {
+      return this.children.filter((child) => child.dataset.libraryItemId);
+    }
+    return [];
   }
 
   closest(selector) {
     if (selector === '[data-conversation-id]' && this.dataset.conversationId) return this;
+    if (selector === '[data-save-to-library]' && this.dataset.saveToLibrary) return this;
+    if (selector === '[data-library-item-id]' && this.dataset.libraryItemId) return this;
     return null;
   }
 
@@ -133,25 +139,49 @@ const message = (id, conversationId, text, sender = 'user') => ({
   createdAt: '2026-08-21T12:00:00.000Z',
 });
 
-const createMemoryApi = (initialConversations = []) => {
+const libraryItem = (
+  id,
+  title = `Artefato ${id}`,
+  content = `Conteúdo ${id}`,
+  sourceMessageId = null,
+) => ({
+  id,
+  projectId: null,
+  sourceMessageId,
+  title,
+  type: 'resource',
+  content,
+  createdAt: '2026-08-23T12:00:00.000Z',
+  updatedAt: '2026-08-23T12:00:00.000Z',
+});
+
+const createMemoryApi = (initialConversations = [], initialLibraryItems = []) => {
   const records = new Map(initialConversations.map((item) => [item.id, clone(item)]));
+  const libraryRecords = initialLibraryItems.map(clone);
   const calls = {
     createConversation: 0,
     getConversation: [],
     createMessage: 0,
     generatePlannerReply: 0,
+    saveMessageToLibrary: [],
+    listLibraryItems: 0,
+    getLibraryItem: [],
     updateConversationContext: 0,
   };
   let nextConversation = records.size + 1;
   let nextMessage = 1;
   let nextReply = 1;
+  let nextLibraryItem = libraryRecords.length + 1;
   const failures = new Set();
 
   const api = {
     records,
+    libraryRecords,
     calls,
     failures,
     replyFailureStatus: null,
+    libraryFailureStatus: null,
+    libraryItemFailureStatus: null,
 
     async createConversation() {
       calls.createConversation += 1;
@@ -198,6 +228,51 @@ const createMemoryApi = (initialConversations = []) => {
       return clone(created);
     },
 
+    async saveMessageToLibrary(...args) {
+      calls.saveMessageToLibrary.push(args);
+      if (api.libraryFailureStatus) {
+        const error = new Error('safe API error');
+        error.status = api.libraryFailureStatus;
+        throw error;
+      }
+
+      const [conversationId, messageId] = args;
+      const existing = libraryRecords.find((item) => item.sourceMessageId === messageId);
+      if (existing) return clone(existing);
+
+      const source = records.get(conversationId)?.messages.find((item) => item.id === messageId);
+      const created = libraryItem(
+        `library-${nextLibraryItem++}`,
+        `Resposta ${conversationId}`,
+        source?.text,
+        messageId,
+      );
+      libraryRecords.unshift(created);
+      return clone(created);
+    },
+
+    async listLibraryItems() {
+      calls.listLibraryItems += 1;
+      if (failures.delete('listLibraryItems')) throw new TypeError('library list failed');
+      return libraryRecords.map(clone);
+    },
+
+    async getLibraryItem(id) {
+      calls.getLibraryItem.push(id);
+      if (api.libraryItemFailureStatus) {
+        const error = new Error('safe API error');
+        error.status = api.libraryItemFailureStatus;
+        throw error;
+      }
+      const item = libraryRecords.find((current) => current.id === id);
+      if (!item) {
+        const error = new Error('not found');
+        error.status = 404;
+        throw error;
+      }
+      return clone(item);
+    },
+
     async updateConversationContext(id, contextValue) {
       calls.updateConversationContext += 1;
       if (failures.delete('updateConversationContext')) throw new TypeError('context failed');
@@ -219,9 +294,14 @@ const createPlannerDom = () => {
   const promptBase = new FakeElement('div');
   const historyList = new FakeElement('div');
   const newConversationBtn = new FakeElement('button');
+  const libraryList = new FakeElement('div');
+  const libraryReader = new FakeElement('article');
+  const libraryItemTitle = new FakeElement('h5');
+  const libraryItemContent = new FakeElement('div');
   const feedback = new FakeElement('div');
   const globalStatePanel = new FakeElement('section');
   feedback.hidden = true;
+  libraryReader.hidden = true;
   globalStatePanel.textContent = 'Estado global preservado';
   globalStatePanel.hidden = false;
 
@@ -233,6 +313,10 @@ const createPlannerDom = () => {
   panel.selectorMap.set('[data-prompt-id="planner-prompt"]', promptBase);
   panel.selectorMap.set('[data-conversation-history]', historyList);
   panel.selectorMap.set('[data-new-conversation]', newConversationBtn);
+  panel.selectorMap.set('[data-library-list]', libraryList);
+  panel.selectorMap.set('[data-library-reader]', libraryReader);
+  panel.selectorMap.set('[data-library-item-title]', libraryItemTitle);
+  panel.selectorMap.set('[data-library-item-content]', libraryItemContent);
   panel.selectorMap.set('[data-planner-feedback]', feedback);
 
   return {
@@ -244,6 +328,10 @@ const createPlannerDom = () => {
     promptBase,
     historyList,
     newConversationBtn,
+    libraryList,
+    libraryReader,
+    libraryItemTitle,
+    libraryItemContent,
     feedback,
     globalStatePanel,
   };
@@ -262,6 +350,24 @@ const selectConversation = async (dom, id) => {
   assert.ok(item, `conversation ${id} should be in history`);
   dom.historyList.dispatch('click', { target: item });
   await flush();
+};
+
+const getLibraryAction = (chatMessage) =>
+  chatMessage?.children[0]?.children
+    .find((child) => child.className === 'chat-message-actions')
+    ?.children[0] ?? null;
+
+const clickLibraryAction = (dom, button) => {
+  dom.chatBody.dispatch('click', { target: button });
+};
+
+const getLibraryListItem = (dom, id) =>
+  dom.libraryList.children.find((item) => item.dataset.libraryItemId === id) ?? null;
+
+const clickLibraryListItem = (dom, id) => {
+  const item = getLibraryListItem(dom, id);
+  assert.ok(item, `library item ${id} should be listed`);
+  dom.libraryList.dispatch('click', { target: item });
 };
 
 const withoutConsoleError = async (callback) => {
@@ -341,6 +447,8 @@ test('sends each message once and keeps one listener per action', async () => {
   assert.equal(api.calls.generatePlannerReply, 1);
   assert.equal(dom.chatBody.children.length, 2);
   assert.equal(dom.sendBtn.listeners.get('click').length, 1);
+  assert.equal(dom.chatBody.listeners.get('click').length, 1);
+  assert.equal(dom.libraryList.listeners.get('click').length, 1);
   assert.equal(dom.newConversationBtn.listeners.get('click').length, 1);
   assert.equal(dom.historyList.listeners.get('click').length, 1);
   assert.equal(dom.textarea.listeners.get('keydown').length, 1);
@@ -532,6 +640,8 @@ test('preserves persisted Planner state and unique listeners after leaving and r
   controller.unmount();
 
   assert.equal(firstDom.sendBtn.listeners.get('click').length, 0);
+  assert.equal(firstDom.chatBody.listeners.get('click').length, 0);
+  assert.equal(firstDom.libraryList.listeners.get('click').length, 0);
   assert.equal(firstDom.newConversationBtn.listeners.get('click').length, 0);
   assert.equal(firstDom.historyList.listeners.get('click').length, 0);
   assert.equal(firstDom.textarea.listeners.get('keydown').length, 0);
@@ -547,6 +657,8 @@ test('preserves persisted Planner state and unique listeners after leaving and r
   assert.equal(secondDom.chatBody.children.length, 1);
   assert.equal(secondDom.chatBody.children[0].dataset.id, 'M1');
   assert.equal(secondDom.sendBtn.listeners.get('click').length, 1);
+  assert.equal(secondDom.chatBody.listeners.get('click').length, 1);
+  assert.equal(secondDom.libraryList.listeners.get('click').length, 1);
   assert.equal(secondDom.newConversationBtn.listeners.get('click').length, 1);
   assert.equal(secondDom.historyList.listeners.get('click').length, 1);
   assert.equal(secondDom.textarea.listeners.get('keydown').length, 1);
@@ -730,4 +842,373 @@ test('blocks repeated send triggers while persistence and generation are pending
   assert.equal(api.calls.createMessage, 1);
   assert.equal(api.calls.generatePlannerReply, 1);
   assert.equal(dom.chatBody.children.length, 2);
+});
+
+test('shows the library action only for persisted operator messages', async (t) => {
+  for (const scenario of [
+    { sender: 'operator', expected: true },
+    { sender: 'user', expected: false },
+    { sender: 'system', expected: false },
+  ]) {
+    await t.test(scenario.sender, async () => {
+      const persisted = message(`${scenario.sender}-1`, 'A', 'Conteudo seguro', scenario.sender);
+      const api = createMemoryApi([conversation('A', { messages: [persisted] })]);
+      const { dom } = await mount(api);
+
+      assert.equal(Boolean(getLibraryAction(dom.chatBody.children[0])), scenario.expected);
+    });
+  }
+});
+
+test('saves an operator message with ids only and marks it after persistence', async () => {
+  const persisted = message('operator-1', 'A', 'Resposta persistida', 'operator');
+  const api = createMemoryApi([conversation('A', { messages: [persisted] })]);
+  const { dom } = await mount(api);
+  const button = getLibraryAction(dom.chatBody.children[0]);
+
+  clickLibraryAction(dom, button);
+  await flush();
+
+  assert.equal(api.calls.saveMessageToLibrary.length, 1);
+  assert.deepEqual(api.calls.saveMessageToLibrary[0], ['A', 'operator-1']);
+  assert.equal(button.textContent, 'Salvo na Biblioteca');
+  assert.equal(button.disabled, true);
+  assert.equal(button.getAttribute('aria-busy'), 'false');
+  assert.equal(dom.chatBody.children[0].children[0].children[0].textContent, 'Resposta persistida');
+  assert.equal(dom.feedback.hidden, true);
+});
+
+test('blocks repeated library clicks while the request is pending', async () => {
+  const save = deferred();
+  const persisted = message('operator-1', 'A', 'Resposta persistida', 'operator');
+  const api = createMemoryApi([conversation('A', { messages: [persisted] })]);
+  api.saveMessageToLibrary = (...args) => {
+    api.calls.saveMessageToLibrary.push(args);
+    return save.promise;
+  };
+  const { dom } = await mount(api);
+  const button = getLibraryAction(dom.chatBody.children[0]);
+
+  clickLibraryAction(dom, button);
+  clickLibraryAction(dom, button);
+  await flush();
+
+  assert.equal(api.calls.saveMessageToLibrary.length, 1);
+  assert.equal(button.disabled, true);
+  assert.equal(button.getAttribute('aria-busy'), 'true');
+
+  save.resolve({ id: 'library-1' });
+  await flush();
+
+  assert.equal(button.textContent, 'Salvo na Biblioteca');
+  assert.equal(button.getAttribute('aria-busy'), 'false');
+});
+
+test('maps library save failures to local safe feedback without false success', async (t) => {
+  await withoutConsoleError(async () => {
+    for (const scenario of [
+      { status: 404, expected: 'Não foi possível localizar a resposta para salvar.' },
+      { status: 409, expected: 'Esta resposta não pertence à conversa atual.' },
+      { status: 422, expected: 'Apenas respostas do operador podem ser salvas.' },
+      { status: 500, expected: 'Não foi possível salvar na Biblioteca. Tente novamente.' },
+    ]) {
+      await t.test(`status ${scenario.status}`, async () => {
+        const persisted = message('operator-1', 'A', 'Resposta persistida', 'operator');
+        const api = createMemoryApi([conversation('A', { messages: [persisted] })]);
+        api.libraryFailureStatus = scenario.status;
+        const { dom } = await mount(api);
+        const button = getLibraryAction(dom.chatBody.children[0]);
+
+        clickLibraryAction(dom, button);
+        await flush();
+
+        assert.equal(button.textContent, 'Salvar na Biblioteca');
+        assert.equal(button.disabled, false);
+        assert.equal(button.getAttribute('aria-busy'), 'false');
+        assert.equal(dom.feedback.textContent, scenario.expected);
+        assert.equal(dom.feedback.hidden, false);
+        assert.equal(dom.globalStatePanel.textContent, 'Estado global preservado');
+        assert.equal(dom.globalStatePanel.hidden, false);
+      });
+    }
+  });
+});
+
+test('clears its own library feedback after a successful retry', async () => {
+  await withoutConsoleError(async () => {
+    const persisted = message('operator-1', 'A', 'Resposta persistida', 'operator');
+    const api = createMemoryApi([conversation('A', { messages: [persisted] })]);
+    api.libraryFailureStatus = 500;
+    const { dom } = await mount(api);
+    const button = getLibraryAction(dom.chatBody.children[0]);
+
+    clickLibraryAction(dom, button);
+    await flush();
+    assert.equal(dom.feedback.hidden, false);
+
+    api.libraryFailureStatus = null;
+    clickLibraryAction(dom, button);
+    await flush();
+
+    assert.equal(button.textContent, 'Salvo na Biblioteca');
+    assert.equal(dom.feedback.hidden, true);
+  });
+});
+
+test('ignores a late library save response after switching conversations', async () => {
+  const save = deferred();
+  const operatorA = message('operator-A', 'A', 'Resposta A', 'operator');
+  const api = createMemoryApi([
+    conversation('B'),
+    conversation('A', { messages: [operatorA] }),
+  ]);
+  api.saveMessageToLibrary = (...args) => {
+    api.calls.saveMessageToLibrary.push(args);
+    return save.promise;
+  };
+  const { dom } = await mount(api);
+  const oldButton = getLibraryAction(dom.chatBody.children[0]);
+
+  clickLibraryAction(dom, oldButton);
+  await selectConversation(dom, 'B');
+  save.resolve({ id: 'library-A' });
+  await flush();
+
+  assert.equal(dom.chatBody.children.length, 0);
+  assert.equal(dom.feedback.hidden, true);
+  assert.equal(oldButton.textContent, 'Salvando...');
+  assert.equal(dom.globalStatePanel.textContent, 'Estado global preservado');
+});
+
+test('ignores a late library save response after unmount and removes its listener', async () => {
+  const save = deferred();
+  const operator = message('operator-1', 'A', 'Resposta', 'operator');
+  const api = createMemoryApi([conversation('A', { messages: [operator] })]);
+  api.saveMessageToLibrary = (...args) => {
+    api.calls.saveMessageToLibrary.push(args);
+    return save.promise;
+  };
+  const controller = createPlannerController({ api });
+  const dom = createPlannerDom();
+  controller.mount(dom.root);
+  await flush();
+  const button = getLibraryAction(dom.chatBody.children[0]);
+
+  clickLibraryAction(dom, button);
+  controller.unmount();
+  save.resolve({ id: 'library-1' });
+  await flush();
+
+  assert.equal(button.textContent, 'Salvando...');
+  assert.equal(dom.feedback.hidden, true);
+  assert.equal(dom.chatBody.listeners.get('click').length, 0);
+});
+
+test('loads the real library on mount and renders an empty state', async () => {
+  const api = createMemoryApi([conversation('A')]);
+  const { dom } = await mount(api);
+
+  assert.equal(api.calls.listLibraryItems, 1);
+  assert.equal(dom.libraryList.children.length, 1);
+  assert.equal(dom.libraryList.children[0].className, 'planner-library-empty');
+  assert.equal(dom.libraryList.children[0].textContent, 'Biblioteca vazia.');
+  assert.equal(dom.libraryReader.hidden, true);
+});
+
+test('renders persisted library items in the backend order', async () => {
+  const items = [
+    libraryItem('L3', 'Terceiro'),
+    libraryItem('L2', 'Segundo'),
+    libraryItem('L1', 'Primeiro'),
+  ];
+  const api = createMemoryApi([conversation('A')], items);
+  const { dom } = await mount(api);
+
+  assert.deepEqual(
+    dom.libraryList.children.map(({ dataset }) => dataset.libraryItemId),
+    ['L3', 'L2', 'L1'],
+  );
+  assert.deepEqual(
+    dom.libraryList.children.map((item) => item.children[0].textContent),
+    ['Terceiro', 'Segundo', 'Primeiro'],
+  );
+});
+
+test('refreshes the real library once after saving an operator message', async () => {
+  const operator = message('operator-1', 'A', 'Resposta para Biblioteca', 'operator');
+  const api = createMemoryApi([conversation('A', { messages: [operator] })]);
+  const { dom } = await mount(api);
+  const saveButton = getLibraryAction(dom.chatBody.children[0]);
+
+  assert.equal(api.calls.listLibraryItems, 1);
+  clickLibraryAction(dom, saveButton);
+  await flush();
+
+  assert.equal(api.calls.saveMessageToLibrary.length, 1);
+  assert.equal(api.calls.listLibraryItems, 2);
+  assert.equal(dom.libraryList.children.length, 1);
+  assert.equal(dom.libraryList.children[0].dataset.libraryItemId, 'library-1');
+  assert.equal(dom.libraryList.children[0].children[0].textContent, 'Resposta A');
+});
+
+test('opens persisted library content as literal text', async () => {
+  const unsafeContent = '<img src=x onerror=alert(1)><script>alert(1)</script><b>teste</b>';
+  const item = libraryItem('L1', 'Conteúdo seguro', unsafeContent);
+  const api = createMemoryApi([conversation('A')], [item]);
+  const { dom } = await mount(api);
+
+  clickLibraryListItem(dom, 'L1');
+  await flush();
+
+  assert.deepEqual(api.calls.getLibraryItem, ['L1']);
+  assert.equal(dom.libraryReader.hidden, false);
+  assert.equal(dom.libraryItemTitle.textContent, 'Conteúdo seguro');
+  assert.equal(dom.libraryItemContent.textContent, unsafeContent);
+  assert.equal(dom.libraryItemContent.children.length, 0);
+  assert.equal(getLibraryListItem(dom, 'L1').getAttribute('aria-current'), 'true');
+});
+
+test('keeps the newest library selection when responses resolve out of order', async () => {
+  const lateA = deferred();
+  const fastB = deferred();
+  const itemA = libraryItem('LA', 'Artefato A', 'Conteúdo A');
+  const itemB = libraryItem('LB', 'Artefato B', 'Conteúdo B');
+  const api = createMemoryApi([conversation('A')], [itemA, itemB]);
+  api.getLibraryItem = (id) => {
+    api.calls.getLibraryItem.push(id);
+    return id === 'LA' ? lateA.promise : fastB.promise;
+  };
+  const { dom } = await mount(api);
+
+  clickLibraryListItem(dom, 'LA');
+  clickLibraryListItem(dom, 'LB');
+  fastB.resolve(clone(itemB));
+  await flush();
+  lateA.resolve(clone(itemA));
+  await flush();
+
+  assert.deepEqual(api.calls.getLibraryItem, ['LA', 'LB']);
+  assert.equal(dom.libraryItemTitle.textContent, 'Artefato B');
+  assert.equal(dom.libraryItemContent.textContent, 'Conteúdo B');
+  assert.equal(getLibraryListItem(dom, 'LB').getAttribute('aria-current'), 'true');
+});
+
+test('reports a missing library item locally without creating false content', async () => {
+  await withoutConsoleError(async () => {
+    const api = createMemoryApi([conversation('A')], [libraryItem('L1')]);
+    api.libraryItemFailureStatus = 404;
+    const { dom } = await mount(api);
+
+    clickLibraryListItem(dom, 'L1');
+    await flush();
+
+    assert.equal(dom.libraryReader.hidden, true);
+    assert.equal(dom.libraryItemContent.textContent, '');
+    assert.equal(dom.feedback.textContent, 'Este item não está mais disponível.');
+    assert.equal(dom.feedback.hidden, false);
+    assert.equal(dom.globalStatePanel.textContent, 'Estado global preservado');
+    assert.equal(dom.globalStatePanel.hidden, false);
+  });
+});
+
+test('keeps the library unrendered when its initial listing fails', async () => {
+  await withoutConsoleError(async () => {
+    const api = createMemoryApi([conversation('A')]);
+    api.failures.add('listLibraryItems');
+    const { dom } = await mount(api);
+
+    assert.equal(api.calls.listLibraryItems, 1);
+    assert.equal(dom.libraryList.children.length, 0);
+    assert.equal(dom.feedback.textContent, 'Não foi possível carregar a Biblioteca. Tente novamente.');
+    assert.equal(dom.feedback.hidden, false);
+    assert.equal(dom.globalStatePanel.textContent, 'Estado global preservado');
+  });
+});
+
+test('ignores a late library opening after changing conversations', async () => {
+  const opening = deferred();
+  const item = libraryItem('L1', 'Artefato tardio', 'Conteúdo tardio');
+  const api = createMemoryApi([conversation('B'), conversation('A')], [item]);
+  api.getLibraryItem = (id) => {
+    api.calls.getLibraryItem.push(id);
+    return opening.promise;
+  };
+  const { dom } = await mount(api);
+
+  clickLibraryListItem(dom, 'L1');
+  await selectConversation(dom, 'B');
+  opening.resolve(clone(item));
+  await flush();
+
+  assert.equal(dom.libraryReader.hidden, true);
+  assert.equal(dom.libraryItemContent.textContent, '');
+  assert.equal(dom.feedback.hidden, true);
+});
+
+test('ignores a late library list after unmount', async () => {
+  const listing = deferred();
+  const api = createMemoryApi([conversation('A')]);
+  api.listLibraryItems = () => {
+    api.calls.listLibraryItems += 1;
+    return listing.promise;
+  };
+  const controller = createPlannerController({ api });
+  const dom = createPlannerDom();
+  controller.mount(dom.root);
+  await flush();
+
+  assert.equal(api.calls.listLibraryItems, 1);
+  controller.unmount();
+  listing.resolve([libraryItem('late')]);
+  await flush();
+
+  assert.equal(dom.libraryList.children.length, 0);
+  assert.equal(dom.feedback.hidden, true);
+  assert.equal(dom.libraryList.listeners.get('click').length, 0);
+});
+
+test('reloads the library once on remount without duplicate items or listeners', async () => {
+  const api = createMemoryApi([conversation('A')], [libraryItem('L1')]);
+  const controller = createPlannerController({ api });
+  const firstDom = createPlannerDom();
+  controller.mount(firstDom.root);
+  await flush();
+  controller.unmount();
+
+  const secondDom = createPlannerDom();
+  controller.mount(secondDom.root);
+  controller.mount(secondDom.root);
+  await flush();
+
+  assert.equal(api.calls.listLibraryItems, 2);
+  assert.equal(secondDom.libraryList.children.length, 1);
+  assert.equal(secondDom.libraryList.children[0].dataset.libraryItemId, 'L1');
+  assert.equal(secondDom.libraryList.listeners.get('click').length, 1);
+});
+
+test('a new controller treats an already saved message as success without duplicating it', async () => {
+  const operator = message('operator-1', 'A', 'Resposta persistida', 'operator');
+  const api = createMemoryApi([conversation('A', { messages: [operator] })]);
+
+  const firstController = createPlannerController({ api });
+  const firstDom = createPlannerDom();
+  firstController.mount(firstDom.root);
+  await flush();
+  clickLibraryAction(firstDom, getLibraryAction(firstDom.chatBody.children[0]));
+  await flush();
+  firstController.unmount();
+
+  const reloadedController = createPlannerController({ api });
+  const reloadedDom = createPlannerDom();
+  reloadedController.mount(reloadedDom.root);
+  await flush();
+  const retryButton = getLibraryAction(reloadedDom.chatBody.children[0]);
+  clickLibraryAction(reloadedDom, retryButton);
+  await flush();
+
+  assert.equal(api.calls.saveMessageToLibrary.length, 2);
+  assert.equal(api.libraryRecords.length, 1);
+  assert.equal(retryButton.textContent, 'Salvo na Biblioteca');
+  assert.equal(reloadedDom.feedback.hidden, true);
+  assert.equal(reloadedDom.libraryList.children.length, 1);
 });

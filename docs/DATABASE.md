@@ -23,6 +23,16 @@ Rotas do Planner
 
 As conversas, mensagens e contextos do Planejador já possuem persistência real. Reiniciar ou reabrir o frontend não remove esses dados do SQLite.
 
+Os artefatos da Biblioteca seguem a mesma arquitetura:
+
+```text
+Rotas da Biblioteca
+  -> LibraryService
+    -> ConversationRepository / MessageRepository / LibraryItemRepository
+      -> Prisma Client
+        -> SQLite
+```
+
 ## Conversation
 
 `Conversation` representa uma sessão persistida do Planejador.
@@ -59,19 +69,40 @@ O campo `context` substitui o armazenamento anterior do prompt-base no navegador
 
 `MessageRepository` cria mensagens e permite consultá-las por conversa em ordem crescente de `createdAt`. A abertura de uma conversa também retorna suas mensagens nessa ordem.
 
+## LibraryItem
+
+`LibraryItem` representa um artefato persistido da Biblioteca. Na Sprint 16, ele é criado a partir de uma mensagem `operator` já persistida.
+
+| Campo | Tipo | Regra atual |
+| --- | --- | --- |
+| `id` | `String` | Chave primária gerada pelo Prisma. |
+| `projectId` | `String?` | Projeto opcional herdado da conversa de origem. |
+| `sourceMessageId` | `String?` | Mensagem de origem opcional e única. Itens legados podem manter `null`. |
+| `title` | `String` | Derivado deterministicamente do título da conversa ou usa `Resposta do Planner`. |
+| `type` | `String?` | Usa `resource` para artefatos do Planner. |
+| `content` | `String?` | Cópia do texto persistido da mensagem `operator`. |
+| `createdAt` | `DateTime` | Data de criação. |
+| `updatedAt` | `DateTime` | Atualizado automaticamente pelo Prisma. |
+
+A relação entre `LibraryItem` e `Message` usa `ON DELETE SET NULL`: remover uma mensagem de origem não remove o artefato. A unicidade de `sourceMessageId` garante idempotência persistente. A primeira gravação cria o item; tentativas sequenciais ou concorrentes retornam o mesmo registro sem duplicação.
+
+`LibraryItemRepository` implementa criação, listagem determinística por `createdAt` e `id` decrescentes, busca por ID e busca por `sourceMessageId`.
+
 ## Organização
 
 - `backend/src/database/DatabaseService.ts`: ciclo de vida do `PrismaClient`.
 - `backend/src/database/repositories/PrismaRepository.ts`: base compartilhada dos repositories Prisma.
 - `backend/src/database/repositories/ConversationRepository.ts`: persistência de conversas e contexto.
 - `backend/src/database/repositories/MessageRepository.ts`: persistência de mensagens.
+- `backend/src/database/repositories/LibraryItemRepository.ts`: persistência e consulta de artefatos.
 - `backend/src/services/PlannerService.ts`: regras e coordenação do domínio do Planejador.
+- `backend/src/services/LibraryService.ts`: validação da origem, idempotência e coordenação da Biblioteca.
 - `backend/src/routes/operators.ts`: validação HTTP e delegação ao serviço.
 
 ## Testes
 
-Os testes do Planner usam SQLite `:memory:` e criam somente as tabelas necessárias para cada execução. Eles não acessam nem modificam `backend/prisma/dev.db`.
+Os testes do Planner e da Biblioteca usam SQLite `:memory:` e criam somente as tabelas necessárias para cada execução. A migration da Biblioteca também é executada contra SQLite em memória para validar preservação de itens legados, unicidade, chave estrangeira e `ON DELETE SET NULL`. Os testes não acessam nem modificam `backend/prisma/dev.db`.
 
 ## Evolução futura
 
-O modelo continua preparado para uma migração futura para PostgreSQL por meio do Prisma. Essa migração não faz parte da Sprint 13.
+O modelo continua preparado para uma migração futura para PostgreSQL por meio do Prisma. Essa migração permanece fora do escopo atual.

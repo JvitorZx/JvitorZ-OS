@@ -32,7 +32,7 @@ Conversation.context + mensagens persistidas
 
 ## Inicialização do Planner
 
-1. `dashboard.js` renderiza o módulo ativo e chama `plannerController.init()`.
+1. `dashboard.js` monta o módulo ativo pelo contrato de lifecycle e chama `plannerController.mount(container, context)`.
 2. O controller chama `GET /api/operators/planner/conversations` para carregar o histórico persistido.
 3. Se o `activeConversationId` em memória ainda existir na lista, ele é reutilizado.
 4. Sem uma conversa ativa válida, o controller escolhe a primeira conversa retornada pelo backend.
@@ -93,6 +93,28 @@ Se a geração falhar, a mensagem `user` permanece persistida e nenhuma mensagem
 - Se a atualização falhar, o editor restaura o último valor confirmado e não apresenta a alteração como salva.
 - Não existe mais dependência de `localStorage["planner.prompt.base"]`.
 
+## Biblioteca de Artefatos
+
+O salvamento de uma resposta usa somente identificadores enviados pelo frontend:
+
+```text
+Planner -> API client
+  -> POST /api/operators/planner/conversations/:conversationId/messages/:messageId/library
+    -> LibraryService
+      -> ConversationRepository + MessageRepository
+        -> valida conversa, pertencimento e sender "operator"
+          -> LibraryItemRepository
+            -> Prisma -> SQLite
+```
+
+O conteúdo do artefato é sempre copiado da mensagem persistida pelo backend. Mensagens `user` ou `system`, mensagens ausentes e mensagens de outra conversa são rejeitadas antes da criação.
+
+`LibraryItem.sourceMessageId` identifica a origem com unicidade persistente. A primeira chamada cria o item e retorna `201`; chamadas posteriores retornam `200` com o mesmo item. Se chamadas concorrentes atravessarem a consulta inicial, a constraint única produz um conflito tratado pelo serviço, que busca e retorna o item já criado.
+
+Ao montar o Planner, o frontend chama `GET /api/operators/planner/library`. A lista preserva a ordenação do backend e mostra um estado vazio quando necessário. Após salvar, a lista é recarregada da API. A abertura chama `GET /api/operators/planner/library/:id`, mantém o artefato separado das mensagens e usa `textContent` para título e conteúdo.
+
+Listagens, aberturas e salvamentos usam tokens de montagem/operação. Respostas tardias depois de unmount, troca de conversa ou seleção de outro item são ignoradas e não criam estado visual falso.
+
 ## Respostas Assíncronas Obsoletas
 
 O controller usa uma geração de montagem e tokens por operação:
@@ -115,11 +137,12 @@ O Planner possui uma região de status com `role="status"` e `aria-live="polite"
 - envio de mensagem;
 - geração de resposta inteligente;
 - salvamento de contexto.
+- carregamento, salvamento e abertura da Biblioteca.
 
 O feedback não expõe payloads, stack traces ou detalhes internos. Uma ação posterior bem-sucedida limpa a mensagem correspondente.
 
 ## Testes do Fluxo
 
-`npm test`, executado em `backend/`, cobre a API real com Prisma e SQLite em memória, providers/clients de linguagem injetáveis e o controller frontend com DOM controlado. As 104 verificações não dependem de OAuth, YouTube, OpenAI real, chave, rede externa ou `dev.db`.
+`npm test`, executado em `backend/`, cobre a API real com Prisma e SQLite em memória, providers/clients injetáveis, migration da Biblioteca e o controller frontend com DOM controlado. As 191 verificações não dependem de OAuth, YouTube, OpenAI real, chave, rede externa ou `dev.db`.
 
 Permanece pendente, sem bloquear a Sprint, um smoke test manual com `OPENAI_API_KEY` válida para confirmar uma chamada real HTTP `201`. Chave, prompt e resposta do teste não devem ser registrados na documentação.

@@ -31,6 +31,7 @@ Message
 ├── conversationId -> Conversation.id
 ├── sender
 ├── text
+├── libraryItem -> LibraryItem (opcional)
 └── createdAt
 
 Operator
@@ -44,6 +45,7 @@ Operator
 LibraryItem
 ├── id
 ├── projectId -> Project.id
+├── sourceMessageId -> Message.id (opcional, único, ON DELETE SET NULL)
 ├── title
 ├── type
 ├── content
@@ -82,10 +84,12 @@ AnalyticsSnapshot
 - Project 1:N Conversation
 - Conversation 1:N Message
 - Project 1:N LibraryItem
+- Message 1:0..1 LibraryItem
 - Project 1:N Automation
 - Project 1:N AnalyticsSnapshot
 
 ## Observações
 
-- As entidades são projetadas para suportar projetos de conteúdo, conversas, mensagens e dados de análise.
+- As entidades suportam projetos de conteúdo, conversas, mensagens, artefatos persistidos e dados de análise.
+- `LibraryItem.sourceMessageId` garante no máximo um artefato por mensagem de origem; itens legados sem origem permanecem válidos.
 - A modelagem preserva a arquitetura de futuro com PostgreSQL sem alterar o frontend ou as APIs.

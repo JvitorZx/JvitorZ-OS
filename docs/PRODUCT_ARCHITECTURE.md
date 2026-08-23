@@ -64,7 +64,7 @@ JvitorZ OS
 - **Objetivo**: oferecer uma workspace para planejar pautas, escrever prompts e conduzir conversas de planejamento.
 - **O que faz**: apresenta chat, biblioteca, histórico e prompt base editável; funciona como workspace de operador.
 - **Dados que consome**: histórico, mensagens e contexto persistidos das conversas do Planejador.
-- **Dados que gera**: novas conversas, mensagens, contexto e respostas inteligentes persistidos pelo backend em SQLite.
+- **Dados que gera**: novas conversas, mensagens, contexto, respostas inteligentes e artefatos da Biblioteca persistidos pelo backend em SQLite.
 - **Componentes reutilizados**: header, chat, sidebar, painel, input fixo, prompt editável.
 - **Próximas integrações**: análise de tendências, importação de roteiros e automação de publicações.
 
@@ -87,7 +87,27 @@ O frontend solicita `/reply` somente após persistir a mensagem do usuário e re
 
 Os testes automatizados usam providers e clients injetáveis, sem chave ou rede externa. Permanece como validação externa não bloqueadora executar um smoke test manual com uma `OPENAI_API_KEY` válida para confirmar uma chamada real HTTP `201`.
 
-Streaming, seleção de modelo pela UI, múltiplos providers, RAG, Biblioteca, dados do YouTube no prompt, tools/function calling, automações e novos operadores permanecem fora desta Sprint.
+Streaming, seleção de modelo pela UI, múltiplos providers, RAG, dados do YouTube no prompt, tools/function calling, automações e novos operadores permanecem fora desta Sprint.
+
+#### Biblioteca de artefatos concluída na Sprint 16
+
+A Sprint 16 avança a FASE 7 - Primeiro Operador ao transformar respostas inteligentes persistidas em artefatos reutilizáveis. A Biblioteca do Planner usa dados reais por meio deste fluxo:
+
+```text
+Conversation + Message persistida com sender "operator"
+  -> LibraryService valida conversa, mensagem e autoria
+    -> conteúdo copiado no backend
+      -> LibraryItemRepository
+        -> Prisma -> SQLite
+```
+
+O frontend envia apenas os identificadores necessários para localizar a conversa e a mensagem. O backend não aceita conteúdo arbitrário como fonte: busca a mensagem persistida, confirma seu pertencimento e aceita somente `sender: "operator"`.
+
+`LibraryItem.sourceMessageId` registra a origem com unicidade no banco. A primeira gravação retorna `201`; novas chamadas para a mesma mensagem retornam `200` com o item existente. Em concorrência, a constraint única decide a criação e o serviço trata `P2002` buscando o registro vencedor, sem expor detalhes do Prisma. A relação usa `ON DELETE SET NULL`, preservando o artefato se a mensagem de origem for removida, e a migration mantém itens legados com origem nula.
+
+A UI usa o API client centralizado para salvar, listar e abrir itens. Após salvar, a lista é recarregada do backend; o leitor mantém o artefato separado do chat e renderiza título e conteúdo como texto. Tokens de operação impedem respostas obsoletas de alterar uma montagem, conversa ou seleção mais nova, e erros permanecem no feedback local do Planner.
+
+Edição, exclusão, busca, tags, pastas, RAG, inclusão automática nos prompts, compartilhamento, exportação, redesign amplo e novos operadores permanecem no backlog.
 
 ### Supervisor (conceitual)
 - **Objetivo**: monitorar saúde do sistema, status de operações e alertas de fluxo.

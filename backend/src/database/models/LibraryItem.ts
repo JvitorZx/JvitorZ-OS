@@ -1,6 +1,7 @@
 export interface LibraryItem {
   id: string;
-  projectId?: string;
+  projectId?: string | null;
+  sourceMessageId?: string | null;
   title: string;
   type?: 'template' | 'resource' | 'reference';
   content?: string;

@@ -1,5 +1,13 @@
+import type { LibraryItem } from '@prisma/client';
 import { Router } from 'express';
 import { PlannerModule } from '../modules/planner/PlannerModule';
+import {
+  LibraryConversationNotFoundError,
+  LibraryMessageConversationMismatchError,
+  LibraryMessageNotFoundError,
+  LibraryMessageSenderNotAllowedError,
+  LibraryService,
+} from '../services/LibraryService';
 import {
   isPlannerMessageSender,
   PlannerLanguageGenerationError,
@@ -11,8 +19,19 @@ import { OpenAILanguageProvider } from '../services/language/OpenAILanguageProvi
 const createDefaultPlannerService = (): PlannerService =>
   new PlannerService(undefined, undefined, new OpenAILanguageProvider());
 
+const toLibraryItemResponse = ({
+  id,
+  projectId,
+  title,
+  type,
+  content,
+  createdAt,
+  updatedAt,
+}: LibraryItem) => ({ id, projectId, title, type, content, createdAt, updatedAt });
+
 export const createOperatorsRouter = (
   plannerService: PlannerService = createDefaultPlannerService(),
+  libraryService: LibraryService = new LibraryService(),
 ): Router => {
   const router = Router();
   const planner = new PlannerModule();
@@ -179,6 +198,87 @@ router.post('/planner/conversations/:id/reply', async (req, res) => {
     const errorName = error instanceof Error ? error.name : 'UnknownError';
     console.error(`Failed to persist planner reply (${errorName})`);
     return res.status(500).json({ error: 'Failed to persist planner reply' });
+  }
+});
+
+router.post(
+  '/planner/conversations/:conversationId/messages/:messageId/library',
+  async (req, res) => {
+    const conversationId = req.params.conversationId?.trim();
+    const messageId = req.params.messageId?.trim();
+
+    if (!conversationId) {
+      return res.status(400).json({ error: 'conversationId must be a non-empty string' });
+    }
+
+    if (!messageId) {
+      return res.status(400).json({ error: 'messageId must be a non-empty string' });
+    }
+
+    if (
+      req.body !== undefined &&
+      (typeof req.body !== 'object' || Array.isArray(req.body) || Object.keys(req.body).length > 0)
+    ) {
+      return res.status(400).json({ error: 'body must be empty' });
+    }
+
+    try {
+      const result = await libraryService.saveOperatorMessage(conversationId, messageId);
+      return res.status(result.created ? 201 : 200).json(toLibraryItemResponse(result.item));
+    } catch (error) {
+      if (error instanceof LibraryConversationNotFoundError) {
+        return res.status(404).json({ error: 'Conversation not found' });
+      }
+
+      if (error instanceof LibraryMessageNotFoundError) {
+        return res.status(404).json({ error: 'Message not found' });
+      }
+
+      if (error instanceof LibraryMessageConversationMismatchError) {
+        return res.status(409).json({ error: 'Message does not belong to conversation' });
+      }
+
+      if (error instanceof LibraryMessageSenderNotAllowedError) {
+        return res.status(422).json({ error: 'Only operator messages can be saved' });
+      }
+
+      const errorName = error instanceof Error ? error.name : 'UnknownError';
+      console.error(`Failed to save planner library item (${errorName})`);
+      return res.status(500).json({ error: 'Failed to save library item' });
+    }
+  },
+);
+
+router.get('/planner/library', async (_req, res) => {
+  try {
+    const items = await libraryService.listItems();
+    return res.status(200).json(items.map(toLibraryItemResponse));
+  } catch (error) {
+    const errorName = error instanceof Error ? error.name : 'UnknownError';
+    console.error(`Failed to list planner library items (${errorName})`);
+    return res.status(500).json({ error: 'Failed to list library items' });
+  }
+});
+
+router.get('/planner/library/:id', async (req, res) => {
+  const id = req.params.id?.trim();
+
+  if (!id) {
+    return res.status(400).json({ error: 'id must be a non-empty string' });
+  }
+
+  try {
+    const item = await libraryService.getItemById(id);
+
+    if (!item) {
+      return res.status(404).json({ error: 'Library item not found' });
+    }
+
+    return res.status(200).json(toLibraryItemResponse(item));
+  } catch (error) {
+    const errorName = error instanceof Error ? error.name : 'UnknownError';
+    console.error(`Failed to fetch planner library item (${errorName})`);
+    return res.status(500).json({ error: 'Failed to fetch library item' });
   }
 });
 

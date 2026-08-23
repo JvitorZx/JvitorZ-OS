@@ -54,11 +54,11 @@ JvitorZ OS
 
 ### Biblioteca
 - Objetivo: ser o repositório de recursos, templates e materiais reutilizáveis para criadores e operadores.
-- Responsabilidade: centralizar referências, prompts e ativos de apoio para uso em operadores.
-- Dados consumidos: templates locais, conteúdo salvo pelo usuário e contextos de operadores.
-- Dados produzidos: itens reutilizáveis, blocos de apoio e base de conhecimento local.
+- Responsabilidade: centralizar artefatos reutilizáveis produzidos pelos operadores; o fluxo atual salva respostas `operator` do Planejador.
+- Dados consumidos: mensagens persistidas validadas no backend e identificadores enviados pelo frontend.
+- Dados produzidos: `LibraryItem` persistido, listado e aberto pela API.
 - Componentes reutilizados: seções de sidebar, painéis de listagem e detalhes.
-- Integrações futuras: biblioteca de prompts persistente, exportação de recursos e compartilhamento de templates.
+- Integrações futuras: edição, busca, organização, exportação, compartilhamento e uso dos artefatos em prompts.
 
 ### Operadores
 - Objetivo: agrupar as workspaces especializadas que executam tarefas de criação, análise e automação.
@@ -72,7 +72,7 @@ JvitorZ OS
 - Objetivo: organizar ideias, pautas e próximos conteúdos em uma workspace de planejamento.
 - Responsabilidade: oferecer chat persistente, histórico, biblioteca de apoio, prompt base editável e resposta inteligente baseada no contexto da conversa.
 - Dados consumidos: histórico, mensagens e contexto de conversas carregados pela API do Planejador.
-- Dados produzidos: conversas, mensagens de usuário, respostas `operator` e prompt-base persistidos no SQLite por meio do backend.
+- Dados produzidos: conversas, mensagens de usuário, respostas `operator`, prompt-base e artefatos da Biblioteca persistidos no SQLite por meio do backend.
 - Componentes reutilizados: `createChatArea`, `createSidebar`, `createPanel` e os controles do chat.
 - Integrações futuras: geração de roteiros, importação de pautas, sugestões de títulos e integração com calendário.
 

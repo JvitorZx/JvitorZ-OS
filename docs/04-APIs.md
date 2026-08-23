@@ -37,6 +37,20 @@ Uma mensagem possui:
 }
 ```
 
+Um item da Biblioteca possui:
+
+```json
+{
+  "id": "cm-library-1",
+  "projectId": null,
+  "title": "Resposta - Planejamento semanal",
+  "type": "resource",
+  "content": "Resposta persistida do operador",
+  "createdAt": "2026-08-23T12:08:00.000Z",
+  "updatedAt": "2026-08-23T12:08:00.000Z"
+}
+```
+
 ## Criar conversa
 
 ### `POST /api/operators/planner/conversations`
@@ -235,6 +249,71 @@ Respostas e logs de erro não incluem chave, contexto, histórico, request/respo
 - O adapter usa o SDK oficial, a Responses API e `max_output_tokens: 1000` para o limite padrão de saída.
 
 Os testes deste contrato usam provider fake e não fazem chamadas externas. Permanece pendente, como validação externa não bloqueadora, um smoke test manual com chave válida para confirmar uma chamada real HTTP `201`.
+
+## Salvar resposta na Biblioteca
+
+### `POST /api/operators/planner/conversations/:conversationId/messages/:messageId/library`
+
+Transforma uma mensagem `operator` persistida em um item da Biblioteca. O backend busca a conversa e a mensagem pelos IDs, valida sua relação e copia o conteúdo persistido; o cliente não envia o conteúdo do artefato.
+
+**Parâmetros de rota:**
+
+- `conversationId`: identificador não vazio da conversa.
+- `messageId`: identificador não vazio da mensagem.
+
+**Body:** ausente ou `{}`. Qualquer campo é rejeitado.
+
+**Sucesso:** retorna somente o item persistido no formato resumido da Biblioteca. A primeira chamada usa `201 Created`; chamadas posteriores para a mesma mensagem usam `200 OK` e retornam o mesmo item.
+
+**Status possíveis:**
+
+- `201`: item criado e persistido.
+- `200`: a mensagem já possuía um item, retornado sem criar duplicata.
+- `400`: parâmetro vazio ou body com conteúdo não permitido.
+- `404`: conversa ou mensagem inexistente.
+- `409`: mensagem pertence a outra conversa.
+- `422`: mensagem não possui `sender: "operator"`.
+- `500`: falha interna inesperada.
+
+O backend registra a mensagem de origem em `LibraryItem.sourceMessageId`, protegido por unicidade no banco. Assim, chamadas sequenciais ou concorrentes para a mesma mensagem são idempotentes; somente mensagens de origem diferentes criam novos itens.
+
+## Listar Biblioteca
+
+### `GET /api/operators/planner/library`
+
+Retorna os itens persistidos ordenados por `createdAt` decrescente e `id` decrescente como desempate.
+
+**Parâmetros e body:** nenhum.
+
+**Sucesso — `200 OK`:** retorna `[]` quando vazia ou uma lista de itens no formato resumido da Biblioteca.
+
+**Status possíveis:**
+
+- `200`: lista retornada.
+- `500`: falha interna inesperada.
+
+## Abrir item da Biblioteca
+
+### `GET /api/operators/planner/library/:id`
+
+Retorna um item persistido pelo seu identificador.
+
+**Parâmetros de rota:**
+
+- `id`: identificador não vazio do item.
+
+**Body:** nenhum.
+
+**Sucesso — `200 OK`:** retorna o item persistido no formato resumido da Biblioteca.
+
+**Status possíveis:**
+
+- `200`: item encontrado.
+- `400`: parâmetro `id` vazio.
+- `404`: item não encontrado.
+- `500`: falha interna inesperada.
+
+Erros dos endpoints da Biblioteca usam mensagens seguras e não expõem stack, consultas ou detalhes do Prisma.
 
 ## Atualizar contexto
 

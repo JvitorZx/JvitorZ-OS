@@ -16,6 +16,14 @@ const requestJson = async (url, options, errorMessage) => {
   return response.json();
 };
 
+const requireIdentifier = (value, name) => {
+  if (typeof value !== 'string' || value.trim() === '') {
+    throw new TypeError(`${name} must be a non-empty string`);
+  }
+
+  return value.trim();
+};
+
 export const createApiClient = (baseUrl) => ({
   async getDashboard() {
     const response = await fetch(`${baseUrl}/api/dashboard`);
@@ -91,6 +99,35 @@ export const createApiClient = (baseUrl) => ({
       `${baseUrl}/api/operators/planner/conversations/${encodeURIComponent(conversationId)}/reply`,
       { method: 'POST' },
       'Erro ao gerar resposta do Planner',
+    );
+  },
+
+  async saveMessageToLibrary(conversationId, messageId) {
+    const validConversationId = requireIdentifier(conversationId, 'conversationId');
+    const validMessageId = requireIdentifier(messageId, 'messageId');
+
+    return requestJson(
+      `${baseUrl}/api/operators/planner/conversations/${encodeURIComponent(validConversationId)}/messages/${encodeURIComponent(validMessageId)}/library`,
+      { method: 'POST' },
+      'Erro ao salvar resposta na Biblioteca',
+    );
+  },
+
+  async listLibraryItems() {
+    return requestJson(
+      `${baseUrl}/api/operators/planner/library`,
+      undefined,
+      'Erro ao carregar Biblioteca',
+    );
+  },
+
+  async getLibraryItem(libraryItemId) {
+    const validLibraryItemId = requireIdentifier(libraryItemId, 'libraryItemId');
+
+    return requestJson(
+      `${baseUrl}/api/operators/planner/library/${encodeURIComponent(validLibraryItemId)}`,
+      undefined,
+      'Erro ao abrir item da Biblioteca',
     );
   },
 });

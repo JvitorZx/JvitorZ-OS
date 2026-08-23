@@ -56,15 +56,18 @@ Este documento descreve cada entidade do modelo de dados inicial do JvitorZ OS e
   - `updatedAt`: data de atualização.
 
 ### LibraryItem
-- Representa um item de biblioteca, como template, recurso ou referência.
+- Representa um artefato persistido da Biblioteca. O fluxo atual cria itens a partir de mensagens `operator` do Planner.
 - Campos principais:
   - `id`: identificador único.
   - `projectId`: projeto opcional associado.
+  - `sourceMessageId`: mensagem de origem opcional e única; itens legados podem manter valor nulo.
   - `title`: título do item.
-  - `type`: tipo do item (`template`, `resource`, `reference`).
-  - `content`: conteúdo opcional.
+  - `type`: tipo opcional; artefatos do Planner usam `resource`.
+  - `content`: cópia opcional do conteúdo persistido da mensagem de origem.
   - `createdAt`: data de criação.
   - `updatedAt`: data de atualização.
+
+A relação com `Message` usa `ON DELETE SET NULL`, preservando o artefato quando a mensagem de origem é removida. A unicidade de `sourceMessageId` impede duplicatas persistentes para a mesma resposta.
 
 ### Automation
 - Representa uma automação configurável para o projeto.
