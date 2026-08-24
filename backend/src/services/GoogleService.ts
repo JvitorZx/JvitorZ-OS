@@ -3,6 +3,39 @@ import path from 'path';
 import { google } from 'googleapis';
 import type { OAuth2Client } from 'google-auth-library';
 
+type GoogleRequestError = {
+  name?: unknown;
+  code?: unknown;
+  response?: {
+    status?: unknown;
+    data?: {
+      error?: unknown;
+    };
+  };
+};
+
+const safeIdentifier = (value: unknown): string | undefined =>
+  typeof value === 'string' && /^[A-Za-z][A-Za-z0-9_.-]{0,63}$/.test(value)
+    ? value
+    : undefined;
+
+export const isGoogleReauthenticationRequired = (error: unknown): boolean =>
+  (error as GoogleRequestError)?.response?.data?.error === 'invalid_grant';
+
+export const getSafeGoogleRequestError = (error: unknown): Record<string, unknown> => {
+  const googleError = error as GoogleRequestError;
+  const status = googleError?.response?.status;
+
+  return {
+    error_name: safeIdentifier(googleError?.name) ?? 'UnknownError',
+    error_code: safeIdentifier(googleError?.code),
+    provider_error: safeIdentifier(googleError?.response?.data?.error),
+    http_status: typeof status === 'number' && status >= 100 && status <= 599
+      ? status
+      : undefined,
+  };
+};
+
 export class GoogleService {
   loadTokens(): Record<string, unknown> | null {
     // Define o caminho do arquivo google-tokens.json a partir da raiz do backend

@@ -512,6 +512,23 @@ test('a global Dashboard failure is reported through statePanel', async () => {
   assert.match(statePanel.innerHTML, /dashboard unavailable/);
   assert.match(harness.root.innerHTML, /data-state-scope="global"/);
   assert.match(harness.root.innerHTML, /aria-live="polite"/);
+  assert.equal(harness.activeLink().dataset.moduleLink, 'channel');
+  assert.ok(harness.root.querySelector('#channel'));
+});
+
+test('initial hash selection is visible while Dashboard data is still loading', async () => {
+  const dashboardRequest = new Promise(() => {});
+  const harness = await createHarness({
+    hash: '#supervisor',
+    api: {
+      getDashboard() {
+        return dashboardRequest;
+      },
+    },
+  });
+
+  assert.equal(harness.activeLink().dataset.moduleLink, 'supervisor');
+  assert.equal(harness.fakeWindow.location.hash, '#supervisor');
 });
 
 test('global OAuth state remains global while navigating between modules', async () => {

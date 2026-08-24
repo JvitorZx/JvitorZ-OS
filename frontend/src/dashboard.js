@@ -109,6 +109,12 @@ export const createDashboard = ({
     elements.moduleHost.innerHTML = content;
   };
 
+  const setActiveNavigation = (moduleId) => {
+    elements.navLinks.forEach((link) => {
+      link.classList.toggle('active', link.dataset.moduleLink === moduleId);
+    });
+  };
+
   const unmountActiveModule = () => {
     if (!activeModule) return;
 
@@ -122,9 +128,7 @@ export const createDashboard = ({
 
     unmountActiveModule();
 
-    elements.navLinks.forEach((link) => {
-      link.classList.toggle('active', link.dataset.moduleLink === nextModule.id);
-    });
+    setActiveNavigation(nextModule.id);
 
     // If module requests fullscreen workspace view, replace main content
     if (nextModule.fullscreen) {
@@ -141,7 +145,7 @@ export const createDashboard = ({
       const targetSection = root.querySelector(`#${nextModule.id}`);
       activeModule = nextModule;
       lifecycles.get(nextModule.id)?.mount(targetSection);
-      if (targetSection) targetSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      if (targetSection) targetSection.scrollIntoView({ behavior: 'instant', block: 'start' });
       return;
     }
 
@@ -158,7 +162,7 @@ export const createDashboard = ({
       if (workspaceMain) workspaceMain.classList.remove('workspace-fullscreen');
       activeModule = nextModule;
       lifecycles.get(nextModule.id)?.mount(targetSection);
-      targetSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      targetSection.scrollIntoView({ behavior: 'instant', block: 'start' });
     }
   };
 
@@ -175,6 +179,13 @@ export const createDashboard = ({
     }
 
     setActiveModule(requestedModule?.id ?? modules[0].id, options);
+  };
+
+  const syncNavigationFromHash = () => {
+    const requestedModuleId = window.location.hash.replace('#', '');
+    const requestedModule = modules.find((module) => module.id === requestedModuleId);
+
+    setActiveNavigation(requestedModule?.id ?? modules[0].id);
   };
 
   const loadDashboard = async () => {
@@ -203,6 +214,7 @@ export const createDashboard = ({
       });
     } catch (error) {
       setGlobalState(`Nao foi possivel carregar o dashboard: ${error.message}`, 'error');
+      activateModuleFromHash();
     } finally {
       setLoading(false);
     }
@@ -214,5 +226,6 @@ export const createDashboard = ({
     activateModuleFromHash();
   });
 
+  syncNavigationFromHash();
   loadDashboard();
 };
