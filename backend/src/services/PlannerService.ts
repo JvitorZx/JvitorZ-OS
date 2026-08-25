@@ -1,4 +1,4 @@
-import type { Conversation, Message } from '@prisma/client';
+import type { Conversation, EditorialDecision, Message } from '@prisma/client';
 import { DatabaseService } from '../database/DatabaseService';
 import {
   ConversationRepository,
@@ -15,6 +15,11 @@ import type {
   PlannerEditorialIntelligenceProvider,
 } from './creator-intelligence/CreatorIntelligenceService';
 import type { ConversationLibraryService } from './ConversationLibraryService';
+import {
+  EditorialDecisionService,
+  isEditorialQuestion,
+  parseEditorialDecisionArrays,
+} from './creator-intelligence/EditorialDecisionService';
 
 export interface CreateConversationInput {
   title?: string;
@@ -83,6 +88,7 @@ export class PlannerService {
   private readonly languageProvider?: LanguageProvider;
   private readonly editorialIntelligence?: PlannerEditorialIntelligenceProvider;
   private readonly conversationLibraryService?: ConversationLibraryService;
+  private readonly editorialDecisionService?: EditorialDecisionService;
 
   constructor(
     conversationRepository?: ConversationRepository,
@@ -90,12 +96,14 @@ export class PlannerService {
     languageProvider?: LanguageProvider,
     editorialIntelligence?: PlannerEditorialIntelligenceProvider,
     conversationLibraryService?: ConversationLibraryService,
+    editorialDecisionService?: EditorialDecisionService,
   ) {
     this.conversationRepository = conversationRepository;
     this.messageRepository = messageRepository;
     this.languageProvider = languageProvider;
     this.editorialIntelligence = editorialIntelligence;
     this.conversationLibraryService = conversationLibraryService;
+    this.editorialDecisionService = editorialDecisionService;
   }
 
   private get repository(): ConversationRepository {
@@ -171,11 +179,50 @@ export class PlannerService {
     });
   }
 
-  async generateReply(conversationId: string): Promise<Message | null> {
+  async generateReply(
+    conversationId: string,
+  ): Promise<(Message & { editorialDecision?: EditorialDecision }) | null> {
     const conversation = await this.repository.findById(conversationId.trim());
 
     if (!conversation) {
       return null;
+    }
+
+    const latestUserMessage = [...conversation.messages]
+      .reverse()
+      .find(({ sender }) => sender === 'user');
+    if (
+      latestUserMessage
+      && this.editorialDecisionService
+      && isEditorialQuestion(latestUserMessage.text)
+    ) {
+      const { decision } = await this.editorialDecisionService.generate({
+        question: latestUserMessage.text,
+        projectId: conversation.projectId,
+        conversationId: conversation.id,
+      });
+      const { evidence, risks, missingData } = parseEditorialDecisionArrays(decision);
+      const confidence = Math.round(decision.confidence * 100);
+      const evidenceClassification = evidence[0]
+        ? ({ fact: 'Fato', inference: 'Inferência', recommendation: 'Recomendação' } as const)[evidence[0].classification]
+        : null;
+      const lines = [
+        decision.recommendation,
+        `Confiança: ${confidence}%.`,
+        evidence[0] ? `${evidenceClassification} principal: ${evidence[0].summary}` : null,
+        risks[0] ? `Risco: ${risks[0]}` : null,
+        missingData[0] ? `Dado ausente: ${missingData[0]}` : null,
+        `Próxima ação: ${decision.nextAction}`,
+      ].filter((line): line is string => Boolean(line));
+      const message = await this.messages.create({
+        conversationId: conversation.id,
+        sender: 'operator',
+        text: lines.join('\n'),
+      });
+      if (!decision.operatorMessageId) {
+        await this.editorialDecisionService.attachOperatorMessage(decision.id, message.id);
+      }
+      return Object.assign(message, { editorialDecision: decision });
     }
 
     if (!this.languageProvider) {

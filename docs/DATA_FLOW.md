@@ -177,7 +177,7 @@ O feedback não expõe payloads, stack traces ou detalhes internos. Uma ação p
 
 ## Testes do Fluxo
 
-`npm test`, executado em `backend/`, cobre APIs reais com Prisma e SQLite em memória, providers/clients injetáveis, migrations e controllers frontend com DOM controlado. As 419 verificações atuais não dependem de OAuth, YouTube, OpenAI real, chave, rede externa ou `dev.db`.
+`npm test`, executado em `backend/`, cobre APIs reais com Prisma e SQLite em memória, providers/clients injetáveis, migrations e controllers frontend com DOM controlado. As 439 verificações atuais não dependem de OAuth, YouTube, OpenAI real, chave, rede externa ou `dev.db`.
 
 Permanece pendente, sem bloquear a Sprint, um smoke test manual com `OPENAI_API_KEY` válida para confirmar uma chamada real HTTP `201`. Chave, prompt e resposta do teste não devem ser registrados na documentação.
 
@@ -282,3 +282,38 @@ A montagem carrega as seções em paralelo com `Promise.allSettled`, permitindo 
 Depois de uma sincronização bem-sucedida, a UI recarrega o backend em vez de inventar resultados locais. Se essa atualização parcial falhar, o sucesso da coleta e a indisponibilidade de painéis são informados separadamente. Respostas tardias de montagem, sincronização ou seleção de evidência são ignoradas por tokens locais de geração.
 
 Métricas ausentes permanecem `null` no backend e aparecem como `—` na interface. Sinais e aprendizados exibem classificação e confiança; evidências de decisão exibem justificativa, componentes, riscos e dados ausentes sem apresentar JSON cru.
+
+## Editorial Decision Loop — Sprint 22
+
+```text
+YouTube Analytics/Data API
+  -> VideoPerformanceSnapshot
+    -> baseline + PerformanceSignal
+      -> ChannelMemory
+        -> EditorialDecisionService
+          -> EditorialDecision
+            -> Planner / Supervisor
+              -> outcomeSnapshot futuro
+                -> avaliação + aprendizado
+```
+
+### Geração
+
+1. O Planner persiste a mensagem `user` como antes.
+2. `PlannerService.generateReply()` verifica a última pergunta com o classificador editorial.
+3. Perguntas editoriais são delegadas ao `EditorialDecisionService`; conversa geral continua no `LanguageProvider`.
+4. O serviço carrega contexto, ideias, baseline, sinais, aprendizados, snapshots e decisões anteriores do mesmo escopo.
+5. Evidências são reduzidas aos limites do domínio e classificadas como fato, inferência ou recomendação.
+6. A decisão é persistida antes de compor a mensagem `operator`.
+7. A mensagem persistida recebe o vínculo da decisão e só então é retornada ao frontend.
+8. O Planner mostra recomendação, confiança, evidências, riscos, dados ausentes e próxima ação. Tokens de montagem, conversa e requisição impedem resposta tardia de alterar a UI atual.
+
+### Memória e feedback
+
+`EditorialDecision` preserva pergunta, intenção, decisão, alternativas, confiança, evidências, riscos, lacunas e data. O `dedupeKey` incorpora o escopo e a versão observada das evidências, evitando cópia desnecessária da mesma decisão sem impedir nova avaliação quando os dados mudarem.
+
+O endpoint de resultado associa uma decisão a um `VideoPerformanceSnapshot` do mesmo projeto. Os sinais desse snapshot produzem uma avaliação cautelosa e um aprendizado registrado no campo `outcome`. Não há job, polling ou publicação automática nesta Sprint.
+
+### Supervisor
+
+O Dashboard solicita o overview existente. `SupervisorModule` consulta até cinco decisões recentes e devolve prioridades, riscos, oportunidades e ações. Falha local dessa consulta resulta em coleção vazia e não derruba o Dashboard nem ativa recursos não implementados.

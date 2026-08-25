@@ -30,6 +30,7 @@ model Project {
   channelInsights    ChannelInsight[]
   performanceSignals PerformanceSignal[]
   videoPerformanceSnapshots VideoPerformanceSnapshot[]
+  editorialDecisions EditorialDecision[]
   createdAt        DateTime           @default(now())
   updatedAt        DateTime           @updatedAt
 }
@@ -42,6 +43,7 @@ model Conversation {
   context          String?
   messages         Message[]
   libraryItemLinks ConversationLibraryItem[]
+  editorialDecisions EditorialDecision[]
   createdAt        DateTime                  @default(now())
   updatedAt        DateTime                  @updatedAt
 }
@@ -53,6 +55,7 @@ model Message {
   sender         String
   text           String
   libraryItem    LibraryItem?
+  editorialDecision EditorialDecision?
   createdAt      DateTime  @default(now())
 }
 
@@ -241,6 +244,7 @@ model VideoPerformanceSnapshot {
   confidence                 Float              @default(1)
   collectedAt                DateTime
   performanceSignals         PerformanceSignal[]
+  editorialOutcomes          EditorialDecision[]
   createdAt                  DateTime           @default(now())
   updatedAt                  DateTime           @updatedAt
 
@@ -249,4 +253,35 @@ model VideoPerformanceSnapshot {
   @@index([game])
   @@index([series])
   @@index([format])
+}
+
+model EditorialDecision {
+  id                String                    @id @default(cuid())
+  projectId         String?
+  project           Project?                  @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  conversationId    String?
+  conversation      Conversation?             @relation(fields: [conversationId], references: [id], onDelete: SetNull)
+  operatorMessageId String?                   @unique
+  operatorMessage   Message?                  @relation(fields: [operatorMessageId], references: [id], onDelete: SetNull)
+  outcomeSnapshotId String?
+  outcomeSnapshot   VideoPerformanceSnapshot? @relation(fields: [outcomeSnapshotId], references: [id], onDelete: SetNull)
+  dedupeKey         String                    @unique
+  question          String
+  intent            String
+  recommendation    String
+  alternatives      Json
+  score             Float?
+  confidence        Float
+  classification    String                    @default("recommendation")
+  evidence          Json
+  risks             Json
+  missingData       Json
+  nextAction        String
+  outcome           Json?
+  createdAt         DateTime                  @default(now())
+  updatedAt         DateTime                  @updatedAt
+
+  @@index([projectId, createdAt])
+  @@index([conversationId, createdAt])
+  @@index([outcomeSnapshotId])
 }

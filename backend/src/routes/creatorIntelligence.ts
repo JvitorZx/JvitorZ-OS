@@ -4,6 +4,13 @@ import {
   CreatorIntelligenceValidationError,
   VideoIdeaNotFoundError,
 } from '../services/creator-intelligence/CreatorIntelligenceService';
+import {
+  EditorialDecisionConversationNotFoundError,
+  EditorialDecisionNotFoundError,
+  EditorialDecisionService,
+  EditorialDecisionSnapshotNotFoundError,
+  EditorialDecisionValidationError,
+} from '../services/creator-intelligence/EditorialDecisionService';
 import { PerformanceValidationError } from '../services/performance-intelligence/PerformanceNormalizer';
 import {
   YouTubeAnalyticsNotAuthorizedError,
@@ -55,8 +62,125 @@ const sendSafeError = (res: Response): void => {
 export const createCreatorIntelligenceRouter = (
   service: CreatorIntelligenceService = new CreatorIntelligenceService(),
   youtubeSyncService: YouTubePerformanceSyncService = new YouTubePerformanceSyncService(),
+  editorialDecisionService: EditorialDecisionService = new EditorialDecisionService(service),
 ): Router => {
   const router = Router();
+
+  router.post('/editorial-decisions', async (req, res) => {
+    const fields = ['question', 'projectId', 'conversationId', 'ideaIds', 'videoId'];
+    if (!isObjectBody(req.body) || !hasOnlyFields(req.body, fields)) {
+      return res.status(400).json({ error: 'invalid editorial decision payload' });
+    }
+    const body = req.body;
+    if (
+      typeof body.question !== 'string'
+      || !isOptionalString(body.projectId)
+      || !isOptionalString(body.conversationId)
+      || !isOptionalString(body.videoId)
+      || (body.ideaIds !== undefined && (
+        !Array.isArray(body.ideaIds) || !body.ideaIds.every((id) => typeof id === 'string')
+      ))
+    ) {
+      return res.status(400).json({ error: 'invalid editorial decision payload' });
+    }
+    try {
+      const result = await editorialDecisionService.generate({
+        question: body.question,
+        projectId: body.projectId,
+        conversationId: body.conversationId,
+        videoId: body.videoId,
+        ideaIds: body.ideaIds as string[] | undefined,
+      });
+      return res.status(result.created ? 201 : 200).json(result.decision);
+    } catch (error) {
+      if (error instanceof EditorialDecisionConversationNotFoundError) {
+        return res.status(404).json({ error: 'Conversation not found' });
+      }
+      if (error instanceof VideoIdeaNotFoundError) {
+        return res.status(404).json({ error: 'Video idea not found' });
+      }
+      if (error instanceof EditorialDecisionValidationError) {
+        return res.status(400).json({ error: error.message });
+      }
+      const name = error instanceof Error ? error.name : 'UnknownError';
+      console.error(`Failed to generate editorial decision (${name})`);
+      return res.status(500).json({ error: 'Failed to generate editorial decision' });
+    }
+  });
+
+  router.get('/editorial-decisions', async (req, res) => {
+    if (!Object.keys(req.query).every((field) => ['projectId', 'conversationId', 'limit'].includes(field))) {
+      return res.status(400).json({ error: 'invalid editorial decision filters' });
+    }
+    const projectId = typeof req.query.projectId === 'string' ? req.query.projectId : undefined;
+    const conversationId = typeof req.query.conversationId === 'string'
+      ? req.query.conversationId : undefined;
+    const limit = req.query.limit === undefined ? undefined : Number(req.query.limit);
+    if (
+      (req.query.projectId !== undefined && projectId === undefined)
+      || (req.query.conversationId !== undefined && conversationId === undefined)
+      || (req.query.limit !== undefined && !Number.isInteger(limit))
+    ) {
+      return res.status(400).json({ error: 'invalid editorial decision filters' });
+    }
+    try {
+      return res.status(200).json(await editorialDecisionService.list({
+        ...(projectId !== undefined ? { projectId } : {}),
+        ...(conversationId !== undefined ? { conversationId } : {}),
+        ...(limit !== undefined ? { limit } : {}),
+      }));
+    } catch (error) {
+      if (error instanceof EditorialDecisionValidationError) {
+        return res.status(400).json({ error: error.message });
+      }
+      const name = error instanceof Error ? error.name : 'UnknownError';
+      console.error(`Failed to list editorial decisions (${name})`);
+      return res.status(500).json({ error: 'Failed to list editorial decisions' });
+    }
+  });
+
+  router.get('/editorial-decisions/:id', async (req, res) => {
+    const id = req.params.id?.trim();
+    if (!id) return res.status(400).json({ error: 'id is required' });
+    try {
+      const decision = await editorialDecisionService.getById(id);
+      if (!decision) return res.status(404).json({ error: 'Editorial decision not found' });
+      return res.status(200).json(decision);
+    } catch (error) {
+      const name = error instanceof Error ? error.name : 'UnknownError';
+      console.error(`Failed to open editorial decision (${name})`);
+      return res.status(500).json({ error: 'Failed to open editorial decision' });
+    }
+  });
+
+  router.post('/editorial-decisions/:id/outcome', async (req, res) => {
+    const id = req.params.id?.trim();
+    if (!id) return res.status(400).json({ error: 'id is required' });
+    if (
+      !isObjectBody(req.body)
+      || !hasOnlyFields(req.body, ['snapshotId'])
+      || typeof req.body.snapshotId !== 'string'
+      || !req.body.snapshotId.trim()
+    ) {
+      return res.status(400).json({ error: 'snapshotId is required' });
+    }
+    try {
+      return res.status(200).json(await editorialDecisionService.registerOutcome(id, req.body.snapshotId));
+    } catch (error) {
+      if (error instanceof EditorialDecisionNotFoundError) {
+        return res.status(404).json({ error: 'Editorial decision not found' });
+      }
+      if (error instanceof EditorialDecisionSnapshotNotFoundError) {
+        return res.status(404).json({ error: 'Performance snapshot not found' });
+      }
+      if (error instanceof EditorialDecisionValidationError) {
+        return res.status(409).json({ error: error.message });
+      }
+      const name = error instanceof Error ? error.name : 'UnknownError';
+      console.error(`Failed to register editorial outcome (${name})`);
+      return res.status(500).json({ error: 'Failed to register editorial outcome' });
+    }
+  });
 
   router.post('/ideas', async (req, res) => {
     if (!isObjectBody(req.body) || !hasOnlyFields(req.body, IDEA_FIELDS)) {

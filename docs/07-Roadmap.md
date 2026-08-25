@@ -671,3 +671,53 @@ Em 24/08/2026, o fluxo frontend client -> sync -> provider -> ingestão -> basel
 ### Próxima camada recomendada
 
 Usar os sinais reais já visíveis para fechar o ciclo entre evidência, decisão editorial e ação no Planner, preservando classificação, confiança e rastreabilidade.
+
+## Sprint 22 — Editorial Decision Loop
+
+**Status: CONCLUÍDA**
+
+**Fase principal: FASE 7 - Primeiro Operador**, fechando o ciclo entre Performance Intelligence, Planner e Supervisor.
+
+### Objetivo
+
+Transformar performance, baseline, sinais, memória e ideias persistidas em decisões editoriais operacionais, explicáveis e reutilizáveis. O Planner identifica perguntas editoriais e consulta o domínio automaticamente, sem exigir que o usuário escolha um operador.
+
+### Entregas
+
+- `EditorialDecisionService` como fluxo único de decisão editorial;
+- intenções para próximo conteúdo, comparação de ideias, diagnóstico de performance, continuidade de série e melhoria do próximo vídeo;
+- combinação limitada de contexto, ranking, snapshots, baseline, sinais, memória e decisões anteriores;
+- distinção explícita entre fato, inferência e recomendação;
+- recomendação principal, alternativas, score relativo, confiança, evidências, riscos, dados ausentes e próxima ação;
+- modelo e repository `EditorialDecision`, com deduplicação por estado das evidências;
+- persistência da pergunta, decisão, evidências, confiança e vínculo opcional com conversa e mensagem `operator`;
+- contrato de resultado futuro ligado a `VideoPerformanceSnapshot`, com avaliação cautelosa e aprendizado derivado;
+- endpoints para gerar, listar, abrir e registrar resultado de decisões;
+- integração automática do Planner para perguntas editoriais, preservando o fluxo OpenAI para conversa geral;
+- UI mínima e segura no Planner para confiança, evidências, riscos, lacunas e justificativa;
+- Supervisor com prioridades, riscos, oportunidades e próximas ações recentes;
+- migration aditiva e regressão automatizada com 439 verificações aprovadas.
+
+### Honestidade e limites
+
+- nenhuma decisão prevê quantidade exata de views;
+- score é comparação relativa, não promessa de desempenho;
+- fatos, inferências e recomendações mantêm classificação e fonte;
+- ausência de dados aparece explicitamente e reduz a confiança;
+- o vínculo decisão -> snapshot de resultado está preparado, mas não existe automação recorrente;
+- não foram adicionados vidIQ, pesquisa web, RAG, clipping, novos operadores ou redesign;
+- o `dev.db` local não contém snapshots compatíveis com esta camada, portanto não foi possível executar um cenário manual com evidência real local sem inventar dados ou alterar o banco. A validação controlada permanece coberta por fixtures persistidas e determinísticas em SQLite em memória.
+
+### Critérios atendidos
+
+- perguntas editoriais reconhecidas no Planner geram uma decisão persistida e exatamente uma resposta `operator`;
+- perguntas gerais continuam usando o `LanguageProvider` existente;
+- decisões e conversas permanecem isoladas;
+- respostas tardias não alteram conversa ou montagem incorreta;
+- APIs validam payloads e retornam erros sanitizados;
+- Supervisor e Planner consomem somente dados persistidos reais do backend;
+- suíte completa, build, Prisma, migration, sintaxe frontend e `git diff --check` passam sem rede externa nem uso do `dev.db`.
+
+### Próxima camada recomendada
+
+Vincular uma decisão a um vídeo publicado por um fluxo operacional explícito e acompanhar seu resultado no produto, fechando o feedback loop sem introduzir automação recorrente antes de existir uma política de sincronização.

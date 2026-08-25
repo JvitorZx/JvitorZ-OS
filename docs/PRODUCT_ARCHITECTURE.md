@@ -270,3 +270,25 @@ Na montagem, consultas independentes são executadas em paralelo e cada seção 
 Tokens de montagem e de seleção impedem respostas tardias de substituir uma workspace desmontada ou uma evidência mais recente. Conteúdo externo é renderizado com APIs de texto do DOM. Valores `null` permanecem visualmente indisponíveis; zero só é exibido quando é um valor real.
 
 O `statePanel` continua reservado ao Dashboard. Erros de Analytics aparecem em feedback local com `aria-live`. O Supervisor consome estados reais de YouTube e configuração de IA; automações permanecem não implementadas e não são anunciadas como operacionais.
+
+## Editorial Decision Loop
+
+O `EditorialDecisionService` é a fronteira única entre evidência persistida e decisão editorial operacional:
+
+```text
+Planner ou API
+  -> EditorialDecisionService
+    -> CreatorIntelligenceService
+      -> ideias + baseline + sinais + ChannelMemory + snapshots
+    -> EditorialDecisionRepository
+      -> Prisma -> SQLite
+  -> resposta operator persistida / Supervisor
+```
+
+O serviço classifica a intenção, carrega apenas o contexto necessário e produz recomendação principal, alternativas, score relativo, confiança, evidências classificadas, riscos, dados ausentes e próxima ação. A classificação separa `fact`, `inference` e `recommendation`; nenhuma camada calcula previsão exata de views.
+
+`PlannerService` recebe o serviço editorial por injeção. Quando a última mensagem do usuário é uma pergunta editorial reconhecida, a decisão é gerada antes da resposta, persistida e vinculada à mensagem `operator`. Conversas gerais continuam no `LanguageProvider`, mantendo OpenAI e Creator Intelligence desacoplados.
+
+O hash das entradas e do estado das evidências evita decisões duplicadas para a mesma situação. O modelo `EditorialDecision` pode apontar para conversa, mensagem `operator` e snapshot de resultado. O registro posterior de resultado compara sinais persistidos e grava uma avaliação cautelosa (`supported`, `mixed`, `contradicted` ou `unknown`) sem automatizar publicação ou sincronização.
+
+O Planner renderiza explicação e confiança com DOM textual seguro e ignora respostas obsoletas após troca de conversa ou unmount. O Supervisor agrega decisões recentes em prioridades, riscos, oportunidades e ações, sem transformar ausência de dados em estado operacional falso.

@@ -2,6 +2,7 @@ export * from './BaseRepository';
 export * from './PrismaRepository';
 export * from './UserRepository';
 export * from './ConversationRepository';
+export * from './EditorialDecisionRepository';
 export * from './MessageRepository';
 export * from './LibraryItemRepository';
 export * from './ConversationLibraryItemRepository';

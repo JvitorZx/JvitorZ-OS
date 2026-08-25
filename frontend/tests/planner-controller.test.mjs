@@ -160,6 +160,7 @@ const createMemoryApi = (
   initialConversations = [],
   initialLibraryItems = [],
   initialActiveMemory = {},
+  initialEditorialDecisions = {},
 ) => {
   const records = new Map(initialConversations.map((item) => [item.id, clone(item)]));
   const libraryRecords = initialLibraryItems.map(clone);
@@ -175,6 +176,7 @@ const createMemoryApi = (
     linkLibraryItemToConversation: [],
     listConversationLibraryItems: [],
     unlinkLibraryItemFromConversation: [],
+    listEditorialDecisions: [],
   };
   let nextConversation = records.size + 1;
   let nextMessage = 1;
@@ -183,6 +185,9 @@ const createMemoryApi = (
   const failures = new Set();
   const activeMemory = new Map(
     Object.entries(initialActiveMemory).map(([conversationId, ids]) => [conversationId, [...ids]]),
+  );
+  const editorialDecisionRecords = new Map(
+    Object.entries(initialEditorialDecisions).map(([conversationId, items]) => [conversationId, items.map(clone)]),
   );
 
   const api = {
@@ -194,6 +199,7 @@ const createMemoryApi = (
     libraryFailureStatus: null,
     libraryItemFailureStatus: null,
     activeMemoryFailureStatus: null,
+    nextEditorialDecision: null,
 
     async createConversation() {
       calls.createConversation += 1;
@@ -235,9 +241,19 @@ const createMemoryApi = (
       }
       const current = records.get(id);
       const created = message(`reply-${nextReply}`, id, `Resposta ${nextReply}`, 'operator');
+      if (api.nextEditorialDecision) {
+        created.editorialDecision = clone(api.nextEditorialDecision);
+        const currentDecisions = editorialDecisionRecords.get(id) ?? [];
+        editorialDecisionRecords.set(id, [clone(api.nextEditorialDecision), ...currentDecisions]);
+      }
       nextReply += 1;
       current.messages.push(created);
       return clone(created);
+    },
+
+    async listEditorialDecisions({ conversationId }) {
+      calls.listEditorialDecisions.push(conversationId);
+      return (editorialDecisionRecords.get(conversationId) ?? []).map(clone);
     },
 
     async saveMessageToLibrary(...args) {
@@ -349,6 +365,7 @@ const createPlannerDom = () => {
   const libraryItemContent = new FakeElement('div');
   const libraryMemoryToggle = new FakeElement('button');
   const activeMemoryList = new FakeElement('div');
+  const editorialDecisionList = new FakeElement('div');
   const feedback = new FakeElement('div');
   const globalStatePanel = new FakeElement('section');
   feedback.hidden = true;
@@ -370,6 +387,7 @@ const createPlannerDom = () => {
   panel.selectorMap.set('[data-library-item-content]', libraryItemContent);
   panel.selectorMap.set('[data-library-memory-toggle]', libraryMemoryToggle);
   panel.selectorMap.set('[data-active-memory-list]', activeMemoryList);
+  panel.selectorMap.set('[data-editorial-decisions]', editorialDecisionList);
   panel.selectorMap.set('[data-planner-feedback]', feedback);
 
   return {
@@ -387,6 +405,7 @@ const createPlannerDom = () => {
     libraryItemContent,
     libraryMemoryToggle,
     activeMemoryList,
+    editorialDecisionList,
     feedback,
     globalStatePanel,
   };
@@ -1357,4 +1376,51 @@ test('reports active-memory limit errors locally without false state', async () 
   assert.equal(dom.feedback.textContent, 'A conversa já atingiu o limite de memória ativa.');
   assert.equal(dom.activeMemoryList.children[0].className, 'planner-memory-empty');
   assert.equal(dom.globalStatePanel.textContent, 'Estado global preservado');
+});
+
+test('renders persisted editorial intelligence inline and in conversation memory', async () => {
+  const decision = {
+    id: 'decision-1',
+    recommendation: '<b>Teste a ideia A</b>',
+    confidence: 0.78,
+    evidence: [{ classification: 'fact', summary: '<img src=x onerror=alert(1)>' }],
+    risks: ['Amostra pequena'],
+    missingData: ['CTR'],
+    nextAction: 'Criar uma pauta controlada.',
+  };
+  const api = createMemoryApi([conversation('A')]);
+  api.nextEditorialDecision = decision;
+  const { dom } = await mount(api);
+  dom.textarea.value = 'O que vale gravar agora?';
+  dom.sendBtn.click();
+  await flush();
+  await flush();
+
+  assert.equal(api.calls.generatePlannerReply, 1);
+  const operator = dom.chatBody.children.at(-1);
+  const inline = operator.children[0].children.find((child) => child.className === 'planner-decision-inline');
+  assert.ok(inline);
+  assert.equal(inline.children[1].textContent, '<b>Teste a ideia A</b>');
+  const evidenceItem = inline.children.find((child) => child.tagName === 'UL')?.children[0];
+  assert.equal(evidenceItem.textContent, 'Fato: <img src=x onerror=alert(1)>');
+  assert.equal(dom.editorialDecisionList.children.length, 1);
+  assert.equal(dom.editorialDecisionList.children[0].dataset.editorialDecisionId, 'decision-1');
+  assert.equal(dom.globalStatePanel.textContent, 'Estado global preservado');
+});
+
+test('ignores a late editorial decision list after switching conversations', async () => {
+  const api = createMemoryApi([conversation('B'), conversation('A')]);
+  const lateA = deferred();
+  api.listEditorialDecisions = ({ conversationId }) => (
+    conversationId === 'A' ? lateA.promise : Promise.resolve([])
+  );
+  const { dom } = await mount(api);
+  await selectConversation(dom, 'B');
+  lateA.resolve([{
+    id: 'decision-a', recommendation: 'A', confidence: 1,
+    evidence: [], risks: [], missingData: [], nextAction: 'A',
+  }]);
+  await flush();
+  assert.equal(dom.editorialDecisionList.children.length, 1);
+  assert.equal(dom.editorialDecisionList.children[0].textContent, 'Nenhuma decisão editorial nesta conversa.');
 });

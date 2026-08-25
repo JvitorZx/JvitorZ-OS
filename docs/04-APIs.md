@@ -539,6 +539,46 @@ Atualiza e retorna aprendizados estruturados do canal. Aceita `projectId` opcion
 
 Retorna a decisão persistida e seu snapshot de evidências, incluindo confiança, fontes, riscos e dados ausentes. Retorna `200`, `400`, `404` ou `500` seguro.
 
+## Editorial Decision Loop
+
+As rotas abaixo não recebem credenciais, não chamam uma nova fonte externa e nunca retornam previsão exata de views. Erros `500` são sanitizados.
+
+### `POST /api/operators/creator-intelligence/editorial-decisions`
+
+Gera e persiste uma decisão editorial. O body aceita apenas:
+
+```json
+{
+  "question": "O que vale gravar agora?",
+  "projectId": "project-optional",
+  "conversationId": "conversation-optional",
+  "ideaIds": ["idea-a", "idea-b"],
+  "videoId": "video-optional"
+}
+```
+
+Somente `question` é obrigatória. Retorna `201` ao criar, `200` quando o mesmo estado de evidências já produziu a decisão, `400` para payload inválido, `404` para conversa/ideia inexistente ou `500` seguro.
+
+A resposta contém o registro persistido, incluindo `recommendation`, `alternatives`, `score`, `confidence`, `classification`, `evidence`, `risks`, `missingData`, `nextAction` e vínculos opcionais.
+
+### `GET /api/operators/creator-intelligence/editorial-decisions`
+
+Lista decisões mais recentes primeiro. Aceita somente `projectId`, `conversationId` e `limit` opcional de 1 a 50. Retorna `200`, `400` ou `500` seguro.
+
+### `GET /api/operators/creator-intelligence/editorial-decisions/:id`
+
+Abre uma decisão persistida com suas evidências e resultado, quando existente. Retorna `200`, `400`, `404` ou `500` seguro.
+
+### `POST /api/operators/creator-intelligence/editorial-decisions/:id/outcome`
+
+Registra um resultado futuro a partir de um snapshot de performance já persistido:
+
+```json
+{ "snapshotId": "performance-snapshot-id" }
+```
+
+Retorna `200` com a decisão atualizada; `400` para payload inválido; `404` para decisão ou snapshot inexistente; `409` quando o snapshot pertence a outro projeto; ou `500` seguro. O backend deriva a avaliação a partir dos sinais do snapshot e não aceita um resultado arbitrário enviado pelo cliente.
+
 ## YouTube Analytics Performance
 
 Estas rotas reutilizam o OAuth Google do backend e o contrato `PerformanceProvider`. Nenhuma rota recebe token ou credencial. A sincronização é explícita e limitada; não existe polling nesta Sprint.

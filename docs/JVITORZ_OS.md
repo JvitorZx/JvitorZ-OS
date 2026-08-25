@@ -242,3 +242,9 @@ O domínio aceita dados manuais persistidos e dados reais obtidos pelo `YouTubeA
 Resultados de vídeos podem ser ingeridos manualmente como snapshots normalizados. O sistema mantém métricas ausentes como desconhecidas, calcula baseline dinâmica do próprio canal, deriva sinais quantitativos e atualiza aprendizados estruturados com provenance e confiança.
 
 O fluxo sustenta avaliação relativa de ideias e respostas explicáveis do Planner sem prever views. Biblioteca é conteúdo reutilizável; `PerformanceSignal` é evidência; `ChannelInsight` é aprendizado revisável. YouTube Analytics fornece métricas reais e YouTube Data API fornece os metadados necessários; vidIQ permanece futuro.
+
+### Editorial Decision Loop
+
+O Planner reconhece perguntas editoriais como escolha de pauta, comparação de ideias, diagnóstico de vídeo, continuidade de série e melhoria do próximo conteúdo. Nesses casos, consulta automaticamente a Creator Intelligence e persiste uma decisão com recomendação, alternativas, confiança, evidências, riscos, dados ausentes e próxima ação. Fatos, inferências e recomendações permanecem diferenciados, sem previsão exata de views.
+
+As decisões recentes também alimentam o Supervisor. Um vínculo opcional com snapshots de performance prepara o ciclo decisão -> vídeo publicado -> resultado -> aprendizado, mas publicação e sincronização recorrente continuam manuais.

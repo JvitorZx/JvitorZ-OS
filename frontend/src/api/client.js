@@ -244,4 +244,63 @@ export const createApiClient = (baseUrl) => ({
       'Erro ao carregar evidencias da decisao',
     );
   },
+
+  async generateEditorialDecision(input) {
+    if (!input || typeof input !== 'object' || Array.isArray(input)) {
+      throw new TypeError('editorial decision input must be an object');
+    }
+    return requestJson(
+      `${baseUrl}/api/operators/creator-intelligence/editorial-decisions`,
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(input),
+      },
+      'Erro ao gerar decisao editorial',
+    );
+  },
+
+  async listEditorialDecisions(filters = {}) {
+    if (!filters || typeof filters !== 'object' || Array.isArray(filters)) {
+      throw new TypeError('editorial decision filters must be an object');
+    }
+    const params = new URLSearchParams();
+    if (filters.projectId !== undefined) params.set('projectId', requireIdentifier(filters.projectId, 'projectId'));
+    if (filters.conversationId !== undefined) params.set('conversationId', requireIdentifier(filters.conversationId, 'conversationId'));
+    if (filters.limit !== undefined) {
+      if (!Number.isInteger(filters.limit) || filters.limit < 1 || filters.limit > 50) {
+        throw new TypeError('limit must be an integer from 1 to 50');
+      }
+      params.set('limit', String(filters.limit));
+    }
+    const query = params.toString();
+    return requestJson(
+      `${baseUrl}/api/operators/creator-intelligence/editorial-decisions${query ? `?${query}` : ''}`,
+      undefined,
+      'Erro ao carregar decisoes editoriais',
+    );
+  },
+
+  async getEditorialDecision(decisionId) {
+    const id = requireIdentifier(decisionId, 'decisionId');
+    return requestJson(
+      `${baseUrl}/api/operators/creator-intelligence/editorial-decisions/${encodeURIComponent(id)}`,
+      undefined,
+      'Erro ao abrir decisao editorial',
+    );
+  },
+
+  async registerEditorialDecisionOutcome(decisionId, snapshotId) {
+    const id = requireIdentifier(decisionId, 'decisionId');
+    const validSnapshotId = requireIdentifier(snapshotId, 'snapshotId');
+    return requestJson(
+      `${baseUrl}/api/operators/creator-intelligence/editorial-decisions/${encodeURIComponent(id)}/outcome`,
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ snapshotId: validSnapshotId }),
+      },
+      'Erro ao registrar resultado editorial',
+    );
+  },
 });

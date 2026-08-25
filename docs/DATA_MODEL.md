@@ -158,3 +158,25 @@ VideoPerformanceSnapshot 1 -> N PerformanceSignal
 As tabelas são aditivas e não alteram `Conversation`, `Message` ou `LibraryItem`.
 
 A migration `20260825100000_youtube_analytics_subscribers_lost` adiciona `subscribersLost` como inteiro opcional. Snapshots anteriores permanecem válidos com esse campo `null`.
+
+### EditorialDecision
+
+Decisão editorial operacional persistida. Mantém o snapshot lógico usado para justificar uma ação sem transformar score em previsão.
+
+- `question` e `intent`: pergunta normalizada e intenção editorial reconhecida;
+- `recommendation`, `alternatives`, `score`, `confidence` e `nextAction`: saída operacional;
+- `classification`: natureza principal da saída, atualmente `recommendation`;
+- `evidence`: itens com classificação `fact`, `inference` ou `recommendation`, fonte, resumo e confiança;
+- `risks` e `missingData`: limitações explícitas;
+- `dedupeKey`: chave única derivada do escopo e do estado das evidências;
+- `conversationId` e `operatorMessageId`: vínculos opcionais com o fluxo do Planner;
+- `outcomeSnapshotId` e `outcome`: vínculo opcional com performance futura e avaliação derivada.
+
+```text
+Project 1 -> N EditorialDecision
+Conversation 1 -> N EditorialDecision
+Message 1 -> 0..1 EditorialDecision
+VideoPerformanceSnapshot 1 -> N EditorialDecision (resultado)
+```
+
+As relações usam `ON DELETE SET NULL` para preservar a memória editorial quando uma origem opcional deixa de existir. A migration `20260825220000_editorial_decision_loop` é aditiva e cria tabela, índices, chaves estrangeiras e unicidade sem alterar registros anteriores.

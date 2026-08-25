@@ -338,6 +338,19 @@ export class CreatorIntelligenceService implements PlannerEditorialIntelligenceP
     return this.evaluationService.rank(evaluations);
   }
 
+  async rankIdeas(ids: readonly string[]): Promise<RankedIdeaEvaluation[]> {
+    const normalizedIds = [...new Set(ids.map((id) => id.trim()).filter(Boolean))];
+    if (normalizedIds.length < 1 || normalizedIds.length > 20) {
+      throw new CreatorIntelligenceValidationError('ideaIds must contain between 1 and 20 unique ids');
+    }
+    const evaluations = await Promise.all(normalizedIds.map(async (id) => {
+      const idea = await this.ideas.findById(id);
+      if (!idea) throw new VideoIdeaNotFoundError();
+      return this.evaluateWithoutPersistence(idea);
+    }));
+    return this.evaluationService.rank(evaluations);
+  }
+
   async recommendEditorial(projectId?: string | null): Promise<EditorialRecommendation> {
     const ideas = await this.listIdeas(projectId === undefined ? undefined : projectId);
     if (ideas.length === 0) {

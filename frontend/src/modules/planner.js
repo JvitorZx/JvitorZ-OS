@@ -32,6 +32,10 @@ export const plannerModule = {
         body: html`<div class="planner-active-memory-list" data-active-memory-list></div>`,
       },
       {
+        title: 'Decisões editoriais',
+        body: html`<div class="planner-editorial-decisions" data-editorial-decisions></div>`,
+      },
+      {
         title: 'Histórico',
         body: html`
           <button class="planner-new-conversation" type="button" data-new-conversation>Nova Conversa</button>
@@ -125,6 +129,7 @@ export const createPlannerController = ({ api }) => {
     const libraryItemContent = panel.querySelector('[data-library-item-content]');
     const libraryMemoryToggle = panel.querySelector('[data-library-memory-toggle]');
     const activeMemoryList = panel.querySelector('[data-active-memory-list]');
+    const editorialDecisionList = panel.querySelector('[data-editorial-decisions]');
     const feedback = panel.querySelector('[data-planner-feedback]');
 
     if (
@@ -140,6 +145,7 @@ export const createPlannerController = ({ api }) => {
       || !libraryItemContent
       || !libraryMemoryToggle
       || !activeMemoryList
+      || !editorialDecisionList
       || !feedback
     ) return;
 
@@ -158,6 +164,8 @@ export const createPlannerController = ({ api }) => {
     let libraryOpenGeneration = 0;
     let activeMemoryItems = [];
     let activeMemoryGeneration = 0;
+    let editorialDecisions = [];
+    let editorialDecisionGeneration = 0;
     const pendingMemoryItems = new Set();
 
     const setFeedback = (message = '') => {
@@ -378,6 +386,99 @@ export const createPlannerController = ({ api }) => {
       renderLibraryList();
     };
 
+    const createEditorialDecisionElement = (decision, compact = false) => {
+      const details = document.createElement('details');
+      details.className = compact ? 'planner-decision-inline' : 'planner-decision-item';
+      details.dataset.editorialDecisionId = decision.id ?? '';
+      const summary = document.createElement('summary');
+      const confidence = Number.isFinite(decision.confidence)
+        ? `${Math.round(decision.confidence * 100)}%`
+        : 'indisponível';
+      summary.textContent = `Inteligência do canal · Confiança ${confidence}`;
+      const recommendation = document.createElement('p');
+      recommendation.className = 'planner-decision-recommendation';
+      recommendation.textContent = decision.recommendation ?? 'Recomendação indisponível.';
+      details.append(summary, recommendation);
+
+      const evidenceLabels = {
+        fact: 'Fato',
+        inference: 'Inferência',
+        recommendation: 'Recomendação',
+      };
+      const groups = [
+        ['Por que', Array.isArray(decision.evidence) ? decision.evidence.map((item) => {
+          if (!item?.summary) return null;
+          const label = evidenceLabels[item.classification] ?? 'Evidência';
+          return `${label}: ${item.summary}`;
+        }).filter(Boolean) : []],
+        ['Riscos', Array.isArray(decision.risks) ? decision.risks : []],
+        ['Dados ausentes', Array.isArray(decision.missingData) ? decision.missingData : []],
+      ];
+      for (const [title, items] of groups) {
+        if (items.length === 0) continue;
+        const heading = document.createElement('strong');
+        heading.textContent = title;
+        const list = document.createElement('ul');
+        list.append(...items.slice(0, compact ? 2 : 4).map((item) => {
+          const row = document.createElement('li');
+          row.textContent = String(item);
+          return row;
+        }));
+        details.append(heading, list);
+      }
+      const action = document.createElement('p');
+      action.className = 'planner-decision-action';
+      action.textContent = `Próxima ação: ${decision.nextAction ?? 'não definida'}`;
+      details.append(action);
+      return details;
+    };
+
+    const renderEditorialDecisions = () => {
+      if (editorialDecisions.length === 0) {
+        const empty = document.createElement('p');
+        empty.className = 'performance-empty';
+        empty.textContent = 'Nenhuma decisão editorial nesta conversa.';
+        editorialDecisionList.replaceChildren(empty);
+        return;
+      }
+      editorialDecisionList.replaceChildren(
+        ...editorialDecisions.slice(0, 5).map((decision) => createEditorialDecisionElement(decision)),
+      );
+    };
+
+    const loadEditorialDecisions = async (conversationId) => {
+      if (typeof api.listEditorialDecisions !== 'function') {
+        editorialDecisions = [];
+        renderEditorialDecisions();
+        return;
+      }
+      const token = ++editorialDecisionGeneration;
+      const viewToken = conversationViewGeneration;
+      try {
+        const decisions = await api.listEditorialDecisions({ conversationId, limit: 5 });
+        if (
+          !isCurrentMount()
+          || token !== editorialDecisionGeneration
+          || viewToken !== conversationViewGeneration
+          || activeConversationId !== conversationId
+        ) return;
+        editorialDecisions = Array.isArray(decisions) ? decisions : [];
+        renderEditorialDecisions();
+      } catch (error) {
+        if (
+          !isCurrentMount()
+          || token !== editorialDecisionGeneration
+          || activeConversationId !== conversationId
+        ) return;
+        editorialDecisions = [];
+        renderEditorialDecisions();
+        setFeedback('Não foi possível carregar as decisões editoriais.');
+        console.error('Planner editorial decisions loading failed', {
+          error_name: getSafeErrorName(error),
+        });
+      }
+    };
+
     const appendMessage = (message) => {
       const createdAt = new Date(message.createdAt);
       const time = Number.isNaN(createdAt.getTime())
@@ -407,6 +508,10 @@ export const createPlannerController = ({ api }) => {
 
         actions.append(saveButton);
         element.children[0]?.append(actions);
+      }
+
+      if (message.sender === 'operator' && message.editorialDecision) {
+        element.children[0]?.append(createEditorialDecisionElement(message.editorialDecision, true));
       }
 
       chatBody.append(element);
@@ -449,11 +554,14 @@ export const createPlannerController = ({ api }) => {
       openedLibraryItemId = null;
       libraryReader.hidden = true;
       activeMemoryItems = [];
+      editorialDecisions = [];
       renderActiveMemory();
+      renderEditorialDecisions();
       renderMessages(conversation.messages ?? []);
       renderPrompt(context);
       renderHistory();
       loadActiveMemory(conversation.id);
+      loadEditorialDecisions(conversation.id);
     };
 
     const setBusy = ({ inputBusy, navigationBusy, generating }) => {
@@ -556,7 +664,9 @@ export const createPlannerController = ({ api }) => {
         openedLibraryItemId = null;
         libraryReader.hidden = true;
         activeMemoryItems = [];
+        editorialDecisions = [];
         renderActiveMemory();
+        renderEditorialDecisions();
         conversations = [
           conversation,
           ...conversations.filter((item) => item.id !== conversation.id),
@@ -565,6 +675,7 @@ export const createPlannerController = ({ api }) => {
         renderPrompt(conversation.context);
         renderHistory();
         loadActiveMemory(conversation.id);
+        loadEditorialDecisions(conversation.id);
         setFeedback();
 
         try {
@@ -685,6 +796,10 @@ export const createPlannerController = ({ api }) => {
         if (!isCurrentRequest()) return;
 
         appendMessage(reply);
+        if (reply.editorialDecision) {
+          await loadEditorialDecisions(conversationId);
+          if (!isCurrentRequest()) return;
+        }
         setFeedback();
       } catch (error) {
         if (!isCurrentRequest()) return;

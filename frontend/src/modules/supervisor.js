@@ -1,4 +1,4 @@
-import { createPanel, createStatusPill, html } from '../design-system/index.js';
+import { createPanel, createStatusPill, escapeHtml, html } from '../design-system/index.js';
 
 const youtubeAnalyticsStatus = {
   connected: { label: 'Conectado', variant: 'connected' },
@@ -16,6 +16,14 @@ export const supervisorModule = {
     const analyticsState = data.supervisor?.youtubeAnalytics?.state;
     const analytics = youtubeAnalyticsStatus[analyticsState]
       ?? { label: 'Pendente', variant: 'pending' };
+    const editorial = data.supervisor?.editorial ?? {};
+    const priorities = Array.isArray(editorial.priorities) ? editorial.priorities : [];
+    const risks = Array.isArray(editorial.risks) ? editorial.risks : [];
+    const opportunities = Array.isArray(editorial.opportunities) ? editorial.opportunities : [];
+    const actions = Array.isArray(editorial.actions) ? editorial.actions : [];
+    const renderItems = (items, empty) => items.length > 0
+      ? `<ul>${items.slice(0, 3).map((item) => `<li>${escapeHtml(item)}</li>`).join('')}</ul>`
+      : `<p class="performance-empty">${empty}</p>`;
 
     return createPanel({
       eyebrow: 'Supervisor',
@@ -39,6 +47,24 @@ export const supervisorModule = {
             <span>Automacoes</span>
             ${createStatusPill(status.automationsEnabled ? 'Operacionais' : 'Nao implementadas', status.automationsEnabled ? 'connected' : 'pending')}
           </div>
+        </div>
+        <div class="supervisor-editorial-grid">
+          <section>
+            <h3>Prioridades editoriais</h3>
+            ${renderItems(priorities, 'Nenhuma decisão editorial recente.')}
+          </section>
+          <section>
+            <h3>Riscos</h3>
+            ${renderItems(risks, 'Nenhum risco editorial registrado.')}
+          </section>
+          <section>
+            <h3>Oportunidades</h3>
+            ${renderItems(opportunities, 'Nenhuma oportunidade editorial registrada.')}
+          </section>
+          <section>
+            <h3>Próximas ações</h3>
+            ${renderItems(actions, 'Nenhuma ação recomendada ainda.')}
+          </section>
         </div>
       `,
     });

@@ -14,6 +14,84 @@
   --shadow: 0 24px 80px rgba(0, 0, 0, 0.36);
 }
 
+.planner-editorial-decisions {
+  display: grid;
+  gap: 8px;
+}
+
+.planner-decision-item,
+.planner-decision-inline {
+  border: 1px solid #334155;
+  border-radius: 6px;
+  background: #111827;
+  color: #dbeafe;
+  padding: 9px 10px;
+}
+
+.planner-decision-inline {
+  margin-top: 10px;
+  background: #0f172a;
+}
+
+.planner-decision-item summary,
+.planner-decision-inline summary {
+  cursor: pointer;
+  color: #93c5fd;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.planner-decision-item p,
+.planner-decision-inline p,
+.planner-decision-item li,
+.planner-decision-inline li {
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.planner-decision-item ul,
+.planner-decision-inline ul {
+  margin: 5px 0 9px;
+  padding-left: 18px;
+}
+
+.planner-decision-recommendation {
+  color: #f8fafc;
+}
+
+.planner-decision-action {
+  color: #a7f3d0;
+}
+
+.supervisor-editorial-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 18px;
+}
+
+.supervisor-editorial-grid section {
+  border-top: 1px solid #334155;
+  padding-top: 12px;
+}
+
+.supervisor-editorial-grid h3 {
+  margin: 0 0 8px;
+  font-size: 13px;
+}
+
+.supervisor-editorial-grid ul {
+  margin: 0;
+  padding-left: 18px;
+  color: #cbd5e1;
+}
+
+@media (max-width: 760px) {
+  .supervisor-editorial-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 * {
   box-sizing: border-box;
 }

@@ -26,11 +26,13 @@ import { OpenAILanguageProvider } from '../services/language/OpenAILanguageProvi
 import {
   CreatorIntelligenceService,
 } from '../services/creator-intelligence/CreatorIntelligenceService';
+import { EditorialDecisionService } from '../services/creator-intelligence/EditorialDecisionService';
 import { createCreatorIntelligenceRouter } from './creatorIntelligence';
 
 const createDefaultPlannerService = (
   creatorIntelligenceService: CreatorIntelligenceService,
   conversationLibraryService: ConversationLibraryService,
+  editorialDecisionService: EditorialDecisionService,
 ): PlannerService =>
   new PlannerService(
     undefined,
@@ -38,6 +40,7 @@ const createDefaultPlannerService = (
     new OpenAILanguageProvider(),
     creatorIntelligenceService,
     conversationLibraryService,
+    editorialDecisionService,
   );
 
 const toLibraryItemResponse = ({
@@ -55,13 +58,24 @@ export const createOperatorsRouter = (
   libraryService: LibraryService = new LibraryService(),
   conversationLibraryService: ConversationLibraryService = new ConversationLibraryService(),
   creatorIntelligenceService: CreatorIntelligenceService = new CreatorIntelligenceService(),
+  editorialDecisionService?: EditorialDecisionService,
 ): Router => {
   const router = Router();
   const planner = new PlannerModule();
+  const resolvedEditorialDecisionService = editorialDecisionService
+    ?? new EditorialDecisionService(creatorIntelligenceService);
   const resolvedPlannerService = plannerService
-    ?? createDefaultPlannerService(creatorIntelligenceService, conversationLibraryService);
+    ?? createDefaultPlannerService(
+      creatorIntelligenceService,
+      conversationLibraryService,
+      resolvedEditorialDecisionService,
+    );
 
-router.use('/creator-intelligence', createCreatorIntelligenceRouter(creatorIntelligenceService));
+router.use('/creator-intelligence', createCreatorIntelligenceRouter(
+  creatorIntelligenceService,
+  undefined,
+  resolvedEditorialDecisionService,
+));
 
 router.get('/planner', async (_req, res) => {
   try {

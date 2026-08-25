@@ -585,6 +585,12 @@ test('Supervisor renders the YouTube Analytics provider state without activating
         lastSyncAt: '2026-08-24T15:00:00.000Z',
         lastErrorType: null,
       },
+      editorial: {
+        priorities: ['Prioridade real'],
+        risks: ['Risco real'],
+        opportunities: ['Oportunidade <script>alert(1)</script>'],
+        actions: ['Ação recomendada'],
+      },
     },
   });
   const unauthorized = supervisorModule.render({
@@ -596,4 +602,7 @@ test('Supervisor renders the YouTube Analytics provider state without activating
   assert.match(unauthorized, /YouTube Analytics[\s\S]*?Autorizacao necessaria/);
   assert.match(synchronized, /IA[\s\S]*?Nao configurada/);
   assert.match(synchronized, /Automacoes[\s\S]*?Nao implementadas/);
+  assert.match(synchronized, /Prioridades editoriais[\s\S]*?Prioridade real/);
+  assert.match(synchronized, /Oportunidades[\s\S]*?Oportunidade &lt;script&gt;alert\(1\)&lt;\/script&gt;/);
+  assert.doesNotMatch(synchronized, /<script>alert\(1\)<\/script>/);
 });

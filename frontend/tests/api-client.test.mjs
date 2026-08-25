@@ -541,3 +541,71 @@ describe('Performance Operations API client', { concurrency: false }, () => {
     }
   });
 });
+
+describe('Editorial Decision API client', { concurrency: false }, () => {
+  const baseUrl = 'http://localhost:4000';
+  const response = (status, payload) => ({
+    ok: status >= 200 && status < 300,
+    status,
+    async json() { return payload; },
+  });
+
+  test('uses centralized contracts for generation, history, opening and outcome', async () => {
+    const originalFetch = globalThis.fetch;
+    const calls = [];
+    globalThis.fetch = async (...args) => {
+      calls.push(args);
+      return response(200, { id: 'decision/1' });
+    };
+    try {
+      const api = createApiClient(baseUrl);
+      await api.generateEditorialDecision({ question: 'O que vale gravar?' });
+      await api.listEditorialDecisions({ conversationId: 'conversation/1', limit: 5 });
+      await api.getEditorialDecision('decision/1');
+      await api.registerEditorialDecisionOutcome('decision/1', 'snapshot/1');
+      assert.equal(calls[0][0], `${baseUrl}/api/operators/creator-intelligence/editorial-decisions`);
+      assert.deepEqual(calls[0][1], {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ question: 'O que vale gravar?' }),
+      });
+      assert.equal(calls[1][0], `${baseUrl}/api/operators/creator-intelligence/editorial-decisions?conversationId=conversation%2F1&limit=5`);
+      assert.equal(calls[2][0], `${baseUrl}/api/operators/creator-intelligence/editorial-decisions/decision%2F1`);
+      assert.deepEqual(calls[3], [
+        `${baseUrl}/api/operators/creator-intelligence/editorial-decisions/decision%2F1/outcome`,
+        {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ snapshotId: 'snapshot/1' }),
+        },
+      ]);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  test('rejects invalid editorial parameters before network and preserves safe status', async () => {
+    const originalFetch = globalThis.fetch;
+    let calls = 0;
+    globalThis.fetch = async () => {
+      calls += 1;
+      return response(409, { stack: 'private', token: 'must-not-be-read' });
+    };
+    try {
+      const api = createApiClient(baseUrl);
+      await assert.rejects(api.generateEditorialDecision(null), TypeError);
+      await assert.rejects(api.listEditorialDecisions({ limit: 0 }), TypeError);
+      await assert.rejects(api.getEditorialDecision(' '), TypeError);
+      await assert.rejects(api.registerEditorialDecisionOutcome('decision', ''), TypeError);
+      assert.equal(calls, 0);
+      await assert.rejects(
+        api.registerEditorialDecisionOutcome('decision', 'snapshot'),
+        (error) => error instanceof ApiRequestError
+          && error.status === 409
+          && !error.message.includes('private'),
+      );
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+});
