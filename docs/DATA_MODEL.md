@@ -115,3 +115,36 @@ A relação com `Message` usa `ON DELETE SET NULL`, preservando o artefato quand
 
 - `Conversation` e `Message` possuem persistência real no fluxo atual do Planejador.
 - As relações entre entidades suportam projetos, conversas e coleta de dados analíticos.
+
+## Creator Intelligence
+
+### VideoIdea
+
+Ideia editorial com jogo opcional, tema, formato, premissa, esforço estimado de 1 a 5 e estimativas opcionais de novidade e compatibilidade. Estimativas não são métricas observadas.
+
+### ContentOpportunity
+
+Oportunidade ligada a uma ideia, com fonte, classificação, resumo e score opcional. É removida em cascata com sua ideia.
+
+### ContentDecision
+
+Decisão persistida com categoria (`GRAVAR`, `TESTAR`, `GUARDAR` ou `DESCARTAR`), score relativo, justificativa e snapshot JSON das evidências. Não armazena previsão de views.
+
+### ChannelInsight
+
+Memória revisável do canal. Uma chave estável permite atualizar o aprendizado quando novos sinais chegam. Confiança varia de 0 a 1 e a classificação explicita a natureza do conhecimento.
+
+### PerformanceSignal
+
+Sinal histórico normalizado entre 0 e 100, com métrica, fonte, amostragem e data. Pode se relacionar a projeto, ideia, jogo e formato. O schema não presume origem YouTube.
+
+```text
+Project 1 -> N VideoIdea
+Project 1 -> N ChannelInsight
+Project 1 -> N PerformanceSignal
+VideoIdea 1 -> N ContentOpportunity
+VideoIdea 1 -> N ContentDecision
+VideoIdea 1 -> N PerformanceSignal
+```
+
+As tabelas são aditivas e não alteram `Conversation`, `Message` ou `LibraryItem`.

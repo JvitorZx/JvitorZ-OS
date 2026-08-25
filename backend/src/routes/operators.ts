@@ -17,14 +17,26 @@ import {
 } from '../services/LibraryService';
 import {
   isPlannerMessageSender,
+  PlannerEditorialIntelligenceUnavailableError,
   PlannerLanguageGenerationError,
   PlannerLanguageProviderUnavailableError,
   PlannerService,
 } from '../services/PlannerService';
 import { OpenAILanguageProvider } from '../services/language/OpenAILanguageProvider';
+import {
+  CreatorIntelligenceService,
+} from '../services/creator-intelligence/CreatorIntelligenceService';
+import { createCreatorIntelligenceRouter } from './creatorIntelligence';
 
-const createDefaultPlannerService = (): PlannerService =>
-  new PlannerService(undefined, undefined, new OpenAILanguageProvider());
+const createDefaultPlannerService = (
+  creatorIntelligenceService: CreatorIntelligenceService,
+): PlannerService =>
+  new PlannerService(
+    undefined,
+    undefined,
+    new OpenAILanguageProvider(),
+    creatorIntelligenceService,
+  );
 
 const toLibraryItemResponse = ({
   id,
@@ -37,12 +49,17 @@ const toLibraryItemResponse = ({
 }: LibraryItem) => ({ id, projectId, title, type, content, createdAt, updatedAt });
 
 export const createOperatorsRouter = (
-  plannerService: PlannerService = createDefaultPlannerService(),
+  plannerService?: PlannerService,
   libraryService: LibraryService = new LibraryService(),
   conversationLibraryService: ConversationLibraryService = new ConversationLibraryService(),
+  creatorIntelligenceService: CreatorIntelligenceService = new CreatorIntelligenceService(),
 ): Router => {
   const router = Router();
   const planner = new PlannerModule();
+  const resolvedPlannerService = plannerService
+    ?? createDefaultPlannerService(creatorIntelligenceService);
+
+router.use('/creator-intelligence', createCreatorIntelligenceRouter(creatorIntelligenceService));
 
 router.get('/planner', async (_req, res) => {
   try {
@@ -56,7 +73,7 @@ router.get('/planner', async (_req, res) => {
 
 router.get('/planner/conversations', async (_req, res) => {
   try {
-    const conversations = await plannerService.listConversations();
+    const conversations = await resolvedPlannerService.listConversations();
     return res.status(200).json(conversations);
   } catch (error) {
     const errorName = error instanceof Error ? error.name : 'UnknownError';
@@ -73,7 +90,7 @@ router.get('/planner/conversations/:id', async (req, res) => {
   }
 
   try {
-    const conversation = await plannerService.getConversationById(id);
+    const conversation = await resolvedPlannerService.getConversationById(id);
 
     if (!conversation) {
       return res.status(404).json({ error: 'Conversation not found' });
@@ -110,7 +127,7 @@ router.patch('/planner/conversations/:id/context', async (req, res) => {
   }
 
   try {
-    const conversation = await plannerService.updateConversationContext(id, {
+    const conversation = await resolvedPlannerService.updateConversationContext(id, {
       context: body.context,
     });
 
@@ -153,7 +170,7 @@ router.post('/planner/conversations/:id/messages', async (req, res) => {
   }
 
   try {
-    const message = await plannerService.createMessage(id, {
+    const message = await resolvedPlannerService.createMessage(id, {
       sender: body.sender,
       text: body.text,
     });
@@ -185,7 +202,7 @@ router.post('/planner/conversations/:id/reply', async (req, res) => {
   }
 
   try {
-    const reply = await plannerService.generateReply(id);
+    const reply = await resolvedPlannerService.generateReply(id);
 
     if (!reply) {
       return res.status(404).json({ error: 'Conversation not found' });
@@ -206,6 +223,28 @@ router.post('/planner/conversations/:id/reply', async (req, res) => {
     const errorName = error instanceof Error ? error.name : 'UnknownError';
     console.error(`Failed to persist planner reply (${errorName})`);
     return res.status(500).json({ error: 'Failed to persist planner reply' });
+  }
+});
+
+router.get('/planner/conversations/:id/editorial-recommendation', async (req, res) => {
+  const id = req.params.id?.trim();
+  if (!id) {
+    return res.status(400).json({ error: 'id must be a non-empty string' });
+  }
+
+  try {
+    const recommendation = await resolvedPlannerService.getEditorialRecommendation(id);
+    if (!recommendation) {
+      return res.status(404).json({ error: 'Conversation not found' });
+    }
+    return res.status(200).json(recommendation);
+  } catch (error) {
+    if (error instanceof PlannerEditorialIntelligenceUnavailableError) {
+      return res.status(503).json({ error: 'Creator intelligence is unavailable' });
+    }
+    const errorName = error instanceof Error ? error.name : 'UnknownError';
+    console.error(`Failed to get planner editorial recommendation (${errorName})`);
+    return res.status(500).json({ error: 'Failed to get editorial recommendation' });
   }
 });
 
@@ -418,7 +457,7 @@ router.post('/planner/conversations', async (req, res) => {
   }
 
   try {
-    const conversation = await plannerService.createConversation({ title, projectId });
+    const conversation = await resolvedPlannerService.createConversation({ title, projectId });
     return res.status(201).json(conversation);
   } catch (error) {
     const errorName = error instanceof Error ? error.name : 'UnknownError';

@@ -10,6 +10,10 @@ import {
   type LanguageProvider,
 } from './language/LanguageProvider';
 import { mapConversationToLanguageInput } from './language/PlannerLanguageInput';
+import type {
+  EditorialRecommendation,
+  PlannerEditorialIntelligenceProvider,
+} from './creator-intelligence/CreatorIntelligenceService';
 
 export interface CreateConversationInput {
   title?: string;
@@ -56,19 +60,29 @@ export class PlannerLanguageProviderUnavailableError extends PlannerLanguageGene
   }
 }
 
+export class PlannerEditorialIntelligenceUnavailableError extends Error {
+  constructor() {
+    super('Creator intelligence is unavailable');
+    this.name = 'PlannerEditorialIntelligenceUnavailableError';
+  }
+}
+
 export class PlannerService {
   private conversationRepository?: ConversationRepository;
   private messageRepository?: MessageRepository;
   private readonly languageProvider?: LanguageProvider;
+  private readonly editorialIntelligence?: PlannerEditorialIntelligenceProvider;
 
   constructor(
     conversationRepository?: ConversationRepository,
     messageRepository?: MessageRepository,
     languageProvider?: LanguageProvider,
+    editorialIntelligence?: PlannerEditorialIntelligenceProvider,
   ) {
     this.conversationRepository = conversationRepository;
     this.messageRepository = messageRepository;
     this.languageProvider = languageProvider;
+    this.editorialIntelligence = editorialIntelligence;
   }
 
   private get repository(): ConversationRepository {
@@ -192,5 +206,16 @@ export class PlannerService {
     // An empty or whitespace-only value explicitly clears the conversation context.
     const context = input.context.trim() || null;
     return this.repository.updateContext(conversation.id, context);
+  }
+
+  async getEditorialRecommendation(
+    conversationId: string,
+  ): Promise<EditorialRecommendation | null> {
+    const conversation = await this.repository.findById(conversationId.trim());
+    if (!conversation) return null;
+    if (!this.editorialIntelligence) {
+      throw new PlannerEditorialIntelligenceUnavailableError();
+    }
+    return this.editorialIntelligence.recommendEditorial(conversation.projectId);
   }
 }

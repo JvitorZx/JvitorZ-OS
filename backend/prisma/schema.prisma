@@ -26,6 +26,9 @@ model Project {
   libraryItems     LibraryItem[]
   automations      Automation[]
   analyticsSnapshots AnalyticsSnapshot[]
+  videoIdeas         VideoIdea[]
+  channelInsights    ChannelInsight[]
+  performanceSignals PerformanceSignal[]
   createdAt        DateTime           @default(now())
   updatedAt        DateTime           @updatedAt
 }
@@ -116,4 +119,88 @@ model AnalyticsSnapshot {
   metrics     Json
   summary     String?
   createdAt   DateTime  @default(now())
+}
+
+model VideoIdea {
+  id                 String               @id @default(cuid())
+  projectId          String?
+  project            Project?             @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  game               String?
+  theme              String
+  format             String
+  premise            String
+  estimatedEffort    Int?
+  novelty            Float?
+  identityFit        Float?
+  opportunities      ContentOpportunity[]
+  decisions          ContentDecision[]
+  performanceSignals PerformanceSignal[]
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
+
+  @@index([projectId, createdAt])
+}
+
+model ContentOpportunity {
+  id             String    @id @default(cuid())
+  videoIdeaId    String
+  videoIdea      VideoIdea @relation(fields: [videoIdeaId], references: [id], onDelete: Cascade)
+  source         String
+  classification String
+  summary        String
+  score          Float?
+  createdAt      DateTime  @default(now())
+
+  @@index([videoIdeaId, createdAt])
+}
+
+model ContentDecision {
+  id         String    @id @default(cuid())
+  videoIdeaId String
+  videoIdea  VideoIdea @relation(fields: [videoIdeaId], references: [id], onDelete: Cascade)
+  category   String
+  score      Float
+  rationale  String
+  evidence   Json
+  createdAt  DateTime  @default(now())
+
+  @@index([videoIdeaId, createdAt])
+}
+
+model ChannelInsight {
+  id             String   @id @default(cuid())
+  projectId      String?
+  project        Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  key            String   @unique
+  category       String
+  subject        String
+  statement      String
+  confidence     Float
+  classification String
+  evidence       Json?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([projectId, category])
+}
+
+model PerformanceSignal {
+  id             String     @id @default(cuid())
+  projectId      String?
+  project        Project?   @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  videoIdeaId    String?
+  videoIdea      VideoIdea? @relation(fields: [videoIdeaId], references: [id], onDelete: SetNull)
+  game           String?
+  format         String?
+  metric         String
+  value          Float
+  sampleSize     Int        @default(1)
+  source         String
+  classification String     @default("real")
+  measuredAt     DateTime
+  createdAt      DateTime   @default(now())
+
+  @@index([projectId, game])
+  @@index([projectId, format])
+  @@index([videoIdeaId])
 }

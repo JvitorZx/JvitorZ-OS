@@ -5,3 +5,8 @@ export * from './ConversationRepository';
 export * from './MessageRepository';
 export * from './LibraryItemRepository';
 export * from './ConversationLibraryItemRepository';
+export * from './VideoIdeaRepository';
+export * from './ContentOpportunityRepository';
+export * from './ContentDecisionRepository';
+export * from './ChannelInsightRepository';
+export * from './PerformanceSignalRepository';

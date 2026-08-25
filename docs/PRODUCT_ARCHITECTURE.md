@@ -221,3 +221,22 @@ O Planejador é a referência de regressão desse contrato: persistência, hist�
 
 ## Conclusão
 O JvitorZ OS é uma plataforma modular com dashboard central, operadores como workspaces especializadas e um backend leve que fornece dados agregados. A base atual está pronta para evoluir com operadores adicionais e componentes reutilizáveis sem alterar a estrutura de rotas nem o comportamento existente.
+
+## Creator Intelligence Foundation
+
+O domínio `CreatorIntelligence` fica entre dados persistidos e consumidores editoriais:
+
+```text
+Planner/API
+  -> CreatorIntelligenceService
+    -> ResearchProvider[]
+    -> IdeaEvaluationService
+    -> ChannelMemoryService
+    -> repositories -> Prisma/SQLite
+```
+
+`ResearchProvider` é a fronteira de extensão. O provider inicial usa apenas `PerformanceSignal` persistido. Futuros adapters de YouTube, vidIQ, tendências ou web deverão converter suas fontes para `ResearchEvidence`; o motor não conhece SDKs externos.
+
+Cada componente do score carrega classificação, fontes e justificativa. Ausência de evidência permanece explícita e nenhum componente promete desempenho futuro.
+
+`PlannerService` recebe opcionalmente `PlannerEditorialIntelligenceProvider`, permitindo consultar “o que vale gravar?” sem importar repositories. O fluxo de chat e o `LanguageProvider` continuam independentes.

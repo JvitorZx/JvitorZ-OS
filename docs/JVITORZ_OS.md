@@ -230,3 +230,9 @@ Sistema
 - O documento descreve a arquitetura como ela deve ser estruturada oficialmente, sem alterar o código existente.
 - A base atual já contém os módulos `channel`, `analytics`, `settings`, `supervisor`, `operators` e `content-planner`.
 - Os módulos mais avançados são conceituais, mas fazem parte da estrutura oficial e devem ser incorporados na evolução do produto.
+
+## Creator Intelligence
+
+Fundação editorial compartilhada pelo Planner. Registra ideias, reúne evidências internas, calcula ranking relativo, persiste decisões e mantém aprendizados revisáveis do canal. O sistema diferencia dados reais, inferências, recomendações e lacunas desconhecidas; não prevê views.
+
+Atualmente funciona apenas com dados persistidos internamente. YouTube, vidIQ, tendências e pesquisa web são providers futuros e não são simulados.

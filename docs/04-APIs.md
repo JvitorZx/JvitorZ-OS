@@ -427,3 +427,53 @@ Exemplos de respostas de erro:
 ```
 
 Mensagens `500` são genéricas e não expõem stack traces, credenciais ou payloads internos.
+
+## Creator Intelligence
+
+Os endpoints abaixo não chamam rede externa e nunca retornam previsão de views.
+
+### `POST /api/operators/creator-intelligence/ideas`
+
+Registra uma ideia persistida.
+
+```json
+{
+  "game": "BeamNG.drive",
+  "theme": "Simulação",
+  "format": "desafio narrado",
+  "premise": "Descobrir se um carro popular conclui uma rota extrema.",
+  "estimatedEffort": 2,
+  "novelty": 75,
+  "identityFit": 90
+}
+```
+
+`theme`, `format` e `premise` são obrigatórios. Esforço aceita 1 a 5; novidade e compatibilidade aceitam 0 a 100. Campos extras são rejeitados. Retorna `201`, `400` ou `500` seguro.
+
+### `GET /api/operators/creator-intelligence/ideas`
+
+Lista ideias em ordem de criação decrescente. Aceita `projectId` opcional. Retorna `200`, `400` ou `500` seguro.
+
+### `POST /api/operators/creator-intelligence/ideas/:id/evaluate`
+
+Avalia uma ideia persistida com body ausente ou `{}`. Retorna `200` com ideia, decisão persistida e avaliação classificada; `400` para entrada inválida; `404` para ideia inexistente; `500` seguro.
+
+### `POST /api/operators/creator-intelligence/ideas/compare`
+
+```json
+{ "ideaIds": ["idea-a", "idea-b"] }
+```
+
+Aceita de 2 a 20 IDs únicos. Retorna `200` com ranking e justificativa por posição; `400`, `404` ou `500` seguro quando aplicável.
+
+### `GET /api/operators/creator-intelligence/recommendation`
+
+Aceita `projectId` opcional. Retorna `200` com recomendação, ranking, classificação e disclaimer. Sem ideias, retorna recomendação nula e lista vazia.
+
+### `GET /api/operators/creator-intelligence/context`
+
+Retorna o objeto limitado preparado para IA futura: estado do canal, histórico relevante, ideias, oportunidades, decisões e restrições. Não chama IA nem altera prompts.
+
+### `GET /api/operators/planner/conversations/:id/editorial-recommendation`
+
+Ponte do Planner para a recomendação editorial. Retorna `200`; `400` para ID inválido; `404` para conversa inexistente; `503` quando o serviço não foi injetado; ou `500` sanitizado.

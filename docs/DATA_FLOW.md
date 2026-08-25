@@ -180,3 +180,32 @@ O feedback não expõe payloads, stack traces ou detalhes internos. Uma ação p
 `npm test`, executado em `backend/`, cobre a API real com Prisma e SQLite em memória, providers/clients injetáveis, migration da Biblioteca e o controller frontend com DOM controlado. As 191 verificações não dependem de OAuth, YouTube, OpenAI real, chave, rede externa ou `dev.db`.
 
 Permanece pendente, sem bloquear a Sprint, um smoke test manual com `OPENAI_API_KEY` válida para confirmar uma chamada real HTTP `201`. Chave, prompt e resposta do teste não devem ser registrados na documentação.
+
+## Creator Intelligence
+
+```text
+Cliente/Planner
+  -> endpoints Creator Intelligence
+    -> CreatorIntelligenceService
+      -> ResearchProvider[]
+        -> InternalHistoryResearchProvider
+          -> PerformanceSignalRepository
+      -> IdeaEvaluationService
+      -> ContentDecisionRepository
+      -> Prisma -> SQLite
+```
+
+### Registro e avaliação
+
+1. O cliente registra jogo opcional, tema, formato, premissa e estimativas básicas.
+2. O serviço valida e persiste a `VideoIdea`.
+3. Cada `ResearchProvider` recebe a ideia persistida.
+4. O provider interno seleciona sinais relacionados à ideia, jogo ou formato.
+5. O avaliador combina somente fatores conhecidos e mantém lacunas como `unknown`.
+6. A decisão é persistida com snapshot das evidências.
+
+### Ranking, memória e Planner
+
+O ranking usa score decrescente e ID como desempate. `ChannelMemoryService` agrega sinais por jogo e formato e atualiza a mesma memória por `upsert`. O Planner consulta o domínio pela interface `PlannerEditorialIntelligenceProvider`; o `LanguageProvider` permanece independente.
+
+`buildContext()` seleciona estado do canal, histórico relevante, ideias, oportunidades, decisões e restrições sem despejar o banco inteiro. A Sprint não injeta esse objeto automaticamente no prompt.

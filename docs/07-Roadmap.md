@@ -498,3 +498,56 @@ O API client central oferece `linkLibraryItemToConversation()`, `listConversatio
 ### Caminho futuro
 
 A associação e o contrato neutro devem permitir que futuros operadores consumam a mesma Biblioteca sem introduzir RAG ou seleção automática nesta Sprint. A generalização para memória compartilhada entre operadores ocorrerá somente quando existir um segundo operador funcional e um caso de uso concreto.
+
+## Sprint 18 — Creator Intelligence Foundation
+
+**Status: CONCLUÍDA**
+
+**Fase principal: FASE 7 - Primeiro Operador**, preparando Analytics e orquestração editorial.
+
+> O escopo recebido chamava esta entrega de “Sprint 17”. Como esse número já pertence à Biblioteca como Memória Ativa no histórico versionado, a entrega foi numerada como Sprint 18 para preservar a rastreabilidade.
+
+### Objetivo
+
+Criar a fundação do mecanismo de inteligência editorial: registrar ideias, organizar evidências, comparar alternativas e recomendar o próximo conteúdo sem fingir previsão exata de visualizações.
+
+### Entregas
+
+- domínio modular `CreatorIntelligence`;
+- modelos `VideoIdea`, `ContentOpportunity`, `ContentDecision`, `ChannelInsight` e `PerformanceSignal`;
+- repositories isolando Prisma;
+- `IdeaEvaluationService` com score relativo, ranking e justificativas legíveis;
+- decisões `GRAVAR`, `TESTAR`, `GUARDAR` e `DESCARTAR`;
+- classificação explícita de dado real, inferência, recomendação e informação desconhecida;
+- contrato extensível `ResearchProvider`;
+- provider interno, sem rede, baseado somente em sinais persistidos;
+- `ChannelMemoryService` com aprendizados recalculáveis;
+- `CreatorIntelligenceService` para cadastro, avaliação, comparação, recomendação e contexto limitado;
+- endpoints HTTP e ponte `PlannerService -> CreatorIntelligenceService`;
+- migration aditiva e testes com SQLite em memória.
+
+### Limites e honestidade
+
+- scores de 0 a 100 servem somente para comparação relativa;
+- fatores ausentes permanecem `unknown`;
+- nenhuma resposta contém previsão de views;
+- o contexto futuro seleciona no máximo cinco ideias e doze sinais relevantes;
+- providers futuros entram por injeção sem alterar o motor principal.
+
+### Fora de escopo
+
+- coleta automática de YouTube Analytics;
+- vidIQ, tendências e pesquisa web;
+- previsão de views;
+- tela nova ou redesign;
+- n8n, RAG, Supervisor autônomo e novos operadores.
+
+### Critérios atendidos
+
+- ideias persistem jogo, tema, formato e premissa;
+- ideias podem ser listadas, avaliadas e comparadas;
+- decisões e evidências ficam persistidas;
+- ranking possui justificativa por posição;
+- memória muda quando novos sinais chegam;
+- Planner consulta recomendação por interface de serviço;
+- testes, build, Prisma e validações passam sem usar `dev.db` ou rede externa.
