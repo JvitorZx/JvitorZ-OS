@@ -115,11 +115,11 @@ Ao montar o Planner, o frontend chama `GET /api/operators/planner/library`. A li
 
 Listagens, aberturas e salvamentos usam tokens de montagem/operação. Respostas tardias depois de unmount, troca de conversa ou seleção de outro item são ignoradas e não criam estado visual falso.
 
-## Fluxo Planejado de Memória Ativa — Sprint 17
+## Memória Ativa — Sprint 17
 
-**Status: Tarefas 1 a 5 concluídas; UI e geração ainda não implementadas.**
+**Status: concluída.**
 
-O contrato neutro já aceita artefatos limitados e o schema persiste o vínculo por `ConversationLibraryItem`. A migration aditiva cria a associação vazia, com chave composta e remoção em cascata. Repository, service, API e API client frontend já vinculam, listam e desvinculam com validação, idempotência e limite de cinco. UI e carregamento na geração permanecem planejados.
+O contrato neutro aceita artefatos limitados e o schema persiste o vínculo por `ConversationLibraryItem`. Repository, service, API, API client e UI vinculam, listam e desvinculam com validação, idempotência e limite de cinco. `PlannerService.generateReply()` carrega somente os itens vinculados antes de montar a entrada neutra.
 
 O usuário selecionará explicitamente itens já persistidos para a conversa ativa:
 
@@ -130,11 +130,11 @@ Frontend envia conversationId + libraryItemId
       -> ConversationLibraryItem persiste o vínculo
 ```
 
-O frontend nunca enviará título ou conteúdo como fonte da memória. Listagem e remoção também serão resolvidas pelos IDs persistidos. A criação do vínculo será idempotente e uma conversa não observará vínculos pertencentes a outra.
+O frontend nunca envia título ou conteúdo como fonte da memória. Listagem e remoção também são resolvidas pelos IDs persistidos. A criação do vínculo é idempotente e uma conversa não observa vínculos pertencentes a outra.
 
 No domínio já implementado, a criação limitada ocorre em um único statement de escrita parametrizado. Vínculo repetido retorna o item existente sem consumir limite; o sexto item diferente é rejeitado; remover um vínculo libera uma vaga. A listagem resolve os `LibraryItem` persistidos em `createdAt ASC` e `libraryItemId ASC`.
 
-Na geração, o fluxo planejado será:
+Na geração, o fluxo implementado é:
 
 ```text
 Conversation.context
@@ -145,9 +145,9 @@ Conversation.context
         -> resposta operator persistida
 ```
 
-Os artefatos serão carregados pela data do vínculo crescente, com ID como desempate. Serão aceitos no máximo cinco vínculos ativos, limitados a 4.000 caracteres por conteúdo e 12.000 caracteres totais por geração. O mapper truncará o último item ao orçamento restante e omitirá os posteriores. Os limites atuais de contexto, histórico e saída não serão ampliados.
+Os artefatos são carregados pela data do vínculo crescente, com ID como desempate. São aceitos no máximo cinco vínculos ativos, limitados a 4.000 caracteres por conteúdo e 12.000 caracteres totais por geração. O mapper trunca o último item ao orçamento restante e omite os posteriores. Os limites atuais de contexto, histórico e saída permanecem inalterados.
 
-Conteúdo de artefato será tratado como referência não confiável. Troca de conversa, Nova Conversa, seleções rápidas e unmount invalidarão respostas assíncronas antigas antes de qualquer atualização visual.
+Conteúdo de artefato é tratado como referência não confiável. Troca de conversa, Nova Conversa, seleções rápidas e unmount invalidam respostas assíncronas antigas antes de qualquer atualização visual.
 
 ## Respostas Assíncronas Obsoletas
 
@@ -177,7 +177,7 @@ O feedback não expõe payloads, stack traces ou detalhes internos. Uma ação p
 
 ## Testes do Fluxo
 
-`npm test`, executado em `backend/`, cobre a API real com Prisma e SQLite em memória, providers/clients injetáveis, migration da Biblioteca e o controller frontend com DOM controlado. As 191 verificações não dependem de OAuth, YouTube, OpenAI real, chave, rede externa ou `dev.db`.
+`npm test`, executado em `backend/`, cobre APIs reais com Prisma e SQLite em memória, providers/clients injetáveis, migrations e o controller frontend com DOM controlado. As 348 verificações atuais não dependem de OAuth, YouTube, OpenAI real, chave, rede externa ou `dev.db`.
 
 Permanece pendente, sem bloquear a Sprint, um smoke test manual com `OPENAI_API_KEY` válida para confirmar uma chamada real HTTP `201`. Chave, prompt e resposta do teste não devem ser registrados na documentação.
 
@@ -206,6 +206,36 @@ Cliente/Planner
 
 ### Ranking, memória e Planner
 
-O ranking usa score decrescente e ID como desempate. `ChannelMemoryService` agrega sinais por jogo e formato e atualiza a mesma memória por `upsert`. O Planner consulta o domínio pela interface `PlannerEditorialIntelligenceProvider`; o `LanguageProvider` permanece independente.
+O ranking usa score decrescente e ID como desempate. `ChannelMemoryService` deriva aprendizados por jogo, série, formato, watch time, retenção e conversão, atualizando a mesma memória por `upsert` ou invalidando evidência obsoleta. O Planner consulta o domínio pela interface `PlannerEditorialIntelligenceProvider`; o `LanguageProvider` permanece independente.
 
 `buildContext()` seleciona estado do canal, histórico relevante, ideias, oportunidades, decisões e restrições sem despejar o banco inteiro. A Sprint não injeta esse objeto automaticamente no prompt.
+
+## Performance Intelligence — Sprint 19
+
+```text
+PerformanceProvider (manual nesta Sprint; externos no futuro)
+  -> PerformanceNormalizer
+    -> VideoPerformanceSnapshotRepository
+      -> snapshot idempotente no SQLite
+        -> PerformanceBaselineService
+          -> PerformanceSignalRepository
+            -> ChannelMemoryService
+              -> IdeaEvaluationService
+                -> ContentDecision com evidências
+```
+
+O provider entrega campos brutos; o normalizador valida tipos, datas, percentuais e valores não negativos. Campo indisponível permanece `null`. A fonte é definida pelo provider, não pelo payload do cliente. A chave de ingestão usa fonte, vídeo e período, permitindo atualizar o mesmo registro sem duplicá-lo.
+
+O baseline usa somente snapshots do mesmo projeto e calcula média, mediana e amostragem. Sinais com score relativo são criados apenas quando a métrica observada e sua referência existem. O baseline do próprio canal equivale a 50/100; o score é comparação interna e nunca previsão de views.
+
+`ChannelMemoryService` converte evidências em inferências revisáveis. Cada aprendizado registra IDs de snapshots ou métricas agregadas, amostra e baseline. Se uma dimensão deixa de ter suporte nos dados atuais, o aprendizado estável é invalidado com classificação `unknown` e confiança zero.
+
+Responsabilidades permanecem separadas:
+
+- `LibraryItem`: conteúdo/artefato persistido e reutilizável;
+- `ConversationLibraryItem`: seleção explícita de conteúdo para uma conversa;
+- `PerformanceSignal`: evidência quantitativa normalizada;
+- `ChannelInsight`: aprendizado estruturado, derivado e revisável;
+- `ContentDecision`: recomendação persistida com score, confiança, evidências, riscos e lacunas.
+
+O Planner consulta aprendizados e recomendações pela interface de Creator Intelligence. Não recebe dados externos inexistentes e não transforma artefatos da Biblioteca em métricas de canal.

@@ -25,6 +25,11 @@ import {
 import { ChannelMemoryService } from './ChannelMemoryService';
 import { IdeaEvaluationService } from './IdeaEvaluationService';
 import { InternalHistoryResearchProvider } from './InternalHistoryResearchProvider';
+import type { RawVideoPerformanceRecord } from '../../domains/performance-intelligence/PerformanceProvider';
+import { ManualPerformanceProvider } from '../../domains/performance-intelligence/PerformanceProvider';
+import { VideoPerformanceSnapshotRepository } from '../../database/repositories/VideoPerformanceSnapshotRepository';
+import { PerformanceBaselineService } from '../performance-intelligence/PerformanceBaselineService';
+import { PerformanceIngestionService } from '../performance-intelligence/PerformanceIngestionService';
 
 export interface RegisterVideoIdeaInput {
   projectId?: string;
@@ -55,6 +60,14 @@ export interface EditorialRecommendation {
 export interface PlannerEditorialIntelligenceProvider {
   recommendEditorial(projectId?: string | null): Promise<EditorialRecommendation>;
   buildContext(projectId?: string | null): Promise<CreatorIntelligenceContext>;
+  getChannelLearnings?(projectId?: string | null): Promise<Array<{
+    category: string;
+    subject: string;
+    statement: string;
+    confidence: number;
+    classification: string;
+    evidence: unknown;
+  }>>;
 }
 
 export interface CreatorIntelligenceServiceOptions {
@@ -66,6 +79,9 @@ export interface CreatorIntelligenceServiceOptions {
   evaluationService?: IdeaEvaluationService;
   researchProviders?: readonly ResearchProvider[];
   channelMemoryService?: ChannelMemoryService;
+  snapshotRepository?: VideoPerformanceSnapshotRepository;
+  performanceIngestionService?: PerformanceIngestionService;
+  performanceBaselineService?: PerformanceBaselineService;
 }
 
 export class CreatorIntelligenceError extends Error {
@@ -120,6 +136,10 @@ const toDecisionEvidence = (evaluation: IdeaEvaluation): Prisma.InputJsonValue =
     sources: component.sources,
   })),
   unknownFactors: evaluation.unknownFactors,
+  confidence: evaluation.confidence,
+  evidenceUsed: evaluation.evidenceUsed,
+  risks: evaluation.risks,
+  missingData: evaluation.missingData,
 });
 
 const toEvaluationFromDecision = (decision: ContentDecision): IdeaEvaluation => ({
@@ -130,6 +150,10 @@ const toEvaluationFromDecision = (decision: ContentDecision): IdeaEvaluation => 
   rationale: decision.rationale,
   components: [],
   unknownFactors: [],
+  confidence: 0,
+  evidenceUsed: [],
+  risks: [],
+  missingData: [],
 });
 
 export class CreatorIntelligenceService implements PlannerEditorialIntelligenceProvider {
@@ -141,6 +165,9 @@ export class CreatorIntelligenceService implements PlannerEditorialIntelligenceP
   private readonly evaluationService: IdeaEvaluationService;
   private researchProviders?: readonly ResearchProvider[];
   private channelMemoryService?: ChannelMemoryService;
+  private snapshotRepository?: VideoPerformanceSnapshotRepository;
+  private performanceIngestionService?: PerformanceIngestionService;
+  private performanceBaselineService?: PerformanceBaselineService;
 
   constructor(options: CreatorIntelligenceServiceOptions = {}) {
     this.ideaRepository = options.ideaRepository;
@@ -151,6 +178,9 @@ export class CreatorIntelligenceService implements PlannerEditorialIntelligenceP
     this.evaluationService = options.evaluationService ?? new IdeaEvaluationService();
     this.researchProviders = options.researchProviders;
     this.channelMemoryService = options.channelMemoryService;
+    this.snapshotRepository = options.snapshotRepository;
+    this.performanceIngestionService = options.performanceIngestionService;
+    this.performanceBaselineService = options.performanceBaselineService;
   }
 
   private get ideas(): VideoIdeaRepository {
@@ -197,9 +227,37 @@ export class CreatorIntelligenceService implements PlannerEditorialIntelligenceP
 
   private get memory(): ChannelMemoryService {
     if (!this.channelMemoryService) {
-      this.channelMemoryService = new ChannelMemoryService(this.insights, this.performanceSignals);
+      this.channelMemoryService = new ChannelMemoryService(
+        this.insights,
+        this.performanceSignals,
+        this.performanceSnapshots,
+      );
     }
     return this.channelMemoryService;
+  }
+
+  private get performanceSnapshots(): VideoPerformanceSnapshotRepository {
+    if (!this.snapshotRepository) {
+      this.snapshotRepository = new VideoPerformanceSnapshotRepository(DatabaseService.client);
+    }
+    return this.snapshotRepository;
+  }
+
+  private get ingestion(): PerformanceIngestionService {
+    if (!this.performanceIngestionService) {
+      this.performanceIngestionService = new PerformanceIngestionService(
+        this.performanceSnapshots,
+        this.performanceSignals,
+      );
+    }
+    return this.performanceIngestionService;
+  }
+
+  private get baseline(): PerformanceBaselineService {
+    if (!this.performanceBaselineService) {
+      this.performanceBaselineService = new PerformanceBaselineService(this.performanceSnapshots);
+    }
+    return this.performanceBaselineService;
   }
 
   async registerIdea(input: RegisterVideoIdeaInput): Promise<VideoIdea> {
@@ -360,5 +418,41 @@ export class CreatorIntelligenceService implements PlannerEditorialIntelligenceP
         .slice(0, 5)
         .map(({ statement }) => statement),
     };
+  }
+
+  async getChannelLearnings(projectId?: string | null) {
+    const normalizedProjectId = projectId?.trim() || null;
+    await this.memory.refreshFromSnapshots(normalizedProjectId);
+    return this.memory.listMemory(normalizedProjectId);
+  }
+
+  async getDecisionEvidence(id: string): Promise<ContentDecision | null> {
+    return this.decisions.findById(id.trim());
+  }
+
+  async ingestManualPerformance(
+    records: readonly RawVideoPerformanceRecord[],
+    projectId?: string | null,
+  ) {
+    const result = await this.ingestion.ingest(new ManualPerformanceProvider(records), projectId);
+    const projects = [...new Set(result.records.map(({ projectId: id }) => id))];
+    await Promise.all(projects.map((id) => this.memory.refreshFromSnapshots(id)));
+    return result;
+  }
+
+  async listPerformanceRecords(projectId?: string | null) {
+    return this.performanceSnapshots.findAll(
+      projectId === undefined ? {} : { projectId: projectId?.trim() || null },
+    );
+  }
+
+  async listPerformanceSignals(projectId?: string | null) {
+    return this.performanceSignals.findAll(
+      projectId === undefined ? {} : { projectId: projectId?.trim() || null },
+    );
+  }
+
+  async getPerformanceBaseline(projectId?: string | null) {
+    return this.baseline.getBaseline(projectId);
   }
 }

@@ -30,12 +30,14 @@ import { createCreatorIntelligenceRouter } from './creatorIntelligence';
 
 const createDefaultPlannerService = (
   creatorIntelligenceService: CreatorIntelligenceService,
+  conversationLibraryService: ConversationLibraryService,
 ): PlannerService =>
   new PlannerService(
     undefined,
     undefined,
     new OpenAILanguageProvider(),
     creatorIntelligenceService,
+    conversationLibraryService,
   );
 
 const toLibraryItemResponse = ({
@@ -57,7 +59,7 @@ export const createOperatorsRouter = (
   const router = Router();
   const planner = new PlannerModule();
   const resolvedPlannerService = plannerService
-    ?? createDefaultPlannerService(creatorIntelligenceService);
+    ?? createDefaultPlannerService(creatorIntelligenceService, conversationLibraryService);
 
 router.use('/creator-intelligence', createCreatorIntelligenceRouter(creatorIntelligenceService));
 
@@ -245,6 +247,23 @@ router.get('/planner/conversations/:id/editorial-recommendation', async (req, re
     const errorName = error instanceof Error ? error.name : 'UnknownError';
     console.error(`Failed to get planner editorial recommendation (${errorName})`);
     return res.status(500).json({ error: 'Failed to get editorial recommendation' });
+  }
+});
+
+router.get('/planner/conversations/:id/channel-learnings', async (req, res) => {
+  const id = req.params.id?.trim();
+  if (!id) return res.status(400).json({ error: 'id must be a non-empty string' });
+  try {
+    const learnings = await resolvedPlannerService.getChannelLearnings(id);
+    if (!learnings) return res.status(404).json({ error: 'Conversation not found' });
+    return res.status(200).json(learnings);
+  } catch (error) {
+    if (error instanceof PlannerEditorialIntelligenceUnavailableError) {
+      return res.status(503).json({ error: 'Creator intelligence is unavailable' });
+    }
+    const errorName = error instanceof Error ? error.name : 'UnknownError';
+    console.error(`Failed to get planner channel learnings (${errorName})`);
+    return res.status(500).json({ error: 'Failed to get channel learnings' });
   }
 });
 

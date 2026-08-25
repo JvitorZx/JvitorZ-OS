@@ -94,6 +94,7 @@ class FakeElement {
     if (selector === '[data-conversation-id]' && this.dataset.conversationId) return this;
     if (selector === '[data-save-to-library]' && this.dataset.saveToLibrary) return this;
     if (selector === '[data-library-item-id]' && this.dataset.libraryItemId) return this;
+    if (selector === '[data-unlink-memory-item]' && this.dataset.unlinkMemoryItem) return this;
     return null;
   }
 
@@ -155,7 +156,11 @@ const libraryItem = (
   updatedAt: '2026-08-23T12:00:00.000Z',
 });
 
-const createMemoryApi = (initialConversations = [], initialLibraryItems = []) => {
+const createMemoryApi = (
+  initialConversations = [],
+  initialLibraryItems = [],
+  initialActiveMemory = {},
+) => {
   const records = new Map(initialConversations.map((item) => [item.id, clone(item)]));
   const libraryRecords = initialLibraryItems.map(clone);
   const calls = {
@@ -167,12 +172,18 @@ const createMemoryApi = (initialConversations = [], initialLibraryItems = []) =>
     listLibraryItems: 0,
     getLibraryItem: [],
     updateConversationContext: 0,
+    linkLibraryItemToConversation: [],
+    listConversationLibraryItems: [],
+    unlinkLibraryItemFromConversation: [],
   };
   let nextConversation = records.size + 1;
   let nextMessage = 1;
   let nextReply = 1;
   let nextLibraryItem = libraryRecords.length + 1;
   const failures = new Set();
+  const activeMemory = new Map(
+    Object.entries(initialActiveMemory).map(([conversationId, ids]) => [conversationId, [...ids]]),
+  );
 
   const api = {
     records,
@@ -182,6 +193,7 @@ const createMemoryApi = (initialConversations = [], initialLibraryItems = []) =>
     replyFailureStatus: null,
     libraryFailureStatus: null,
     libraryItemFailureStatus: null,
+    activeMemoryFailureStatus: null,
 
     async createConversation() {
       calls.createConversation += 1;
@@ -273,6 +285,43 @@ const createMemoryApi = (initialConversations = [], initialLibraryItems = []) =>
       return clone(item);
     },
 
+    async linkLibraryItemToConversation(conversationId, libraryItemId) {
+      calls.linkLibraryItemToConversation.push([conversationId, libraryItemId]);
+      if (api.activeMemoryFailureStatus) {
+        const error = new Error('safe active memory error');
+        error.status = api.activeMemoryFailureStatus;
+        throw error;
+      }
+      const ids = activeMemory.get(conversationId) ?? [];
+      if (!ids.includes(libraryItemId)) ids.push(libraryItemId);
+      activeMemory.set(conversationId, ids);
+      return clone(libraryRecords.find((item) => item.id === libraryItemId));
+    },
+
+    async listConversationLibraryItems(conversationId) {
+      calls.listConversationLibraryItems.push(conversationId);
+      if (failures.delete(`listConversationLibraryItems:${conversationId}`)) {
+        throw new TypeError('active memory list failed');
+      }
+      return (activeMemory.get(conversationId) ?? [])
+        .map((id) => libraryRecords.find((item) => item.id === id))
+        .filter(Boolean)
+        .map(clone);
+    },
+
+    async unlinkLibraryItemFromConversation(conversationId, libraryItemId) {
+      calls.unlinkLibraryItemFromConversation.push([conversationId, libraryItemId]);
+      if (api.activeMemoryFailureStatus) {
+        const error = new Error('safe active memory error');
+        error.status = api.activeMemoryFailureStatus;
+        throw error;
+      }
+      activeMemory.set(
+        conversationId,
+        (activeMemory.get(conversationId) ?? []).filter((id) => id !== libraryItemId),
+      );
+    },
+
     async updateConversationContext(id, contextValue) {
       calls.updateConversationContext += 1;
       if (failures.delete('updateConversationContext')) throw new TypeError('context failed');
@@ -298,6 +347,8 @@ const createPlannerDom = () => {
   const libraryReader = new FakeElement('article');
   const libraryItemTitle = new FakeElement('h5');
   const libraryItemContent = new FakeElement('div');
+  const libraryMemoryToggle = new FakeElement('button');
+  const activeMemoryList = new FakeElement('div');
   const feedback = new FakeElement('div');
   const globalStatePanel = new FakeElement('section');
   feedback.hidden = true;
@@ -317,6 +368,8 @@ const createPlannerDom = () => {
   panel.selectorMap.set('[data-library-reader]', libraryReader);
   panel.selectorMap.set('[data-library-item-title]', libraryItemTitle);
   panel.selectorMap.set('[data-library-item-content]', libraryItemContent);
+  panel.selectorMap.set('[data-library-memory-toggle]', libraryMemoryToggle);
+  panel.selectorMap.set('[data-active-memory-list]', activeMemoryList);
   panel.selectorMap.set('[data-planner-feedback]', feedback);
 
   return {
@@ -332,6 +385,8 @@ const createPlannerDom = () => {
     libraryReader,
     libraryItemTitle,
     libraryItemContent,
+    libraryMemoryToggle,
+    activeMemoryList,
     feedback,
     globalStatePanel,
   };
@@ -1211,4 +1266,95 @@ test('a new controller treats an already saved message as success without duplic
   assert.equal(retryButton.textContent, 'Salvo na Biblioteca');
   assert.equal(reloadedDom.feedback.hidden, true);
   assert.equal(reloadedDom.libraryList.children.length, 1);
+});
+
+test('loads active memory for the selected conversation', async () => {
+  const item = libraryItem('L1');
+  const api = createMemoryApi([conversation('A')], [item], { A: ['L1'] });
+  const { dom } = await mount(api);
+
+  assert.deepEqual(api.calls.listConversationLibraryItems, ['A']);
+  assert.equal(dom.activeMemoryList.children.length, 1);
+  assert.equal(dom.activeMemoryList.children[0].children[0].textContent, item.title);
+  assert.equal(getLibraryListItem(dom, 'L1').dataset.memoryActive, 'true');
+});
+
+test('links an opened Library item to the active conversation after API success', async () => {
+  const item = libraryItem('L1');
+  const api = createMemoryApi([conversation('A')], [item]);
+  const { dom } = await mount(api);
+  clickLibraryListItem(dom, 'L1');
+  await flush();
+
+  assert.equal(dom.libraryMemoryToggle.textContent, 'Usar nesta conversa');
+  dom.libraryMemoryToggle.click();
+  await flush();
+
+  assert.deepEqual(api.calls.linkLibraryItemToConversation, [['A', 'L1']]);
+  assert.equal(dom.libraryMemoryToggle.textContent, 'Remover da memória ativa');
+  assert.equal(dom.activeMemoryList.children.length, 1);
+});
+
+test('removes an active artifact without deleting the Library item', async () => {
+  const item = libraryItem('L1');
+  const api = createMemoryApi([conversation('A')], [item], { A: ['L1'] });
+  const { dom } = await mount(api);
+  const removeButton = dom.activeMemoryList.children[0].children[1];
+
+  dom.activeMemoryList.dispatch('click', { target: removeButton });
+  await flush();
+
+  assert.deepEqual(api.calls.unlinkLibraryItemFromConversation, [['A', 'L1']]);
+  assert.equal(dom.activeMemoryList.children[0].className, 'planner-memory-empty');
+  assert.equal(api.libraryRecords.length, 1);
+});
+
+test('keeps active memories isolated while switching conversations', async () => {
+  const first = libraryItem('L1');
+  const second = libraryItem('L2');
+  const api = createMemoryApi(
+    [conversation('B'), conversation('A')],
+    [first, second],
+    { A: ['L1'], B: ['L2'] },
+  );
+  const { dom } = await mount(api);
+
+  assert.equal(dom.activeMemoryList.children[0].children[0].textContent, first.title);
+  await selectConversation(dom, 'B');
+  assert.equal(dom.activeMemoryList.children[0].children[0].textContent, second.title);
+});
+
+test('ignores a late active-memory response after switching conversations', async () => {
+  const late = deferred();
+  const first = libraryItem('L1');
+  const second = libraryItem('L2');
+  const api = createMemoryApi([conversation('B'), conversation('A')], [first, second], { B: ['L2'] });
+  const original = api.listConversationLibraryItems;
+  api.listConversationLibraryItems = async (conversationId) => {
+    if (conversationId === 'A') return late.promise;
+    return original(conversationId);
+  };
+  const { dom } = await mount(api);
+  await selectConversation(dom, 'B');
+  late.resolve([first]);
+  await flush();
+
+  assert.equal(dom.activeMemoryList.children[0].children[0].textContent, second.title);
+});
+
+test('reports active-memory limit errors locally without false state', async () => {
+  const item = libraryItem('L1');
+  const api = createMemoryApi([conversation('A')], [item]);
+  api.activeMemoryFailureStatus = 422;
+  const { dom } = await mount(api);
+  clickLibraryListItem(dom, 'L1');
+  await flush();
+  await withoutConsoleError(async () => {
+    dom.libraryMemoryToggle.click();
+    await flush();
+  });
+
+  assert.equal(dom.feedback.textContent, 'A conversa já atingiu o limite de memória ativa.');
+  assert.equal(dom.activeMemoryList.children[0].className, 'planner-memory-empty');
+  assert.equal(dom.globalStatePanel.textContent, 'Estado global preservado');
 });

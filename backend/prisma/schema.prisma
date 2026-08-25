@@ -29,6 +29,7 @@ model Project {
   videoIdeas         VideoIdea[]
   channelInsights    ChannelInsight[]
   performanceSignals PerformanceSignal[]
+  videoPerformanceSnapshots VideoPerformanceSnapshot[]
   createdAt        DateTime           @default(now())
   updatedAt        DateTime           @updatedAt
 }
@@ -190,17 +191,61 @@ model PerformanceSignal {
   project        Project?   @relation(fields: [projectId], references: [id], onDelete: SetNull)
   videoIdeaId    String?
   videoIdea      VideoIdea? @relation(fields: [videoIdeaId], references: [id], onDelete: SetNull)
+  performanceSnapshotId String?
+  performanceSnapshot VideoPerformanceSnapshot? @relation(fields: [performanceSnapshotId], references: [id], onDelete: Cascade)
+  key            String?    @unique
   game           String?
+  series         String?
   format         String?
   metric         String
   value          Float
   sampleSize     Int        @default(1)
   source         String
   classification String     @default("real")
+  confidence     Float      @default(1)
   measuredAt     DateTime
   createdAt      DateTime   @default(now())
 
   @@index([projectId, game])
   @@index([projectId, format])
+  @@index([projectId, series])
   @@index([videoIdeaId])
+  @@index([performanceSnapshotId])
+}
+
+model VideoPerformanceSnapshot {
+  id                         String              @id @default(cuid())
+  projectId                  String?
+  project                    Project?            @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  ingestionKey               String              @unique
+  videoId                    String
+  title                      String
+  game                       String?
+  series                     String?
+  format                     String?
+  publishedAt                DateTime?
+  periodStart                DateTime?
+  periodEnd                  DateTime?
+  views                      Float?
+  impressions                Float?
+  ctr                        Float?
+  durationSeconds            Float?
+  averageViewDurationSeconds Float?
+  averageViewPercentage      Float?
+  watchTimeMinutes           Float?
+  subscribersGained          Int?
+  likes                      Int?
+  comments                   Int?
+  source                     String
+  confidence                 Float              @default(1)
+  collectedAt                DateTime
+  performanceSignals         PerformanceSignal[]
+  createdAt                  DateTime           @default(now())
+  updatedAt                  DateTime           @updatedAt
+
+  @@index([projectId, collectedAt])
+  @@index([videoId, source])
+  @@index([game])
+  @@index([series])
+  @@index([format])
 }

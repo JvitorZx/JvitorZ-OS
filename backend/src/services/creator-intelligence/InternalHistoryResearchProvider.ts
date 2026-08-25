@@ -60,6 +60,7 @@ export class InternalHistoryResearchProvider implements ResearchProvider {
         source: `${this.name}:${signal.source}`,
         summary: `Sinal histórico ${signal.metric} baseado em ${signal.sampleSize} amostra(s).`,
         sampleSize: signal.sampleSize,
+        confidence: signal.confidence,
       }];
     });
   }

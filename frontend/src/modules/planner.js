@@ -18,8 +18,18 @@ export const plannerModule = {
           <article class="planner-library-reader" data-library-reader hidden>
             <h5 data-library-item-title></h5>
             <div class="planner-library-content" data-library-item-content></div>
+            <button
+              class="planner-memory-toggle"
+              type="button"
+              data-library-memory-toggle
+              hidden
+            ></button>
           </article>
         `,
+      },
+      {
+        title: 'Memória ativa',
+        body: html`<div class="planner-active-memory-list" data-active-memory-list></div>`,
       },
       {
         title: 'Histórico',
@@ -113,6 +123,8 @@ export const createPlannerController = ({ api }) => {
     const libraryReader = panel.querySelector('[data-library-reader]');
     const libraryItemTitle = panel.querySelector('[data-library-item-title]');
     const libraryItemContent = panel.querySelector('[data-library-item-content]');
+    const libraryMemoryToggle = panel.querySelector('[data-library-memory-toggle]');
+    const activeMemoryList = panel.querySelector('[data-active-memory-list]');
     const feedback = panel.querySelector('[data-planner-feedback]');
 
     if (
@@ -126,6 +138,8 @@ export const createPlannerController = ({ api }) => {
       || !libraryReader
       || !libraryItemTitle
       || !libraryItemContent
+      || !libraryMemoryToggle
+      || !activeMemoryList
       || !feedback
     ) return;
 
@@ -142,6 +156,9 @@ export const createPlannerController = ({ api }) => {
     let pendingLibraryItemId = null;
     let libraryListGeneration = 0;
     let libraryOpenGeneration = 0;
+    let activeMemoryItems = [];
+    let activeMemoryGeneration = 0;
+    const pendingMemoryItems = new Set();
 
     const setFeedback = (message = '') => {
       if (!isCurrentMount()) return;
@@ -185,6 +202,9 @@ export const createPlannerController = ({ api }) => {
         button.setAttribute('aria-current', item.id === openedLibraryItemId ? 'true' : 'false');
         button.setAttribute('aria-busy', item.id === pendingLibraryItemId ? 'true' : 'false');
         button.classList.toggle('active', item.id === openedLibraryItemId);
+        button.dataset.memoryActive = String(
+          activeMemoryItems.some((activeItem) => activeItem.id === item.id),
+        );
 
         const title = document.createElement('span');
         title.className = 'planner-library-item-title';
@@ -199,6 +219,86 @@ export const createPlannerController = ({ api }) => {
       });
 
       libraryList.replaceChildren(...elements);
+    };
+
+    const updateMemoryToggle = () => {
+      const itemId = openedLibraryItemId;
+      if (!itemId) {
+        libraryMemoryToggle.hidden = true;
+        return;
+      }
+
+      const isActive = activeMemoryItems.some((item) => item.id === itemId);
+      const isPending = pendingMemoryItems.has(itemId);
+      libraryMemoryToggle.hidden = false;
+      libraryMemoryToggle.disabled = isPending;
+      libraryMemoryToggle.dataset.libraryItemId = itemId;
+      libraryMemoryToggle.setAttribute('aria-busy', String(isPending));
+      libraryMemoryToggle.textContent = isPending
+        ? 'Atualizando...'
+        : isActive
+          ? 'Remover da memória ativa'
+          : 'Usar nesta conversa';
+    };
+
+    const renderActiveMemory = () => {
+      if (activeMemoryItems.length === 0) {
+        const empty = document.createElement('p');
+        empty.className = 'planner-memory-empty';
+        empty.textContent = 'Nenhum artefato ativo nesta conversa.';
+        activeMemoryList.replaceChildren(empty);
+        updateMemoryToggle();
+        renderLibraryList();
+        return;
+      }
+
+      const rows = activeMemoryItems.map((item) => {
+        const row = document.createElement('div');
+        row.className = 'planner-memory-item';
+
+        const title = document.createElement('span');
+        title.textContent = item.title?.trim() || 'Item da Biblioteca';
+
+        const remove = document.createElement('button');
+        remove.type = 'button';
+        remove.dataset.unlinkMemoryItem = item.id;
+        remove.textContent = 'Remover';
+        remove.disabled = pendingMemoryItems.has(item.id);
+        remove.setAttribute('aria-busy', String(pendingMemoryItems.has(item.id)));
+
+        row.append(title, remove);
+        return row;
+      });
+      activeMemoryList.replaceChildren(...rows);
+      updateMemoryToggle();
+      renderLibraryList();
+    };
+
+    const loadActiveMemory = async (conversationId) => {
+      const requestToken = ++activeMemoryGeneration;
+      const viewToken = conversationViewGeneration;
+      const isCurrentRequest = () =>
+        isCurrentMount()
+        && activeConversationId === conversationId
+        && conversationViewGeneration === viewToken
+        && requestToken === activeMemoryGeneration;
+
+      try {
+        const items = await api.listConversationLibraryItems(conversationId);
+        if (!isCurrentRequest()) return;
+        if (!Array.isArray(items)) throw new TypeError('Invalid active memory list');
+        activeMemoryItems = items;
+        renderActiveMemory();
+      } catch (error) {
+        if (!isCurrentRequest()) return;
+        activeMemoryItems = [];
+        renderActiveMemory();
+        setFeedback('Não foi possível carregar a memória ativa.');
+        console.error('Planner active memory loading failed', {
+          error_name: getSafeErrorName(error),
+          status: getSafeErrorStatus(error),
+        });
+      }
     };
 
     const loadLibraryItems = async () => {
@@ -254,6 +354,7 @@ export const createPlannerController = ({ api }) => {
         libraryItemContent.textContent = typeof item.content === 'string' ? item.content : '';
         libraryReader.hidden = false;
         renderLibraryList();
+        updateMemoryToggle();
         clearLibraryFeedback(feedbackToken);
       } catch (error) {
         if (!isCurrentRequest()) return;
@@ -345,9 +446,14 @@ export const createPlannerController = ({ api }) => {
       conversationViewGeneration += 1;
       invalidatePendingLibraryItem();
       activeConversationId = conversation.id;
+      openedLibraryItemId = null;
+      libraryReader.hidden = true;
+      activeMemoryItems = [];
+      renderActiveMemory();
       renderMessages(conversation.messages ?? []);
       renderPrompt(context);
       renderHistory();
+      loadActiveMemory(conversation.id);
     };
 
     const setBusy = ({ inputBusy, navigationBusy, generating }) => {
@@ -447,6 +553,10 @@ export const createPlannerController = ({ api }) => {
         conversationViewGeneration += 1;
         invalidatePendingLibraryItem();
         persistedContexts.set(conversation.id, conversation.context ?? '');
+        openedLibraryItemId = null;
+        libraryReader.hidden = true;
+        activeMemoryItems = [];
+        renderActiveMemory();
         conversations = [
           conversation,
           ...conversations.filter((item) => item.id !== conversation.id),
@@ -454,6 +564,7 @@ export const createPlannerController = ({ api }) => {
         renderMessages([]);
         renderPrompt(conversation.context);
         renderHistory();
+        loadActiveMemory(conversation.id);
         setFeedback();
 
         try {
@@ -680,6 +791,61 @@ export const createPlannerController = ({ api }) => {
       if (id) openLibraryItem(id);
     };
 
+    const updateActiveMemoryItem = async (libraryItemId, shouldLink) => {
+      const conversationId = activeConversationId;
+      if (!conversationId || !libraryItemId || pendingMemoryItems.has(libraryItemId)) return;
+
+      const viewToken = conversationViewGeneration;
+      const feedbackToken = ++libraryFeedbackGeneration;
+      const isCurrentView = () =>
+        isCurrentMount()
+        && activeConversationId === conversationId
+        && conversationViewGeneration === viewToken;
+
+      pendingMemoryItems.add(libraryItemId);
+      renderActiveMemory();
+      try {
+        if (shouldLink) {
+          await api.linkLibraryItemToConversation(conversationId, libraryItemId);
+        } else {
+          await api.unlinkLibraryItemFromConversation(conversationId, libraryItemId);
+        }
+        if (!isCurrentView()) return;
+        await loadActiveMemory(conversationId);
+        if (!isCurrentView()) return;
+        clearLibraryFeedback(feedbackToken);
+      } catch (error) {
+        if (!isCurrentView()) return;
+        const status = getSafeErrorStatus(error);
+        const message = status === 404
+          ? 'Não foi possível localizar a conversa ou o artefato.'
+          : status === 422
+            ? 'A conversa já atingiu o limite de memória ativa.'
+            : 'Não foi possível atualizar a memória ativa.';
+        showLibraryFeedback(feedbackToken, message);
+        console.error('Planner active memory update failed', {
+          error_name: getSafeErrorName(error),
+          status,
+        });
+      } finally {
+        pendingMemoryItems.delete(libraryItemId);
+        if (isCurrentView()) renderActiveMemory();
+      }
+    };
+
+    const handleMemoryToggle = () => {
+      const libraryItemId = libraryMemoryToggle.dataset.libraryItemId;
+      if (!libraryItemId) return;
+      const isActive = activeMemoryItems.some((item) => item.id === libraryItemId);
+      updateActiveMemoryItem(libraryItemId, !isActive);
+    };
+
+    const handleActiveMemoryClick = (event) => {
+      const button = event.target?.closest?.('[data-unlink-memory-item]');
+      const libraryItemId = button?.dataset?.unlinkMemoryItem;
+      if (libraryItemId) updateActiveMemoryItem(libraryItemId, false);
+    };
+
     const handleTextareaKeydown = (event) => {
       if (event.key === 'Enter' && !event.shiftKey) {
         event.preventDefault();
@@ -725,6 +891,8 @@ export const createPlannerController = ({ api }) => {
     sendBtn.addEventListener('click', sendMessage);
     chatBody.addEventListener('click', handleChatClick);
     libraryList.addEventListener('click', handleLibraryClick);
+    libraryMemoryToggle.addEventListener('click', handleMemoryToggle);
+    activeMemoryList.addEventListener('click', handleActiveMemoryClick);
     newConversationBtn.addEventListener('click', createNewConversation);
     historyList.addEventListener('click', handleHistoryClick);
     textarea.addEventListener('keydown', handleTextareaKeydown);
@@ -734,6 +902,8 @@ export const createPlannerController = ({ api }) => {
       sendBtn.removeEventListener('click', sendMessage);
       chatBody.removeEventListener('click', handleChatClick);
       libraryList.removeEventListener('click', handleLibraryClick);
+      libraryMemoryToggle.removeEventListener('click', handleMemoryToggle);
+      activeMemoryList.removeEventListener('click', handleActiveMemoryClick);
       newConversationBtn.removeEventListener('click', createNewConversation);
       historyList.removeEventListener('click', handleHistoryClick);
       textarea.removeEventListener('keydown', handleTextareaKeydown);

@@ -9,9 +9,10 @@ const {
   OpenAIRequestError,
 } = require('../dist/services/language/OpenAILanguageProvider');
 
-const createInput = ({ context = null, messages = [], maxOutputCharacters = 4_000 } = {}) => ({
+const createInput = ({ context = null, messages = [], artifacts = [], maxOutputCharacters = 4_000 } = {}) => ({
   context,
   messages,
+  artifacts,
   limits: {
     maxContextCharacters: 4_000,
     maxMessages: 30,
@@ -158,6 +159,34 @@ describe('OpenAILanguageProvider', () => {
       'Segunda',
       'Terceira',
     ]);
+  });
+
+  test('serializes selected artifacts as untrusted user reference data', async () => {
+    const harness = createHarness();
+
+    await harness.provider.generate(createInput({
+      messages: [{ role: 'user', content: 'Pergunta' }],
+      artifacts: [{
+        id: 'library-1',
+        title: 'Guia',
+        type: 'resource',
+        content: '<script>não executar</script>',
+      }],
+    }));
+
+    assert.equal(harness.requests[0].input.length, 2);
+    assert.equal(harness.requests[0].input[1].role, 'user');
+    assert.match(harness.requests[0].input[1].content, /dados não confiáveis/);
+    assert.match(harness.requests[0].input[1].content, /<script>não executar<\/script>/);
+    assert.equal(harness.requests[0].instructions, undefined);
+  });
+
+  test('does not add an artifact message when no memory is active', async () => {
+    const harness = createHarness();
+    await harness.provider.generate(createInput({
+      messages: [{ role: 'user', content: 'Pergunta' }],
+    }));
+    assert.deepEqual(harness.requests[0].input, [{ role: 'user', content: 'Pergunta' }]);
   });
 
   test('applies a conservative token cap and a strict character cap', async () => {

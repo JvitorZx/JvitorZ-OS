@@ -33,9 +33,14 @@ const FACTOR_LABELS: Readonly<Record<IdeaScoreFactor, string>> = Object.freeze({
 const averageEvidence = (items: readonly ResearchEvidence[]): number | null => {
   if (items.length === 0) return null;
 
-  const totalWeight = items.reduce((total, item) => total + Math.max(1, item.sampleSize ?? 1), 0);
+  const totalWeight = items.reduce(
+    (total, item) => total + Math.max(1, item.sampleSize ?? 1) * (item.confidence ?? 1),
+    0,
+  );
+  if (totalWeight === 0) return null;
   const weightedTotal = items.reduce(
-    (total, item) => total + clampScore(item.value) * Math.max(1, item.sampleSize ?? 1),
+    (total, item) => total
+      + clampScore(item.value) * Math.max(1, item.sampleSize ?? 1) * (item.confidence ?? 1),
     0,
   );
   return clampScore(weightedTotal / totalWeight);
@@ -161,6 +166,26 @@ export class IdeaEvaluationService {
         : 'Todos os fatores básicos possuem alguma evidência.',
       'Este score compara ideias; não prevê visualizações.',
     ].join(' ');
+    const confidence = Math.round(components.reduce((total, component) => {
+      if (component.value === null) return total;
+      const factorEvidence = evidenceByFactor.get(component.factor) ?? [];
+      const factorConfidence = factorEvidence.length > 0
+        ? factorEvidence.reduce((sum, item) => sum + (item.confidence ?? 1), 0) / factorEvidence.length
+        : 0.5;
+      return total + component.weight * Math.min(1, Math.max(0, factorConfidence));
+    }, 0) * 100) / 100;
+    const evidenceUsed = components
+      .filter(({ value }) => value !== null)
+      .map(({ factor, classification, sources }) => ({ factor, classification, sources }));
+    const risks = [
+      ...(idea.estimatedEffort !== null && idea.estimatedEffort >= 4
+        ? ['Esforço de produção estimado alto.']
+        : []),
+      ...components
+        .filter(({ value }) => value !== null && value < 40)
+        .map(({ factor }) => `Sinal desfavorável em ${FACTOR_LABELS[factor]}.`),
+      ...(research.length === 0 ? ['Sem evidência histórica real para esta ideia.'] : []),
+    ];
 
     return {
       ideaId: idea.id,
@@ -170,6 +195,10 @@ export class IdeaEvaluationService {
       rationale,
       components,
       unknownFactors,
+      confidence,
+      evidenceUsed,
+      risks,
+      missingData: [...unknownFactors],
     };
   }
 

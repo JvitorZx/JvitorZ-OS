@@ -477,3 +477,63 @@ Retorna o objeto limitado preparado para IA futura: estado do canal, histórico 
 ### `GET /api/operators/planner/conversations/:id/editorial-recommendation`
 
 Ponte do Planner para a recomendação editorial. Retorna `200`; `400` para ID inválido; `404` para conversa inexistente; `503` quando o serviço não foi injetado; ou `500` sanitizado.
+
+### `GET /api/operators/planner/conversations/:id/channel-learnings`
+
+Retorna os aprendizados estruturados do projeto da conversa. Cada item inclui categoria, assunto, afirmação, confiança, classificação e evidência. Retorna `200`, `400`, `404`, `503` ou `500` sanitizado.
+
+## Performance Intelligence
+
+Todos os endpoints usam rota → `CreatorIntelligenceService` → serviço/repository. Eles não chamam rede externa e não aceitam credenciais.
+
+### `POST /api/operators/creator-intelligence/performance/ingest/manual`
+
+Ingere de 1 a 100 registros. A fonte é sempre `manual`; o cliente não pode defini-la.
+
+```json
+{
+  "projectId": "project-optional",
+  "records": [{
+    "videoId": "youtube-video-id",
+    "title": "Título persistido",
+    "game": "BeamNG.drive",
+    "series": "Desafios",
+    "format": "narrado",
+    "publishedAt": "2026-08-01T12:00:00.000Z",
+    "views": 1200,
+    "impressions": 10000,
+    "ctr": 8.5,
+    "durationSeconds": 600,
+    "averageViewDurationSeconds": 300,
+    "averageViewPercentage": 50,
+    "watchTimeMinutes": 6000,
+    "subscribersGained": 20,
+    "likes": 100,
+    "comments": 12,
+    "confidence": 1,
+    "collectedAt": "2026-08-24T12:00:00.000Z"
+  }]
+}
+```
+
+Campos de métricas são opcionais e permanecem `null` quando ausentes. A mesma combinação projeto/fonte/vídeo/período é atualizada, não duplicada. Retorna `200` com `created`, `updated`, `records` e `signals`; `400` para payload inválido; ou `500` seguro.
+
+### `GET /api/operators/creator-intelligence/performance/records`
+
+Lista snapshots em `collectedAt DESC`, com ID como desempate. Aceita `projectId` opcional. Retorna `200`, `400` ou `500` seguro.
+
+### `GET /api/operators/creator-intelligence/performance/signals`
+
+Lista sinais derivados e persistidos, com provenance e confiança. Aceita `projectId` opcional. Retorna `200`, `400` ou `500` seguro.
+
+### `GET /api/operators/creator-intelligence/performance/baseline`
+
+Retorna média, mediana e amostragem para métricas disponíveis, incluindo views, watch time, AVD, retenção, inscritos por vídeo, conversão por mil views e views por formato. Métrica sem dados retorna `average: null`, `median: null` e `sampleSize: 0`.
+
+### `GET /api/operators/creator-intelligence/learnings`
+
+Atualiza e retorna aprendizados estruturados do canal. Aceita `projectId` opcional. Inferências incluem evidência, amostra e confiança; aprendizado sem suporte atual é marcado `unknown` com confiança zero.
+
+### `GET /api/operators/creator-intelligence/decisions/:id/evidence`
+
+Retorna a decisão persistida e seu snapshot de evidências, incluindo confiança, fontes, riscos e dados ausentes. Retorna `200`, `400`, `404` ou `500` seguro.

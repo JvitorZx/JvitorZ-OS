@@ -106,6 +106,14 @@ A migration `20260823180000_conversation_library_items` é aditiva: cria a nova 
 
 Para garantir o máximo de cinco itens mesmo com chamadas concorrentes, a criação limitada usa um único statement parametrizado: o banco insere apenas quando a contagem ainda é menor que cinco e ignora conflito da chave composta. No SQLite, o lock do statement de escrita serializa a decisão e a inserção; duas inclusões diferentes partindo de quatro resultam em uma criação e uma rejeição por limite, nunca seis registros.
 
+## VideoPerformanceSnapshot e PerformanceSignal
+
+`VideoPerformanceSnapshot` persiste métricas observadas de um vídeo para um projeto, fonte e período. A chave `ingestionKey` é única; nova ingestão do mesmo projeto, fonte, vídeo e período atualiza o snapshot existente. Métricas não fornecidas permanecem `null`. `source`, `confidence` e `collectedAt` preservam provenance.
+
+`PerformanceSignal` pode apontar para o snapshot de origem e usa `key` única para substituir sinais derivados sem duplicação. A relação usa `ON DELETE CASCADE`: remover um snapshot remove somente seus sinais derivados. Sinais legados sem snapshot continuam válidos.
+
+A migration `20260824213000_performance_intelligence` cria snapshots, preserva sinais anteriores e adiciona série, confiança, chave e relação de origem. Os testes aplicam a migration em SQLite em memória.
+
 ## Organização
 
 - `backend/src/database/DatabaseService.ts`: ciclo de vida do `PrismaClient`.
@@ -114,6 +122,8 @@ Para garantir o máximo de cinco itens mesmo com chamadas concorrentes, a criaç
 - `backend/src/database/repositories/MessageRepository.ts`: persistência de mensagens.
 - `backend/src/database/repositories/LibraryItemRepository.ts`: persistência e consulta de artefatos.
 - `backend/src/database/repositories/ConversationLibraryItemRepository.ts`: persistência atômica e consulta dos vínculos de memória.
+- `backend/src/database/repositories/VideoPerformanceSnapshotRepository.ts`: snapshots idempotentes e consultas determinísticas.
+- `backend/src/database/repositories/PerformanceSignalRepository.ts`: sinais históricos e substituição dos derivados por snapshot.
 - `backend/src/services/PlannerService.ts`: regras e coordenação do domínio do Planejador.
 - `backend/src/services/LibraryService.ts`: validação da origem, idempotência e coordenação da Biblioteca.
 - `backend/src/services/ConversationLibraryService.ts`: validação, limite e ciclo de vínculo dos artefatos ativos.
@@ -121,7 +131,7 @@ Para garantir o máximo de cinco itens mesmo com chamadas concorrentes, a criaç
 
 ## Testes
 
-Os testes do Planner e da Biblioteca usam SQLite `:memory:` e criam somente as tabelas necessárias para cada execução. A migration da Biblioteca também é executada contra SQLite em memória para validar preservação de itens legados, unicidade, chave estrangeira e `ON DELETE SET NULL`. Os testes não acessam nem modificam `backend/prisma/dev.db`.
+Os testes do Planner, Biblioteca e Performance Intelligence usam SQLite `:memory:` e criam somente as tabelas necessárias para cada execução. As migrations são executadas contra SQLite em memória para validar preservação, unicidade e relações. Os testes não acessam nem modificam `backend/prisma/dev.db`.
 
 ## Evolução futura
 

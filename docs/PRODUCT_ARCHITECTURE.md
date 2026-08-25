@@ -109,9 +109,9 @@ A UI usa o API client centralizado para salvar, listar e abrir itens. Após salv
 
 Edição, exclusão, busca, tags, pastas, RAG, inclusão automática nos prompts, compartilhamento, exportação, redesign amplo e novos operadores permanecem no backlog.
 
-#### Memória ativa formalizada para a Sprint 17
+#### Memória ativa concluída na Sprint 17
 
-**Status: EM ANDAMENTO — TAREFAS 1, 2, 3, 4 E 5 CONCLUÍDAS.**
+**Status: CONCLUÍDA.**
 
 A Sprint 17 transforma artefatos persistidos em contexto explicitamente selecionado para uma conversa. A seleção não é automática e não altera o conteúdo do `LibraryItem`:
 
@@ -122,25 +122,19 @@ Conversation
       -> entrada neutra do LanguageProvider
 ```
 
-O join model `ConversationLibraryItem` possui chave composta entre `conversationId` e `libraryItemId`, `createdAt` para ordenação e relações com remoção em cascata. Ele não armazena cópia de título ou conteúdo. A migration aditiva cria a associação vazia e preserva conversas, mensagens e itens existentes. O backend receberá somente IDs e resolverá os itens reais antes de qualquer geração.
+O join model `ConversationLibraryItem` possui chave composta entre `conversationId` e `libraryItemId`, `createdAt` para ordenação e relações com remoção em cascata. Ele não armazena cópia de título ou conteúdo. O backend recebe somente IDs e resolve os itens reais antes de qualquer geração.
 
-O contrato neutro de linguagem passará a representar `context`, `messages`, `artifacts` e `limits`. Cada artefato conterá apenas `id`, `title`, `type` e `content`; o adapter OpenAI não definirá regras de domínio. Conteúdo da Biblioteca será delimitado como referência não confiável, sem autoridade de instrução de sistema.
+O contrato neutro de linguagem representa `context`, `messages`, `artifacts` e `limits`. Cada artefato contém apenas `id`, `title`, `type` e `content`; o adapter OpenAI não define regras de domínio. Conteúdo da Biblioteca é delimitado como referência não confiável, sem autoridade de instrução de sistema.
 
-A Tarefa 1 concluiu essa fronteira neutra e o mapper determinístico sem integrar banco, API, frontend, `PlannerService.generateReply()` ou OpenAI. Artefatos ausentes são normalizados para uma coleção vazia, preservando integralmente a geração atual.
+`ConversationLibraryItemRepository` e `ConversationLibraryService` resolvem itens reais em ordem determinística, mantêm link e unlink idempotentes e aplicam o limite de cinco no SQLite. Três endpoints no namespace da conversa expõem vínculo, listagem e remoção com validação segura.
 
-A Tarefa 2 concluiu somente a persistência estrutural da associação. As relações inversas em `Conversation` e `LibraryItem`, a chave composta e a constraint do banco sustentam muitos-para-muitos sem duplicar vínculos. Repository, serviço, API, frontend e carregamento dos artefatos na geração não foram iniciados naquela tarefa.
+A API client valida IDs antes da rede e a UI permite vincular e remover itens na conversa ativa. A geração carrega somente vínculos confirmados e respostas obsoletas não alteram a montagem atual.
 
-A Tarefa 3 adicionou `ConversationLibraryItemRepository` e `ConversationLibraryService`. O repository resolve os itens reais em uma consulta, ordenados por vínculo crescente e ID do item como desempate. O service valida as entidades, mantém link e unlink idempotentes e aplica o limite de cinco. A criação limitada é um único statement parametrizado de banco; assim, o `COUNT` e o `INSERT` não formam uma janela de corrida no SQLite. Erros de persistência são convertidos em erro de domínio seguro. API, frontend e geração não foram iniciados naquela tarefa.
+Os limites são cinco artefatos por conversa, 4.000 caracteres por artefato e 12.000 caracteres totais por geração. A ordem é a data do vínculo crescente, com ID como desempate. O serviço rejeita um sexto vínculo; o mapper aplica truncamento defensivo e determinístico.
 
-A Tarefa 4 expôs o service por três endpoints HTTP no namespace da conversa. A rota valida somente IDs e body vazio, preserva `201/200` para criação idempotente, `204` para remoção idempotente e converte erros de domínio em `400/404/422/500` sem expor internals. API client, UI e geração não foram iniciados naquela tarefa.
+A UI permanece dentro do Planner e reutiliza a Biblioteca real para adicionar e remover vínculos da conversa ativa. A associação é uma fronteira reutilizável; a generalização visual e operacional para outros agentes aguardará um segundo operador funcional.
 
-A Tarefa 5 adicionou ao API client central as operações de vínculo, listagem e remoção. O client valida IDs antes da rede, não envia conteúdo arbitrário e preserva `ApiRequestError` com status seguro. A UI e a geração continuam pendentes.
-
-Os limites planejados são cinco artefatos por conversa, 4.000 caracteres por artefato e 12.000 caracteres totais de artefatos por geração. A ordem será a data do vínculo crescente, com ID do item como desempate. O serviço rejeitará um sexto vínculo; o mapper aplicará truncamento defensivo e determinístico ao orçamento textual.
-
-A UI continuará dentro do Planner nesta Sprint e reutilizará a Biblioteca real para adicionar e remover vínculos da conversa ativa. A associação será concebida como fronteira reutilizável, mas a generalização visual e operacional para outros agentes aguardará um segundo operador funcional.
-
-RAG, embeddings, busca semântica, seleção automática, edição, exclusão, Analytics, Supervisor, novos operadores, automações e redesign permanecem fora da Sprint 17.
+RAG, embeddings, busca semântica e seleção automática permanecem fora da Sprint 17.
 
 ### Supervisor (conceitual)
 - **Objetivo**: monitorar saúde do sistema, status de operações e alertas de fluxo.
@@ -240,3 +234,19 @@ Planner/API
 Cada componente do score carrega classificação, fontes e justificativa. Ausência de evidência permanece explícita e nenhum componente promete desempenho futuro.
 
 `PlannerService` recebe opcionalmente `PlannerEditorialIntelligenceProvider`, permitindo consultar “o que vale gravar?” sem importar repositories. O fluxo de chat e o `LanguageProvider` continuam independentes.
+
+## Performance Intelligence
+
+`PerformanceProvider` é a fronteira neutra para fontes de métricas. `PerformanceIngestionService` normaliza e persiste snapshots sem conhecer SDK externo. O caminho manual valida o fluxo completo; YouTube Analytics, YouTube Data API e vidIQ permanecem adapters futuros.
+
+```text
+provider -> normalização -> snapshot -> baseline -> sinal -> aprendizado -> decisão
+```
+
+- snapshots guardam observações e provenance;
+- sinais expressam comparação quantitativa contra a baseline do canal;
+- aprendizados são inferências estruturadas, atualizáveis e invalidáveis;
+- decisões registram recomendação, confiança, evidências, riscos e dados ausentes;
+- Biblioteca e memória de canal não duplicam responsabilidades.
+
+Rotas continuam delegando a serviços, e somente repositories acessam Prisma. Nenhuma integração externa ou credencial é necessária para inicializar o backend ou executar a suíte.

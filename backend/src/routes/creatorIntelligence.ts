@@ -4,6 +4,14 @@ import {
   CreatorIntelligenceValidationError,
   VideoIdeaNotFoundError,
 } from '../services/creator-intelligence/CreatorIntelligenceService';
+import { PerformanceValidationError } from '../services/performance-intelligence/PerformanceNormalizer';
+
+const PERFORMANCE_RECORD_FIELDS = [
+  'videoId', 'title', 'projectId', 'game', 'series', 'format', 'publishedAt',
+  'periodStart', 'periodEnd', 'views', 'impressions', 'ctr', 'durationSeconds',
+  'averageViewDurationSeconds', 'averageViewPercentage', 'watchTimeMinutes',
+  'subscribersGained', 'likes', 'comments', 'confidence', 'collectedAt',
+] as const;
 
 const IDEA_FIELDS = [
   'projectId',
@@ -170,6 +178,117 @@ export const createCreatorIntelligenceRouter = (
     } catch (error) {
       const name = error instanceof Error ? error.name : 'UnknownError';
       console.error(`Failed to build creator intelligence context (${name})`);
+      sendSafeError(res);
+      return;
+    }
+  });
+
+  router.post('/performance/ingest/manual', async (req, res) => {
+    if (
+      !isObjectBody(req.body)
+      || !hasOnlyFields(req.body, ['projectId', 'records'])
+      || !isOptionalString(req.body.projectId)
+      || !Array.isArray(req.body.records)
+      || req.body.records.length === 0
+      || req.body.records.length > 100
+      || !req.body.records.every((record) => isObjectBody(record)
+        && hasOnlyFields(record, PERFORMANCE_RECORD_FIELDS))
+    ) {
+      return res.status(400).json({ error: 'invalid performance ingestion payload' });
+    }
+
+    try {
+      const result = await service.ingestManualPerformance(req.body.records, req.body.projectId);
+      return res.status(200).json(result);
+    } catch (error) {
+      if (error instanceof PerformanceValidationError) {
+        return res.status(400).json({ error: error.message });
+      }
+      const name = error instanceof Error ? error.name : 'UnknownError';
+      console.error(`Failed to ingest performance records (${name})`);
+      sendSafeError(res);
+      return;
+    }
+  });
+
+  router.get('/performance/records', async (req, res) => {
+    const projectId = req.query.projectId;
+    if (projectId !== undefined && typeof projectId !== 'string') {
+      return res.status(400).json({ error: 'projectId must be a string' });
+    }
+    try {
+      return res.status(200).json(await service.listPerformanceRecords(projectId));
+    } catch (error) {
+      const name = error instanceof Error ? error.name : 'UnknownError';
+      console.error(`Failed to list performance records (${name})`);
+      sendSafeError(res);
+      return;
+    }
+  });
+
+  router.get('/performance/signals', async (req, res) => {
+    const projectId = req.query.projectId;
+    if (projectId !== undefined && typeof projectId !== 'string') {
+      return res.status(400).json({ error: 'projectId must be a string' });
+    }
+    try {
+      return res.status(200).json(await service.listPerformanceSignals(projectId));
+    } catch (error) {
+      const name = error instanceof Error ? error.name : 'UnknownError';
+      console.error(`Failed to list performance signals (${name})`);
+      sendSafeError(res);
+      return;
+    }
+  });
+
+  router.get('/performance/baseline', async (req, res) => {
+    const projectId = req.query.projectId;
+    if (projectId !== undefined && typeof projectId !== 'string') {
+      return res.status(400).json({ error: 'projectId must be a string' });
+    }
+    try {
+      return res.status(200).json(await service.getPerformanceBaseline(projectId));
+    } catch (error) {
+      const name = error instanceof Error ? error.name : 'UnknownError';
+      console.error(`Failed to calculate performance baseline (${name})`);
+      sendSafeError(res);
+      return;
+    }
+  });
+
+  router.get('/learnings', async (req, res) => {
+    const projectId = req.query.projectId;
+    if (projectId !== undefined && typeof projectId !== 'string') {
+      return res.status(400).json({ error: 'projectId must be a string' });
+    }
+    try {
+      return res.status(200).json(await service.getChannelLearnings(projectId));
+    } catch (error) {
+      const name = error instanceof Error ? error.name : 'UnknownError';
+      console.error(`Failed to list channel learnings (${name})`);
+      sendSafeError(res);
+      return;
+    }
+  });
+
+  router.get('/decisions/:id/evidence', async (req, res) => {
+    const id = req.params.id?.trim();
+    if (!id) return res.status(400).json({ error: 'id is required' });
+    try {
+      const decision = await service.getDecisionEvidence(id);
+      if (!decision) return res.status(404).json({ error: 'Content decision not found' });
+      return res.status(200).json({
+        id: decision.id,
+        videoIdeaId: decision.videoIdeaId,
+        category: decision.category,
+        score: decision.score,
+        rationale: decision.rationale,
+        evidence: decision.evidence,
+        createdAt: decision.createdAt,
+      });
+    } catch (error) {
+      const name = error instanceof Error ? error.name : 'UnknownError';
+      console.error(`Failed to fetch decision evidence (${name})`);
       sendSafeError(res);
       return;
     }

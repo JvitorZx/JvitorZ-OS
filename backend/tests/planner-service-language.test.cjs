@@ -41,11 +41,13 @@ let client;
 let server;
 let conversationUrl;
 
-const createService = (provider) =>
+const createService = (provider, conversationLibraryService) =>
   new PlannerService(
     new ConversationRepository(client),
     new MessageRepository(client),
     provider,
+    undefined,
+    conversationLibraryService,
   );
 
 const persistMessage = (conversationId, sender, text, index) =>
@@ -268,5 +270,43 @@ describe('PlannerService language generation', { concurrency: false }, () => {
       PlannerLanguageProviderUnavailableError,
     );
     assert.equal(await client.message.count(), 0);
+  });
+
+  test('loads only explicitly linked library items into the neutral provider input', async () => {
+    const provider = new FakeLanguageProvider(['Resposta com memória']);
+    const linkedCalls = [];
+    const memory = {
+      async listLinkedItems(conversationId) {
+        linkedCalls.push(conversationId);
+        return [{
+          id: 'library-1',
+          title: 'Referência persistida',
+          type: 'resource',
+          content: 'Conteúdo selecionado pelo usuário',
+        }];
+      },
+    };
+    const service = createService(provider, memory);
+    const conversation = await service.createConversation();
+
+    await service.generateReply(conversation.id);
+
+    assert.deepEqual(linkedCalls, [conversation.id]);
+    assert.deepEqual(provider.inputs[0].artifacts, [{
+      id: 'library-1',
+      title: 'Referência persistida',
+      type: 'resource',
+      content: 'Conteúdo selecionado pelo usuário',
+    }]);
+  });
+
+  test('generation remains compatible when active memory is not injected', async () => {
+    const provider = new FakeLanguageProvider(['Resposta sem memória']);
+    const service = createService(provider);
+    const conversation = await service.createConversation();
+
+    await service.generateReply(conversation.id);
+
+    assert.deepEqual(provider.inputs[0].artifacts, []);
   });
 });

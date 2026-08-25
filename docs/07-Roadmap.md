@@ -319,7 +319,7 @@ O checkpoint da Sprint 16 foi seguido pela auditoria do roadmap e da arquitetura
 
 ## Sprint 17 — Biblioteca como Memória Ativa do Planner
 
-**Status: EM ANDAMENTO — TAREFAS 1, 2, 3, 4 E 5 CONCLUÍDAS**
+**Status: CONCLUÍDA**
 
 **Fase principal: FASE 7 - Primeiro Operador**
 
@@ -353,7 +353,7 @@ O model foi implementado como `ConversationLibraryItem`, com chave primária com
 
 ### Contrato neutro de linguagem
 
-O `LanguageGenerationInput` será evoluído para representar:
+O `LanguageGenerationInput` representa:
 
 - `context`: contexto da conversa;
 - `messages`: histórico cronológico;
@@ -366,7 +366,7 @@ Cada artefato neutro conterá somente:
 id, title, type, content
 ```
 
-O contrato continuará independente da OpenAI. Conteúdo de artefato será tratado como referência não confiável, nunca promovido a instrução de sistema. O adapter será responsável apenas por serializar a estrutura neutra para o provider externo.
+O contrato permanece independente da OpenAI. Conteúdo de artefato é tratado como referência não confiável, nunca promovido a instrução de sistema. O adapter apenas serializa a estrutura neutra para o provider externo.
 
 ### Limites formalizados
 
@@ -387,9 +387,9 @@ Não será usada contagem real de tokens nesta Sprint.
 - `GET /api/operators/planner/conversations/:conversationId/library`: listar itens vinculados;
 - `DELETE /api/operators/planner/conversations/:conversationId/library/:libraryItemId`: desvincular item.
 
-O frontend enviará somente IDs. Bodies ausentes ou `{}` serão aceitos nas operações sem payload; campos adicionais serão rejeitados. A criação será idempotente: `201` no primeiro vínculo e `200` quando o vínculo já existir. A remoção retornará `204` e também será idempotente para uma associação já ausente, desde que conversa e item existam.
+O frontend envia somente IDs. Bodies ausentes ou `{}` são aceitos nas operações sem payload; campos adicionais são rejeitados. A criação é idempotente: `201` no primeiro vínculo e `200` quando o vínculo já existir. A remoção retorna `204` e também é idempotente para uma associação já ausente, desde que conversa e item existam.
 
-### Frontend planejado
+### Frontend implementado
 
 - reutilizar a Biblioteca real já exibida no Planner;
 - permitir adicionar um item à conversa ativa;
@@ -398,9 +398,9 @@ O frontend enviará somente IDs. Bodies ausentes ou `{}` serão aceitos nas oper
 - atualizar a UI somente após confirmação da API;
 - preservar feedback local, XSS seguro, listeners únicos e tokens contra respostas obsoletas.
 
-### Geração planejada
+### Geração implementada
 
-Ao final da Sprint, `PlannerService.generateReply()` deverá:
+`PlannerService.generateReply()` agora:
 
 1. validar e carregar a conversa;
 2. carregar mensagens em ordem cronológica;
@@ -452,9 +452,9 @@ Geração sem artefatos deve manter o comportamento atual.
 3. **CONCLUÍDA — Repository e serviço de associação**: vínculo, listagem e remoção implementados com validação, isolamento, idempotência e limite concorrente.
 4. **CONCLUÍDA — API HTTP**: três contratos implementados com validação estrita, status seguros e testes em SQLite em memória.
 5. **CONCLUÍDA — API client frontend**: chamadas de vínculo, listagem e remoção centralizadas com validação local e status HTTP seguros.
-6. **PENDENTE — UI de memória ativa**: selecionar, visualizar e remover artefatos da conversa atual.
-7. **PENDENTE — Integração da geração**: carregar vínculos no `PlannerService`, evoluir o adapter OpenAI e preservar geração sem artefatos.
-8. **PENDENTE — Concorrência, regressão e fechamento**: validar lifecycle, XSS, limites, regressão completa e documentação final.
+6. **CONCLUÍDA — UI de memória ativa**: selecionar, visualizar e remover artefatos da conversa atual.
+7. **CONCLUÍDA — Integração da geração**: carregar vínculos no `PlannerService`, evoluir o adapter OpenAI e preservar geração sem artefatos.
+8. **CONCLUÍDA — Concorrência, regressão e fechamento**: validar lifecycle, XSS, limites, regressão completa e documentação final.
 
 ### Resultado da Tarefa 1
 
@@ -551,3 +551,43 @@ Criar a fundação do mecanismo de inteligência editorial: registrar ideias, or
 - memória muda quando novos sinais chegam;
 - Planner consulta recomendação por interface de serviço;
 - testes, build, Prisma e validações passam sem usar `dev.db` ou rede externa.
+
+## Sprint 19 — Performance Intelligence & Active Memory
+
+**Status: CONCLUÍDA**
+
+**Fase principal: FASE 7 - Primeiro Operador**, preparando Analytics real e providers externos.
+
+### Objetivo
+
+Transformar resultados históricos do canal em sinais estruturados, aprendizados revisáveis e evidências para decisões editoriais, além de concluir a Biblioteca como memória ativa explícita do Planner.
+
+### Entregas
+
+- UI de memória ativa e carregamento dos artefatos vinculados em `PlannerService.generateReply()`;
+- serialização de artefatos como referência não confiável, separada das instruções de sistema;
+- contrato neutro `PerformanceProvider`, com provider manual e fake em testes;
+- `VideoPerformanceSnapshot` com métricas opcionais, provenance, confiança e período de coleta;
+- normalização estrita: dados ausentes permanecem `null` e métricas inválidas são rejeitadas;
+- ingestão idempotente por fonte, vídeo e período, com atualização de snapshots existentes;
+- sinais derivados rastreáveis em `PerformanceSignal`, sem fabricar métricas ausentes;
+- baseline dinâmica com média, mediana e amostragem para views, watch time, AVD, retenção, inscritos por vídeo, conversão e formato;
+- aprendizados por jogo, série e formato, além de padrões de watch time, retenção e conversão;
+- evidência por snapshot, confiança, atualização e invalidação de aprendizados sem suporte atual;
+- avaliação de ideias com score relativo, confiança, evidências usadas, riscos e dados ausentes;
+- consultas HTTP para ingestão manual, registros, sinais, baseline, aprendizados e evidência de decisões;
+- ponte do Planner para aprendizados do canal, preservando recomendação e comparação já existentes;
+- migration aditiva e testes determinísticos com SQLite em memória, sem rede externa.
+- regressão completa com 348 verificações automatizadas aprovadas.
+
+### Honestidade e limites
+
+- nenhuma quantidade exata de views é prevista;
+- correlação é registrada como inferência, não como verdade absoluta;
+- origem busca/recomendados, tipo de premissa e esforço real de produção ainda não são derivados porque esses campos não fazem parte da ingestão atual;
+- YouTube Analytics, YouTube Data API e vidIQ são providers futuros e não foram conectados nesta Sprint;
+- credenciais e OAuth não foram alterados.
+
+### Próxima camada
+
+Conectar um primeiro provider externo real ao contrato `PerformanceProvider`, com escopo e OAuth definidos em Sprint própria, mantendo ingestão manual e testes sem rede como fallback reproduzível.

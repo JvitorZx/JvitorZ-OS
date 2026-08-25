@@ -35,6 +35,7 @@ export interface ResearchEvidence {
   source: string;
   summary: string;
   sampleSize?: number;
+  confidence?: number;
 }
 
 export interface IdeaScoreComponent {
@@ -54,6 +55,14 @@ export interface IdeaEvaluation {
   rationale: string;
   components: IdeaScoreComponent[];
   unknownFactors: IdeaScoreFactor[];
+  confidence: number;
+  evidenceUsed: Array<{
+    factor: IdeaScoreFactor;
+    classification: EvidenceClassification;
+    sources: string[];
+  }>;
+  risks: string[];
+  missingData: IdeaScoreFactor[];
 }
 
 export interface RankedIdeaEvaluation extends IdeaEvaluation {

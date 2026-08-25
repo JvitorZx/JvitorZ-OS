@@ -12,6 +12,7 @@ const { ConversationRepository } = require('../dist/database/repositories/Conver
 const { MessageRepository } = require('../dist/database/repositories/MessageRepository');
 const { PerformanceSignalRepository } = require('../dist/database/repositories/PerformanceSignalRepository');
 const { VideoIdeaRepository } = require('../dist/database/repositories/VideoIdeaRepository');
+const { VideoPerformanceSnapshotRepository } = require('../dist/database/repositories/VideoPerformanceSnapshotRepository');
 const { createOperatorsRouter } = require('../dist/routes/operators');
 const { ChannelMemoryService } = require('../dist/services/creator-intelligence/ChannelMemoryService');
 const { CreatorIntelligenceService } = require('../dist/services/creator-intelligence/CreatorIntelligenceService');
@@ -118,15 +119,29 @@ before(async () => {
       "id" TEXT NOT NULL PRIMARY KEY,
       "projectId" TEXT,
       "videoIdeaId" TEXT,
+      "performanceSnapshotId" TEXT,
+      "key" TEXT UNIQUE,
       "game" TEXT,
+      "series" TEXT,
       "format" TEXT,
       "metric" TEXT NOT NULL,
       "value" REAL NOT NULL,
       "sampleSize" INTEGER NOT NULL DEFAULT 1,
       "source" TEXT NOT NULL,
       "classification" TEXT NOT NULL DEFAULT 'real',
+      "confidence" REAL NOT NULL DEFAULT 1,
       "measuredAt" DATETIME NOT NULL,
       "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE TABLE "VideoPerformanceSnapshot" (
+      "id" TEXT NOT NULL PRIMARY KEY, "projectId" TEXT, "ingestionKey" TEXT NOT NULL UNIQUE,
+      "videoId" TEXT NOT NULL, "title" TEXT NOT NULL, "game" TEXT, "series" TEXT, "format" TEXT,
+      "publishedAt" DATETIME, "periodStart" DATETIME, "periodEnd" DATETIME, "views" REAL,
+      "impressions" REAL, "ctr" REAL, "durationSeconds" REAL, "averageViewDurationSeconds" REAL,
+      "averageViewPercentage" REAL, "watchTimeMinutes" REAL, "subscribersGained" INTEGER,
+      "likes" INTEGER, "comments" INTEGER, "source" TEXT NOT NULL, "confidence" REAL NOT NULL DEFAULT 1,
+      "collectedAt" DATETIME NOT NULL, "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updatedAt" DATETIME NOT NULL
     );
   `;
   for (const statement of schemaSql.split(';').map((value) => value.trim()).filter(Boolean)) {
@@ -140,6 +155,7 @@ before(async () => {
   const decisions = new ContentDecisionRepository(client);
   const insights = new ChannelInsightRepository(client);
   const signals = new PerformanceSignalRepository(client);
+  const snapshots = new VideoPerformanceSnapshotRepository(client);
   providerCalls = [];
   const fakeProvider = {
     name: 'http-fake',
@@ -163,7 +179,8 @@ before(async () => {
     performanceSignalRepository: signals,
     evaluationService: new IdeaEvaluationService(),
     researchProviders: [fakeProvider],
-    channelMemoryService: new ChannelMemoryService(insights, signals),
+    snapshotRepository: snapshots,
+    channelMemoryService: new ChannelMemoryService(insights, signals, snapshots),
   });
   const plannerService = new PlannerService(
     conversations,
@@ -298,6 +315,36 @@ describe('Creator Intelligence HTTP API', { concurrency: false }, () => {
     const response = await request('/planner/conversations/missing/editorial-recommendation');
     assert.equal(response.status, 404);
     assert.deepEqual(providerCalls, []);
+  });
+
+  test('Planner exposes channel learnings through its service boundary', async () => {
+    const conversation = await conversations.create({ projectId: null, title: 'Memoria', context: null });
+    await creatorIntelligence.ingestManualPerformance([{
+      videoId: 'planner-performance',
+      title: 'Vídeo real para o Planner',
+      game: 'BeamNG.drive',
+      format: 'desafio narrado',
+      views: 1000,
+      averageViewPercentage: 50,
+      collectedAt: '2026-08-24T12:00:00.000Z',
+    }]);
+    const response = await request(`/planner/conversations/${conversation.id}/channel-learnings`);
+    assert.equal(response.status, 200);
+    assert.ok(response.body.some(({ category }) => category === 'performance_game'));
+    assert.ok(response.body.every(({ evidence }) => evidence.derivedFrom === 'VideoPerformanceSnapshot'));
+  });
+
+  test('returns persisted decision evidence and 404 for an unknown decision', async () => {
+    const idea = await ideas.create({ projectId: null, ...validIdea() });
+    const evaluation = await request(`/creator-intelligence/ideas/${idea.id}/evaluate`, {
+      method: 'POST', body: {},
+    });
+    const response = await request(`/creator-intelligence/decisions/${evaluation.body.decision.id}/evidence`);
+    assert.equal(response.status, 200);
+    assert.equal(response.body.videoIdeaId, idea.id);
+    assert.ok(response.body.evidence.confidence > 0);
+    assert.ok(Array.isArray(response.body.evidence.evidenceUsed));
+    assert.equal((await request('/creator-intelligence/decisions/missing/evidence')).status, 404);
   });
 
   test('unexpected errors are sanitized in response and logs', async () => {

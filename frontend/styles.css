@@ -182,6 +182,42 @@ body {
 .planner-library-content {
   overflow-wrap: anywhere;
 }
+.planner-memory-toggle {
+  width: 100%;
+  margin-top: 0.65rem;
+  padding: 0.5rem 0.6rem;
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--accent);
+  font: inherit;
+  font-size: 0.78rem;
+  cursor: pointer;
+}
+.planner-memory-toggle[hidden] { display: none; }
+.planner-memory-toggle:disabled { opacity: 0.6; cursor: default; }
+.planner-active-memory-list { display: grid; gap: 0.4rem; }
+.planner-memory-empty { margin: 0; color: var(--muted); font-size: 0.8rem; }
+.planner-memory-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.45rem 0.5rem;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  font-size: 0.78rem;
+}
+.planner-memory-item span { overflow-wrap: anywhere; }
+.planner-memory-item button {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.72rem;
+  cursor: pointer;
+}
 .planner-library-item-title {
   font-size: 0.82rem;
 }

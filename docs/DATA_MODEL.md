@@ -136,15 +136,23 @@ Memória revisável do canal. Uma chave estável permite atualizar o aprendizado
 
 ### PerformanceSignal
 
-Sinal histórico normalizado entre 0 e 100, com métrica, fonte, amostragem e data. Pode se relacionar a projeto, ideia, jogo e formato. O schema não presume origem YouTube.
+Sinal histórico normalizado entre 0 e 100, com chave estável opcional, métrica, fonte, amostragem, confiança e data. Pode se relacionar a projeto, ideia ou `VideoPerformanceSnapshot`, além de jogo, série e formato. Sinais derivados de snapshot são substituídos idempotentemente quando as métricas de origem mudam.
+
+### VideoPerformanceSnapshot
+
+Registro normalizado de desempenho de um vídeo em um projeto, fonte e período. `ingestionKey` é única e identifica `projectId + source + videoId + periodStart + periodEnd`. Campos observáveis incluem views, impressões, CTR, duração, AVD, percentual médio assistido, watch time, inscritos ganhos, likes e comentários.
+
+Todos os campos que a fonte não fornece permanecem `null`; o sistema não substitui ausência por zero. `source`, `confidence` e `collectedAt` registram provenance. Atualizações do mesmo vídeo/período preservam a identidade do snapshot.
 
 ```text
 Project 1 -> N VideoIdea
 Project 1 -> N ChannelInsight
 Project 1 -> N PerformanceSignal
+Project 1 -> N VideoPerformanceSnapshot
 VideoIdea 1 -> N ContentOpportunity
 VideoIdea 1 -> N ContentDecision
 VideoIdea 1 -> N PerformanceSignal
+VideoPerformanceSnapshot 1 -> N PerformanceSignal
 ```
 
 As tabelas são aditivas e não alteram `Conversation`, `Message` ou `LibraryItem`.

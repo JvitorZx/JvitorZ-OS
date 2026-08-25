@@ -110,13 +110,17 @@ before(async () => {
       "id" TEXT NOT NULL PRIMARY KEY,
       "projectId" TEXT,
       "videoIdeaId" TEXT,
+      "performanceSnapshotId" TEXT,
+      "key" TEXT UNIQUE,
       "game" TEXT,
+      "series" TEXT,
       "format" TEXT,
       "metric" TEXT NOT NULL,
       "value" REAL NOT NULL,
       "sampleSize" INTEGER NOT NULL DEFAULT 1,
       "source" TEXT NOT NULL,
       "classification" TEXT NOT NULL DEFAULT 'real',
+      "confidence" REAL NOT NULL DEFAULT 1,
       "measuredAt" DATETIME NOT NULL,
       "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY ("projectId") REFERENCES "Project" ("id") ON DELETE SET NULL ON UPDATE CASCADE,
@@ -248,6 +252,10 @@ describe('IdeaEvaluationService', { concurrency: false }, () => {
       'real', 'inference', 'recommendation', 'unknown',
     ].includes(classification)));
     assert.match(result.rationale, /não prevê visualizações/i);
+    assert.ok(result.confidence > 0 && result.confidence <= 1);
+    assert.ok(result.evidenceUsed.some(({ factor }) => factor === 'gamePerformance'));
+    assert.ok(Array.isArray(result.risks));
+    assert.deepEqual(result.missingData, result.unknownFactors);
   });
 
   test('keeps absent historical data visibly unknown instead of inventing it', async () => {
@@ -258,6 +266,7 @@ describe('IdeaEvaluationService', { concurrency: false }, () => {
     assert.ok(result.unknownFactors.includes('formatPerformance'));
     assert.ok(result.unknownFactors.includes('novelty'));
     assert.equal(result.components.find(({ factor }) => factor === 'gamePerformance').value, null);
+    assert.ok(result.risks.includes('Sem evidência histórica real para esta ideia.'));
   });
 
   test('weights evidence by sample size and clamps values safely', async () => {
@@ -267,6 +276,16 @@ describe('IdeaEvaluationService', { concurrency: false }, () => {
       { factor: 'gamePerformance', value: 200, classification: 'real', source: 'b', summary: 'B', sampleSize: 3 },
     ]);
     assert.equal(result.components.find(({ factor }) => factor === 'gamePerformance').value, 75);
+  });
+
+  test('treats zero-confidence evidence as unknown instead of producing NaN', async () => {
+    const idea = await createIdea();
+    const result = evaluator.evaluate(idea, [{
+      factor: 'gamePerformance', value: 90, classification: 'real', source: 'invalidated',
+      summary: 'Sem confiança.', sampleSize: 2, confidence: 0,
+    }]);
+    assert.equal(result.components.find(({ factor }) => factor === 'gamePerformance').value, null);
+    assert.ok(Number.isFinite(result.score));
   });
 
   test('ranks ideas deterministically and explains every position', async () => {

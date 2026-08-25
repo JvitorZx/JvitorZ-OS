@@ -14,6 +14,7 @@ import type {
   EditorialRecommendation,
   PlannerEditorialIntelligenceProvider,
 } from './creator-intelligence/CreatorIntelligenceService';
+import type { ConversationLibraryService } from './ConversationLibraryService';
 
 export interface CreateConversationInput {
   title?: string;
@@ -67,22 +68,34 @@ export class PlannerEditorialIntelligenceUnavailableError extends Error {
   }
 }
 
+export interface PlannerChannelLearning {
+  category: string;
+  subject: string;
+  statement: string;
+  confidence: number;
+  classification: string;
+  evidence: unknown;
+}
+
 export class PlannerService {
   private conversationRepository?: ConversationRepository;
   private messageRepository?: MessageRepository;
   private readonly languageProvider?: LanguageProvider;
   private readonly editorialIntelligence?: PlannerEditorialIntelligenceProvider;
+  private readonly conversationLibraryService?: ConversationLibraryService;
 
   constructor(
     conversationRepository?: ConversationRepository,
     messageRepository?: MessageRepository,
     languageProvider?: LanguageProvider,
     editorialIntelligence?: PlannerEditorialIntelligenceProvider,
+    conversationLibraryService?: ConversationLibraryService,
   ) {
     this.conversationRepository = conversationRepository;
     this.messageRepository = messageRepository;
     this.languageProvider = languageProvider;
     this.editorialIntelligence = editorialIntelligence;
+    this.conversationLibraryService = conversationLibraryService;
   }
 
   private get repository(): ConversationRepository {
@@ -169,7 +182,10 @@ export class PlannerService {
       throw new PlannerLanguageProviderUnavailableError();
     }
 
-    const input = mapConversationToLanguageInput(conversation);
+    const artifacts = this.conversationLibraryService
+      ? await this.conversationLibraryService.listLinkedItems(conversation.id)
+      : [];
+    const input = mapConversationToLanguageInput({ ...conversation, artifacts });
     let generatedText: unknown;
 
     try {
@@ -217,5 +233,14 @@ export class PlannerService {
       throw new PlannerEditorialIntelligenceUnavailableError();
     }
     return this.editorialIntelligence.recommendEditorial(conversation.projectId);
+  }
+
+  async getChannelLearnings(conversationId: string): Promise<PlannerChannelLearning[] | null> {
+    const conversation = await this.repository.findById(conversationId.trim());
+    if (!conversation) return null;
+    if (!this.editorialIntelligence?.getChannelLearnings) {
+      throw new PlannerEditorialIntelligenceUnavailableError();
+    }
+    return this.editorialIntelligence.getChannelLearnings(conversation.projectId);
   }
 }
