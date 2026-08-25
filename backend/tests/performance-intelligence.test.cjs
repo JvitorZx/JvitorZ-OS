@@ -63,7 +63,7 @@ before(async () => {
       "publishedAt" DATETIME, "periodStart" DATETIME, "periodEnd" DATETIME,
       "views" REAL, "impressions" REAL, "ctr" REAL, "durationSeconds" REAL,
       "averageViewDurationSeconds" REAL, "averageViewPercentage" REAL, "watchTimeMinutes" REAL,
-      "subscribersGained" INTEGER, "likes" INTEGER, "comments" INTEGER, "source" TEXT NOT NULL,
+      "subscribersGained" INTEGER, "subscribersLost" INTEGER, "likes" INTEGER, "comments" INTEGER, "source" TEXT NOT NULL,
       "confidence" REAL NOT NULL DEFAULT 1, "collectedAt" DATETIME NOT NULL,
       "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, "updatedAt" DATETIME NOT NULL,
       FOREIGN KEY ("projectId") REFERENCES "Project"("id") ON DELETE SET NULL
@@ -114,6 +114,7 @@ describe('Performance intelligence normalization and ingestion', { concurrency: 
     assert.equal(normalized.ctr, null);
     assert.equal(normalized.averageViewPercentage, null);
     assert.equal(normalized.subscribersGained, null);
+    assert.equal(normalized.subscribersLost, null);
   });
 
   test('rejects invalid required, negative, percentage and period values', () => {

@@ -43,4 +43,11 @@ export class VideoPerformanceSnapshotRepository {
   async findById(id: string): Promise<VideoPerformanceSnapshot | null> {
     return this.delegate.findUnique({ where: { id } });
   }
+
+  async findLatestBySource(source: string): Promise<VideoPerformanceSnapshot | null> {
+    return this.delegate.findFirst({
+      where: { source },
+      orderBy: [{ collectedAt: 'desc' }, { id: 'asc' }],
+    });
+  }
 }

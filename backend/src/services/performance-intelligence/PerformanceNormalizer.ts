@@ -110,6 +110,7 @@ export const normalizePerformanceRecord = (
     averageViewPercentage: numberOrNull(record.averageViewPercentage, 'averageViewPercentage', { max: 100 }),
     watchTimeMinutes: numberOrNull(record.watchTimeMinutes, 'watchTimeMinutes'),
     subscribersGained: numberOrNull(record.subscribersGained, 'subscribersGained', { integer: true }),
+    subscribersLost: numberOrNull(record.subscribersLost, 'subscribersLost', { integer: true }),
     likes: numberOrNull(record.likes, 'likes', { integer: true }),
     comments: numberOrNull(record.comments, 'comments', { integer: true }),
     source: normalizedSource,

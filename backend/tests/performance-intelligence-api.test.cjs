@@ -13,10 +13,19 @@ const { ChannelMemoryService } = require('../dist/services/creator-intelligence/
 const { CreatorIntelligenceService } = require('../dist/services/creator-intelligence/CreatorIntelligenceService');
 const { PerformanceBaselineService } = require('../dist/services/performance-intelligence/PerformanceBaselineService');
 const { PerformanceIngestionService } = require('../dist/services/performance-intelligence/PerformanceIngestionService');
+const {
+  YouTubeAnalyticsNotAuthorizedError,
+  YouTubeAnalyticsNotConfiguredError,
+  YouTubeAnalyticsQuotaError,
+  YouTubeAnalyticsTemporaryError,
+  YouTubePerformanceSyncValidationError,
+  YouTubeVideoNotFoundError,
+} = require('../dist/services/performance-intelligence/YouTubePerformanceSyncService');
 
 let client;
 let server;
 let baseUrl;
+let youtubeSyncService;
 
 const record = (overrides = {}) => ({
   videoId: 'api-video', title: 'API video', game: 'BeamNG.drive', series: 'Testes',
@@ -55,6 +64,7 @@ before(async () => {
       "publishedAt" DATETIME, "periodStart" DATETIME, "periodEnd" DATETIME, "views" REAL,
       "impressions" REAL, "ctr" REAL, "durationSeconds" REAL, "averageViewDurationSeconds" REAL,
       "averageViewPercentage" REAL, "watchTimeMinutes" REAL, "subscribersGained" INTEGER,
+      "subscribersLost" INTEGER,
       "likes" INTEGER, "comments" INTEGER, "source" TEXT NOT NULL, "confidence" REAL NOT NULL DEFAULT 1,
       "collectedAt" DATETIME NOT NULL, "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
       "updatedAt" DATETIME NOT NULL
@@ -84,9 +94,23 @@ before(async () => {
     performanceIngestionService: new PerformanceIngestionService(snapshots, signals),
     performanceBaselineService: new PerformanceBaselineService(snapshots),
   });
+  youtubeSyncService = {
+    status: { state: 'connected', lastSyncAt: null, lastErrorType: null },
+    lastSync: { source: 'youtube-analytics', lastSyncAt: null },
+    result: { source: 'youtube-analytics', created: 1, updated: 0, records: [], signals: [] },
+    error: null,
+    calls: [],
+    async getStatus() { return this.status; },
+    async getLastSync() { return this.lastSync; },
+    async sync(input) {
+      this.calls.push(structuredClone(input));
+      if (this.error) throw this.error;
+      return this.result;
+    },
+  };
   const app = express();
   app.use(express.json());
-  app.use(createCreatorIntelligenceRouter(service));
+  app.use(createCreatorIntelligenceRouter(service, youtubeSyncService));
   await new Promise((resolve) => {
     server = app.listen(0, '127.0.0.1', () => {
       baseUrl = `http://127.0.0.1:${server.address().port}`;
@@ -99,6 +123,11 @@ beforeEach(async () => {
   await client.performanceSignal.deleteMany();
   await client.channelInsight.deleteMany();
   await client.videoPerformanceSnapshot.deleteMany();
+  youtubeSyncService.status = { state: 'connected', lastSyncAt: null, lastErrorType: null };
+  youtubeSyncService.lastSync = { source: 'youtube-analytics', lastSyncAt: null };
+  youtubeSyncService.result = { source: 'youtube-analytics', created: 1, updated: 0, records: [], signals: [] };
+  youtubeSyncService.error = null;
+  youtubeSyncService.calls = [];
 });
 
 after(async () => {
@@ -168,5 +197,107 @@ describe('Performance Intelligence HTTP API', { concurrency: false }, () => {
     const missing = await request('/decisions/missing/evidence');
     assert.equal(missing.status, 404);
     assert.deepEqual(missing.body, { error: 'Content decision not found' });
+  });
+
+  test('reports provider status and last synchronization without triggering a sync', async () => {
+    youtubeSyncService.status = {
+      state: 'synchronized', lastSyncAt: new Date('2026-08-24T15:00:00.000Z'), lastErrorType: null,
+    };
+    youtubeSyncService.lastSync = {
+      source: 'youtube-analytics', lastSyncAt: new Date('2026-08-24T15:00:00.000Z'),
+    };
+    const status = await request('/performance/youtube/status');
+    const lastSync = await request('/performance/youtube/last-sync');
+    assert.equal(status.status, 200);
+    assert.equal(status.body.state, 'synchronized');
+    assert.equal(lastSync.status, 200);
+    assert.equal(lastSync.body.source, 'youtube-analytics');
+    assert.equal(youtubeSyncService.calls.length, 0);
+  });
+
+  test('synchronizes a validated video request exactly once', async () => {
+    youtubeSyncService.result.records = [{ id: 'snapshot', videoId: 'abc', source: 'youtube-analytics' }];
+    const response = await request('/performance/youtube/sync', {
+      method: 'POST',
+      body: JSON.stringify({
+        mode: 'video', videoId: 'abc', startDate: '2026-08-01', endDate: '2026-08-24', limit: 1,
+      }),
+    });
+    assert.equal(response.status, 200);
+    assert.equal(response.body.source, 'youtube-analytics');
+    assert.equal(youtubeSyncService.calls.length, 1);
+    assert.deepEqual(youtubeSyncService.calls[0], {
+      mode: 'video', videoId: 'abc', projectId: undefined,
+      startDate: '2026-08-01', endDate: '2026-08-24', limit: 1,
+    });
+  });
+
+  test('rejects malformed sync bodies and unknown fields before the service', async () => {
+    for (const body of [
+      {},
+      { mode: 'period', startDate: '2026-08-01', endDate: '2026-08-24', extra: true },
+      { mode: 'period', startDate: 1, endDate: '2026-08-24' },
+    ]) {
+      assert.equal((await request('/performance/youtube/sync', {
+        method: 'POST', body: JSON.stringify(body),
+      })).status, 400);
+    }
+    assert.equal(youtubeSyncService.calls.length, 0);
+  });
+
+  test('maps sync validation, missing video and expected configuration errors', async () => {
+    const cases = [
+      [new YouTubePerformanceSyncValidationError('invalid period'), 400, 'invalid period'],
+      [new YouTubeVideoNotFoundError(), 404, 'YouTube video not found'],
+      [new YouTubeAnalyticsNotConfiguredError(), 503, 'YouTube Analytics is not configured'],
+      [new YouTubeAnalyticsNotAuthorizedError(), 401, 'Google authorization is required'],
+    ];
+    for (const [error, expectedStatus, expectedMessage] of cases) {
+      youtubeSyncService.error = error;
+      const response = await request('/performance/youtube/sync', {
+        method: 'POST',
+        body: JSON.stringify({ mode: 'period', startDate: '2026-08-01', endDate: '2026-08-24' }),
+      });
+      assert.equal(response.status, expectedStatus);
+      assert.equal(response.body.error, expectedMessage);
+    }
+  });
+
+  test('maps quota and temporary failures without exposing provider payloads', async () => {
+    for (const [error, expectedStatus] of [
+      [new YouTubeAnalyticsQuotaError(), 429],
+      [new YouTubeAnalyticsTemporaryError(), 503],
+    ]) {
+      error.providerPayload = { access_token: 'secret', rows: ['private'] };
+      youtubeSyncService.error = error;
+      const response = await request('/performance/youtube/sync', {
+        method: 'POST',
+        body: JSON.stringify({ mode: 'period', startDate: '2026-08-01', endDate: '2026-08-24' }),
+      });
+      assert.equal(response.status, expectedStatus);
+      assert.ok(!JSON.stringify(response.body).includes('secret'));
+      assert.ok(!JSON.stringify(response.body).includes('private'));
+    }
+  });
+
+  test('returns a sanitized 500 for an unexpected synchronization failure', async () => {
+    youtubeSyncService.error = Object.assign(new Error('raw prompt and credential'), {
+      access_token: 'secret-token',
+    });
+    const original = console.error;
+    const logs = [];
+    console.error = (...args) => logs.push(args.join(' '));
+    try {
+      const response = await request('/performance/youtube/sync', {
+        method: 'POST',
+        body: JSON.stringify({ mode: 'period', startDate: '2026-08-01', endDate: '2026-08-24' }),
+      });
+      assert.equal(response.status, 500);
+      assert.deepEqual(response.body, { error: 'Failed to synchronize YouTube Analytics' });
+      assert.ok(!logs.join(' ').includes('secret-token'));
+      assert.ok(!logs.join(' ').includes('raw prompt'));
+    } finally {
+      console.error = original;
+    }
   });
 });

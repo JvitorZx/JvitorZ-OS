@@ -37,6 +37,14 @@ export const getSafeGoogleRequestError = (error: unknown): Record<string, unknow
 };
 
 export class GoogleService {
+  isConfigured(): boolean {
+    return Boolean(
+      process.env.GOOGLE_CLIENT_ID?.trim()
+      && process.env.GOOGLE_CLIENT_SECRET?.trim()
+      && process.env.GOOGLE_REDIRECT_URI?.trim(),
+    );
+  }
+
   loadTokens(): Record<string, unknown> | null {
     // Define o caminho do arquivo google-tokens.json a partir da raiz do backend
     const tokenFilePath = path.resolve(__dirname, '../../google-tokens.json');
@@ -104,10 +112,11 @@ export class GoogleService {
       return false;
     }
 
-    // Verifica se o token contém um access_token válido
+    // Um refresh token também permite ao client oficial renovar o acesso sob demanda.
     const accessToken = tokens['access_token'];
+    const refreshToken = tokens['refresh_token'];
 
-    // Retorna true somente se houver um access_token presente
-    return typeof accessToken === 'string' && accessToken.length > 0;
+    return (typeof accessToken === 'string' && accessToken.length > 0)
+      || (typeof refreshToken === 'string' && refreshToken.length > 0);
   }
 }

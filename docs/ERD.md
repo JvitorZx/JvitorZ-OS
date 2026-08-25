@@ -148,5 +148,6 @@ PerformanceSignal
 - `LibraryItem.sourceMessageId` garante no máximo um artefato por mensagem de origem; itens legados sem origem permanecem válidos.
 - `ConversationLibraryItem` usa chave composta entre conversa e item, não copia conteúdo e é removido em cascata com qualquer lado da associação.
 - `VideoPerformanceSnapshot.ingestionKey` impede duplicação do mesmo projeto/fonte/vídeo/período; campos ausentes permanecem nulos.
+- `VideoPerformanceSnapshot.subscribersLost` é opcional e recebe dados reais do YouTube Analytics; snapshots anteriores permanecem válidos com `null`.
 - `PerformanceSignal.key` torna sinais derivados idempotentes e sua relação registra a evidência de origem.
 - A modelagem preserva a arquitetura de futuro com PostgreSQL sem alterar o frontend ou as APIs.

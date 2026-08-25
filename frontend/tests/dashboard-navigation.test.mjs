@@ -4,6 +4,7 @@ import { test } from 'node:test';
 import { createDashboard } from '../src/dashboard.js';
 import { dashboardModules } from '../src/modules/index.js';
 import { operatorsModule } from '../src/modules/operators.js';
+import { supervisorModule } from '../src/modules/supervisor.js';
 import { operatorRegistry } from '../src/operators/registry.js';
 
 class FakeClassList {
@@ -573,4 +574,26 @@ test('module context does not expose the global statePanel channel', async () =>
   assert.equal('statePanel' in receivedContext, false);
   assert.equal('globalStatePanel' in receivedContext, false);
   assert.equal('setGlobalState' in receivedContext, false);
+});
+
+test('Supervisor renders the YouTube Analytics provider state without activating operators', () => {
+  const synchronized = supervisorModule.render({
+    status: { youtubeConnected: true, aiEnabled: false, automationsEnabled: false },
+    supervisor: {
+      youtubeAnalytics: {
+        state: 'synchronized',
+        lastSyncAt: '2026-08-24T15:00:00.000Z',
+        lastErrorType: null,
+      },
+    },
+  });
+  const unauthorized = supervisorModule.render({
+    status: { youtubeConnected: false, aiEnabled: false, automationsEnabled: false },
+    supervisor: { youtubeAnalytics: { state: 'not_authorized' } },
+  });
+
+  assert.match(synchronized, /YouTube Analytics[\s\S]*?Sincronizado/);
+  assert.match(unauthorized, /YouTube Analytics[\s\S]*?Autorizacao necessaria/);
+  assert.match(synchronized, /IA[\s\S]*?Desativada/);
+  assert.match(synchronized, /Automacoes[\s\S]*?Desativadas/);
 });

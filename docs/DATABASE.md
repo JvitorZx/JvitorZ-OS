@@ -110,6 +110,8 @@ Para garantir o máximo de cinco itens mesmo com chamadas concorrentes, a criaç
 
 `VideoPerformanceSnapshot` persiste métricas observadas de um vídeo para um projeto, fonte e período. A chave `ingestionKey` é única; nova ingestão do mesmo projeto, fonte, vídeo e período atualiza o snapshot existente. Métricas não fornecidas permanecem `null`. `source`, `confidence` e `collectedAt` preservam provenance.
 
+O campo opcional `subscribersLost` registra a métrica homônima quando fornecida pelo YouTube Analytics. A migration `20260825100000_youtube_analytics_subscribers_lost` adiciona a coluna sem reescrever snapshots existentes; registros anteriores recebem `null`.
+
 `PerformanceSignal` pode apontar para o snapshot de origem e usa `key` única para substituir sinais derivados sem duplicação. A relação usa `ON DELETE CASCADE`: remover um snapshot remove somente seus sinais derivados. Sinais legados sem snapshot continuam válidos.
 
 A migration `20260824213000_performance_intelligence` cria snapshots, preserva sinais anteriores e adiciona série, confiança, chave e relação de origem. Os testes aplicam a migration em SQLite em memória.

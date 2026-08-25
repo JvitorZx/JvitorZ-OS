@@ -16,6 +16,7 @@ export interface RawVideoPerformanceRecord {
   averageViewPercentage?: unknown;
   watchTimeMinutes?: unknown;
   subscribersGained?: unknown;
+  subscribersLost?: unknown;
   likes?: unknown;
   comments?: unknown;
   confidence?: unknown;

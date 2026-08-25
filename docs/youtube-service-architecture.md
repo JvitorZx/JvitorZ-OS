@@ -1,6 +1,20 @@
 # YouTubeService Architecture
 
-Este documento descreve as responsabilidades futuras do `YouTubeService` e mapeia cada método para sua finalidade, dados retornados, dependências e possíveis consumidores.
+Este documento descreve as responsabilidades da integração YouTube e mapeia cada método para sua finalidade, dados retornados, dependências e possíveis consumidores.
+
+## Implementação atual de performance
+
+`YouTubeAnalyticsPerformanceProvider` implementa o contrato neutro `PerformanceProvider`. Ele usa o `GoogleService` e o armazenamento OAuth já existentes; não cria cliente OAuth paralelo nem persiste tokens adicionais.
+
+- YouTube Analytics API: views, minutos assistidos, duração média, percentual médio assistido, inscritos ganhos/perdidos, likes e comentários.
+- YouTube Data API: ID, título, data de publicação, duração e playlist de uploads recentes.
+- Impressões e CTR: permanecem `null`, pois não são inferidas.
+- Sincronização: `YouTubePerformanceSyncService`, sob demanda, por vídeo, recentes ou período, limitada a 50 resultados.
+- Resiliência: estados seguros para não configurado, não autorizado, quota e indisponibilidade temporária.
+
+O OAuth deve incluir `youtube.readonly` e `yt-analytics.readonly`. As variáveis locais são `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` e `GOOGLE_REDIRECT_URI`; valores reais ficam somente em `backend/.env`, fora do Git.
+
+O smoke test controlado da Sprint 20 confirmou uma consulta real de sete dias com um resultado e sem persistência local. A suíte automatizada permanece totalmente offline e usa clients fake.
 
 ## Canal
 

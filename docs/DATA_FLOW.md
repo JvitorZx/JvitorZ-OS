@@ -213,7 +213,7 @@ O ranking usa score decrescente e ID como desempate. `ChannelMemoryService` deri
 ## Performance Intelligence — Sprint 19
 
 ```text
-PerformanceProvider (manual nesta Sprint; externos no futuro)
+PerformanceProvider (manual ou YouTube Analytics)
   -> PerformanceNormalizer
     -> VideoPerformanceSnapshotRepository
       -> snapshot idempotente no SQLite
@@ -239,3 +239,25 @@ Responsabilidades permanecem separadas:
 - `ContentDecision`: recomendação persistida com score, confiança, evidências, riscos e lacunas.
 
 O Planner consulta aprendizados e recomendações pela interface de Creator Intelligence. Não recebe dados externos inexistentes e não transforma artefatos da Biblioteca em métricas de canal.
+
+## YouTube Analytics Performance Provider — Sprint 20
+
+```text
+OAuth Google existente
+  -> YouTubePerformanceSyncService
+    -> YouTubeAnalyticsPerformanceProvider
+      -> YouTube Analytics API (métricas por vídeo/período)
+      -> YouTubeVideoMetadataService
+        -> YouTube Data API (título, publicação e duração)
+    -> PerformanceIngestionService
+      -> VideoPerformanceSnapshotRepository
+      -> PerformanceSignalRepository
+    -> ChannelMemoryService
+      -> baseline/memória/evidências da Creator Intelligence
+```
+
+O serviço suporta sincronização explícita por vídeo, lista recente ou período, com limite de 1 a 50 resultados. Não há job recorrente nem polling. A Data API é consultada somente para metadados e para localizar uploads recentes.
+
+O provider solicita somente métricas permitidas; nenhuma IA participa da coleta. Campos ausentes permanecem `null`; impressões e CTR não são calculadas a partir de views. Falhas de OAuth, quota, timeout e API são convertidas em erros de domínio seguros antes da rota.
+
+O timestamp da última sincronização é derivado do snapshot persistido mais recente com `source = youtube-analytics`. O Supervisor lê esse estado sem impedir a inicialização do Dashboard em caso de indisponibilidade temporária.

@@ -234,6 +234,7 @@ model VideoPerformanceSnapshot {
   averageViewPercentage      Float?
   watchTimeMinutes           Float?
   subscribersGained          Int?
+  subscribersLost            Int?
   likes                      Int?
   comments                   Int?
   source                     String

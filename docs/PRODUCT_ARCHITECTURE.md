@@ -237,10 +237,10 @@ Cada componente do score carrega classificação, fontes e justificativa. Ausên
 
 ## Performance Intelligence
 
-`PerformanceProvider` é a fronteira neutra para fontes de métricas. `PerformanceIngestionService` normaliza e persiste snapshots sem conhecer SDK externo. O caminho manual valida o fluxo completo; YouTube Analytics, YouTube Data API e vidIQ permanecem adapters futuros.
+`PerformanceProvider` é a fronteira neutra para fontes de métricas. `PerformanceIngestionService` normaliza e persiste snapshots sem conhecer SDK externo. O caminho manual continua disponível e `YouTubeAnalyticsPerformanceProvider` é o primeiro adapter externo real. O adapter usa o OAuth Google já existente; a YouTube Analytics API fornece métricas e a YouTube Data API complementa metadados. vidIQ permanece futuro.
 
 ```text
-provider -> normalização -> snapshot -> baseline -> sinal -> aprendizado -> decisão
+provider -> sincronização -> normalização -> snapshot -> baseline -> sinal -> aprendizado -> decisão
 ```
 
 - snapshots guardam observações e provenance;
@@ -249,4 +249,6 @@ provider -> normalização -> snapshot -> baseline -> sinal -> aprendizado -> de
 - decisões registram recomendação, confiança, evidências, riscos e dados ausentes;
 - Biblioteca e memória de canal não duplicam responsabilidades.
 
-Rotas continuam delegando a serviços, e somente repositories acessam Prisma. Nenhuma integração externa ou credencial é necessária para inicializar o backend ou executar a suíte.
+`YouTubePerformanceSyncService` coordena os modos vídeo, recentes e período, com limite máximo de 50 resultados e sem polling. Recoletas idênticas atualizam o snapshot pela chave de ingestão. O Supervisor expõe estado conectado, sincronizado, não autorizado, não configurado ou erro temporário sem ativar operadores inexistentes.
+
+Rotas continuam delegando a serviços, e somente repositories acessam Prisma. A configuração do provider é avaliada quando status ou sincronização são solicitados; a suíte usa fakes e SQLite em memória, sem rede externa. Ausência de métricas permanece `null`, inclusive impressões e CTR.

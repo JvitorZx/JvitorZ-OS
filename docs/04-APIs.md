@@ -508,6 +508,7 @@ Ingere de 1 a 100 registros. A fonte é sempre `manual`; o cliente não pode def
     "averageViewPercentage": 50,
     "watchTimeMinutes": 6000,
     "subscribersGained": 20,
+    "subscribersLost": 2,
     "likes": 100,
     "comments": 12,
     "confidence": 1,
@@ -537,3 +538,80 @@ Atualiza e retorna aprendizados estruturados do canal. Aceita `projectId` opcion
 ### `GET /api/operators/creator-intelligence/decisions/:id/evidence`
 
 Retorna a decisão persistida e seu snapshot de evidências, incluindo confiança, fontes, riscos e dados ausentes. Retorna `200`, `400`, `404` ou `500` seguro.
+
+## YouTube Analytics Performance
+
+Estas rotas reutilizam o OAuth Google do backend e o contrato `PerformanceProvider`. Nenhuma rota recebe token ou credencial. A sincronização é explícita e limitada; não existe polling nesta Sprint.
+
+### `GET /api/operators/creator-intelligence/performance/youtube/status`
+
+Retorna `200` com o estado operacional do provider:
+
+```json
+{
+  "state": "connected",
+  "lastSyncAt": null,
+  "lastErrorType": null
+}
+```
+
+`state` pode ser `connected`, `synchronized`, `not_authorized`, `not_configured` ou `temporary_error`. `lastErrorType` pode ser `authorization`, `quota`, `temporary` ou `null`. Uma falha inesperada ao consultar o status retorna `503` com estado temporário seguro.
+
+### `POST /api/operators/creator-intelligence/performance/youtube/sync`
+
+Sincroniza um vídeo, vídeos recentes ou um período. Datas usam `YYYY-MM-DD`; `limit` aceita de 1 a 50 e assume 20. `projectId` é opcional.
+
+Vídeo específico:
+
+```json
+{
+  "mode": "video",
+  "videoId": "youtube-video-id",
+  "startDate": "2026-08-01",
+  "endDate": "2026-08-24",
+  "limit": 1
+}
+```
+
+Vídeos recentes:
+
+```json
+{
+  "mode": "recent",
+  "startDate": "2026-08-01",
+  "endDate": "2026-08-24",
+  "limit": 20
+}
+```
+
+Período sem filtro de vídeo:
+
+```json
+{
+  "mode": "period",
+  "startDate": "2026-08-01",
+  "endDate": "2026-08-24"
+}
+```
+
+Retorna `200` com `source`, `created`, `updated`, `records` e `signals`. Uma recoleta da mesma fonte, projeto, vídeo e período atualiza o snapshot existente. Status possíveis: `400` para parâmetros inválidos; `401` para OAuth ausente/expirado; `404` para vídeo específico inexistente; `429` para quota; `503` para configuração ausente ou indisponibilidade temporária; e `500` sanitizado para falha inesperada.
+
+### `GET /api/operators/creator-intelligence/performance/youtube/last-sync`
+
+Retorna `200` com a fonte e o timestamp persistido do snapshot YouTube Analytics mais recente:
+
+```json
+{
+  "source": "youtube-analytics",
+  "lastSyncAt": "2026-08-24T15:00:00.000Z"
+}
+```
+
+Sem sincronização anterior, `lastSyncAt` é `null`. Falha interna retorna `500` sanitizado.
+
+### Origem das métricas
+
+- YouTube Analytics API: `views`, `estimatedMinutesWatched`, `averageViewDuration`, `averageViewPercentage`, `subscribersGained`, `subscribersLost`, `likes` e `comments`.
+- YouTube Data API: `videoId`, título, `publishedAt` e duração.
+- Impressões e CTR não são inferidas por este provider e permanecem `null`.
+- Jogo, série e formato também permanecem `null` até existir uma fonte real para essa classificação.

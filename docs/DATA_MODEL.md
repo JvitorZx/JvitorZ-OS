@@ -140,7 +140,7 @@ Sinal histórico normalizado entre 0 e 100, com chave estável opcional, métric
 
 ### VideoPerformanceSnapshot
 
-Registro normalizado de desempenho de um vídeo em um projeto, fonte e período. `ingestionKey` é única e identifica `projectId + source + videoId + periodStart + periodEnd`. Campos observáveis incluem views, impressões, CTR, duração, AVD, percentual médio assistido, watch time, inscritos ganhos, likes e comentários.
+Registro normalizado de desempenho de um vídeo em um projeto, fonte e período. `ingestionKey` é única e identifica `projectId + source + videoId + periodStart + periodEnd`. Campos observáveis incluem views, impressões, CTR, duração, AVD, percentual médio assistido, watch time, inscritos ganhos, inscritos perdidos, likes e comentários.
 
 Todos os campos que a fonte não fornece permanecem `null`; o sistema não substitui ausência por zero. `source`, `confidence` e `collectedAt` registram provenance. Atualizações do mesmo vídeo/período preservam a identidade do snapshot.
 
@@ -156,3 +156,5 @@ VideoPerformanceSnapshot 1 -> N PerformanceSignal
 ```
 
 As tabelas são aditivas e não alteram `Conversation`, `Message` ou `LibraryItem`.
+
+A migration `20260825100000_youtube_analytics_subscribers_lost` adiciona `subscribersLost` como inteiro opcional. Snapshots anteriores permanecem válidos com esse campo `null`.

@@ -235,10 +235,10 @@ Sistema
 
 Fundação editorial compartilhada pelo Planner. Registra ideias, reúne evidências internas, calcula ranking relativo, persiste decisões e mantém aprendizados revisáveis do canal. O sistema diferencia dados reais, inferências, recomendações e lacunas desconhecidas; não prevê views.
 
-Atualmente funciona apenas com dados persistidos internamente. YouTube, vidIQ, tendências e pesquisa web são providers futuros e não são simulados.
+O domínio aceita dados manuais persistidos e dados reais obtidos pelo `YouTubeAnalyticsPerformanceProvider`. vidIQ, tendências e pesquisa web permanecem providers futuros e não são simulados.
 
 ## Performance Intelligence
 
 Resultados de vídeos podem ser ingeridos manualmente como snapshots normalizados. O sistema mantém métricas ausentes como desconhecidas, calcula baseline dinâmica do próprio canal, deriva sinais quantitativos e atualiza aprendizados estruturados com provenance e confiança.
 
-O fluxo sustenta avaliação relativa de ideias e respostas explicáveis do Planner sem prever views. Biblioteca é conteúdo reutilizável; `PerformanceSignal` é evidência; `ChannelInsight` é aprendizado revisável. Conectores reais de YouTube Analytics, YouTube Data API e vidIQ permanecem para uma Sprint futura.
+O fluxo sustenta avaliação relativa de ideias e respostas explicáveis do Planner sem prever views. Biblioteca é conteúdo reutilizável; `PerformanceSignal` é evidência; `ChannelInsight` é aprendizado revisável. YouTube Analytics fornece métricas reais e YouTube Data API fornece os metadados necessários; vidIQ permanece futuro.

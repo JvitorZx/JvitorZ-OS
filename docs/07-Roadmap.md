@@ -591,3 +591,44 @@ Transformar resultados históricos do canal em sinais estruturados, aprendizados
 ### Próxima camada
 
 Conectar um primeiro provider externo real ao contrato `PerformanceProvider`, com escopo e OAuth definidos em Sprint própria, mantendo ingestão manual e testes sem rede como fallback reproduzível.
+
+## Sprint 20 — YouTube Analytics Performance Provider
+
+**Status: CONCLUÍDA**
+
+**Fase principal: FASE 7 - Primeiro Operador**, conectando Performance Intelligence a uma fonte externa real.
+
+### Objetivo
+
+Consultar dados reais permitidos do canal e transformá-los no formato interno de performance sem acoplar Creator Intelligence ao SDK Google e sem criar um segundo fluxo OAuth.
+
+### Entregas
+
+- `YouTubeAnalyticsPerformanceProvider` implementando o contrato neutro `PerformanceProvider`;
+- reutilização do `GoogleService`, token local e scopes OAuth existentes;
+- métricas reais de views, watch time, AVD, retenção média, inscritos ganhos/perdidos, likes e comentários;
+- `YouTubeVideoMetadataService` para título, publicação, duração e uploads recentes via YouTube Data API;
+- `YouTubePerformanceSyncService` com modos vídeo, recentes e período, limite de 1 a 50 e sem polling;
+- ingestão idempotente em `VideoPerformanceSnapshot`, sinais derivados e atualização da memória do canal;
+- campo opcional `subscribersLost` e migration aditiva com preservação de snapshots anteriores;
+- endpoints internos de status, sincronização e última sincronização;
+- estados operacionais no Supervisor: conectado, sincronizado, não autorizado, não configurado e erro temporário;
+- erros sanitizados para OAuth expirado, quota, timeout, vídeo inexistente e indisponibilidade;
+- testes determinísticos com clients/providers fake, SQLite em memória e nenhuma chamada de rede;
+- regressão completa com 384 verificações automatizadas aprovadas.
+
+### Honestidade e limites
+
+- impressões e CTR não são inferidas e permanecem `null` neste provider;
+- jogo, série e formato não são inventados a partir de metadados insuficientes;
+- sincronização é manual e explícita; automações recorrentes ficam fora desta Sprint;
+- vidIQ, web research, previsão de views e novos operadores permanecem fora do escopo;
+- um smoke test real depende de OAuth local válido e deve usar período curto, sem expor tokens.
+
+### Validação externa controlada
+
+Em 24/08/2026, uma única consulta local de sete dias e `maxResults = 1` foi executada com o OAuth já configurado. O provider retornou um registro real no formato interno, com metadados da Data API e as oito métricas solicitadas; impressões e CTR permaneceram `null`. Nenhum token, título, ID de vídeo ou payload foi documentado, e o resultado não foi persistido no `dev.db`.
+
+### Próxima camada recomendada
+
+Expor a sincronização de performance em uma experiência operacional controlada ou avançar a inteligência de decisão sobre os sinais reais, sem introduzir polling antes de definir política de custo, quota e atualização.
