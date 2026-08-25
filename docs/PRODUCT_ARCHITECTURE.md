@@ -252,3 +252,21 @@ provider -> sincronização -> normalização -> snapshot -> baseline -> sinal -
 `YouTubePerformanceSyncService` coordena os modos vídeo, recentes e período, com limite máximo de 50 resultados e sem polling. Recoletas idênticas atualizam o snapshot pela chave de ingestão. O Supervisor expõe estado conectado, sincronizado, não autorizado, não configurado ou erro temporário sem ativar operadores inexistentes.
 
 Rotas continuam delegando a serviços, e somente repositories acessam Prisma. A configuração do provider é avaliada quando status ou sincronização são solicitados; a suíte usa fakes e SQLite em memória, sem rede externa. Ausência de métricas permanece `null`, inclusive impressões e CTR.
+
+## Performance Operations UI
+
+O módulo `analytics` é a superfície operacional da Performance Intelligence. Seu controller usa exclusivamente o API client central e participa do lifecycle genérico do Dashboard:
+
+```text
+AnalyticsController
+  -> frontend API client
+    -> status/sync/records/baseline/signals/learnings/evidence
+      -> Creator Intelligence + YouTubePerformanceSyncService
+        -> repositories -> Prisma/SQLite
+```
+
+Na montagem, consultas independentes são executadas em paralelo e cada seção mantém um estado coerente mesmo se outra falhar. A sincronização é manual, bloqueia apenas o controle correspondente e recarrega os dados persistidos depois do sucesso. Não existe polling.
+
+Tokens de montagem e de seleção impedem respostas tardias de substituir uma workspace desmontada ou uma evidência mais recente. Conteúdo externo é renderizado com APIs de texto do DOM. Valores `null` permanecem visualmente indisponíveis; zero só é exibido quando é um valor real.
+
+O `statePanel` continua reservado ao Dashboard. Erros de Analytics aparecem em feedback local com `aria-live`. O Supervisor consome estados reais de YouTube e configuração de IA; automações permanecem não implementadas e não são anunciadas como operacionais.

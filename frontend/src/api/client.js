@@ -38,7 +38,7 @@ export const createApiClient = (baseUrl) => ({
     }
 
     if (!response.ok) {
-      throw new Error(`Erro ${response.status} ao carregar dashboard`);
+      throw new ApiRequestError('Nao foi possivel carregar o dashboard', response.status);
     }
 
     return response.json();
@@ -162,6 +162,86 @@ export const createApiClient = (baseUrl) => ({
       `${baseUrl}/api/operators/planner/conversations/${encodeURIComponent(validConversationId)}/library/${encodeURIComponent(validLibraryItemId)}`,
       { method: 'DELETE' },
       'Erro ao desvincular item da conversa do Planner',
+    );
+  },
+
+  async getYouTubePerformanceStatus() {
+    return requestJson(
+      `${baseUrl}/api/operators/creator-intelligence/performance/youtube/status`,
+      undefined,
+      'Erro ao consultar status do YouTube Analytics',
+    );
+  },
+
+  async syncYouTubePerformance(input) {
+    if (!input || typeof input !== 'object' || Array.isArray(input)) {
+      throw new TypeError('sync input must be an object');
+    }
+    return requestJson(
+      `${baseUrl}/api/operators/creator-intelligence/performance/youtube/sync`,
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(input),
+      },
+      'Erro ao sincronizar YouTube Analytics',
+    );
+  },
+
+  async getYouTubeLastSync() {
+    return requestJson(
+      `${baseUrl}/api/operators/creator-intelligence/performance/youtube/last-sync`,
+      undefined,
+      'Erro ao consultar ultima sincronizacao',
+    );
+  },
+
+  async listPerformanceRecords() {
+    return requestJson(
+      `${baseUrl}/api/operators/creator-intelligence/performance/records`,
+      undefined,
+      'Erro ao carregar dados de performance',
+    );
+  },
+
+  async getPerformanceBaseline() {
+    return requestJson(
+      `${baseUrl}/api/operators/creator-intelligence/performance/baseline`,
+      undefined,
+      'Erro ao carregar baseline de performance',
+    );
+  },
+
+  async listPerformanceSignals() {
+    return requestJson(
+      `${baseUrl}/api/operators/creator-intelligence/performance/signals`,
+      undefined,
+      'Erro ao carregar sinais de performance',
+    );
+  },
+
+  async listChannelLearnings() {
+    return requestJson(
+      `${baseUrl}/api/operators/creator-intelligence/learnings`,
+      undefined,
+      'Erro ao carregar aprendizados do canal',
+    );
+  },
+
+  async getCreatorIntelligenceContext() {
+    return requestJson(
+      `${baseUrl}/api/operators/creator-intelligence/context`,
+      undefined,
+      'Erro ao carregar contexto de decisoes',
+    );
+  },
+
+  async getDecisionEvidence(decisionId) {
+    const validDecisionId = requireIdentifier(decisionId, 'decisionId');
+    return requestJson(
+      `${baseUrl}/api/operators/creator-intelligence/decisions/${encodeURIComponent(validDecisionId)}/evidence`,
+      undefined,
+      'Erro ao carregar evidencias da decisao',
     );
   },
 });

@@ -615,3 +615,9 @@ Sem sincronização anterior, `lastSyncAt` é `null`. Falha interna retorna `500
 - YouTube Data API: `videoId`, título, `publishedAt` e duração.
 - Impressões e CTR não são inferidas por este provider e permanecem `null`.
 - Jogo, série e formato também permanecem `null` até existir uma fonte real para essa classificação.
+
+### Consumo no frontend
+
+O módulo Analytics usa exclusivamente `frontend/src/api/client.js`. Na montagem, consulta status, última sincronização, snapshots, baseline, sinais, aprendizados e contexto de decisões. O POST de sincronização envia somente modo, datas, limite e, quando aplicável, ID do vídeo; tokens e credenciais nunca fazem parte do payload do frontend.
+
+Após sucesso, o frontend consulta novamente os dados persistidos. Respostas não `2xx` são representadas por erro seguro com status HTTP, permitindo mensagens locais específicas para `400`, `401`, `404`, `429` e `503` sem expor resposta crua do provider.

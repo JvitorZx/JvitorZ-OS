@@ -466,7 +466,7 @@ describe('CreatorIntelligenceService', { concurrency: false }, () => {
       classification: 'inference',
       summary: 'Oportunidade persistida.',
     });
-    await service.evaluateIdea(idea.id);
+    const { decision } = await service.evaluateIdea(idea.id);
     const memory = new ChannelMemoryService(insights, signals);
     await memory.recordLearning({
       category: 'creator_preference',
@@ -481,6 +481,7 @@ describe('CreatorIntelligenceService', { concurrency: false }, () => {
     assert.deepEqual(context.ideas.map(({ id }) => id), [idea.id]);
     assert.equal(context.opportunities.length, 1);
     assert.equal(context.previousDecisions.length, 1);
+    assert.equal(context.previousDecisions[0].id, decision.id);
     assert.deepEqual(context.creatorConstraints, ['Prefere vídeos objetivos.']);
     assert.ok(context.ideas.length <= 5);
     assert.ok(context.relevantHistory.length <= 12);

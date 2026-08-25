@@ -33,11 +33,11 @@ export const supervisorModule = {
           </div>
           <div>
             <span>IA</span>
-            ${createStatusPill(status.aiEnabled ? 'Ativa' : 'Desativada', 'pending')}
+            ${createStatusPill(status.aiEnabled ? 'Configurada' : 'Nao configurada', status.aiEnabled ? 'connected' : 'pending')}
           </div>
           <div>
             <span>Automacoes</span>
-            ${createStatusPill(status.automationsEnabled ? 'Ativas' : 'Desativadas', 'pending')}
+            ${createStatusPill(status.automationsEnabled ? 'Operacionais' : 'Nao implementadas', status.automationsEnabled ? 'connected' : 'pending')}
           </div>
         </div>
       `,

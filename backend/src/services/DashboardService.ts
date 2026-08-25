@@ -32,7 +32,7 @@ export class DashboardService {
       status: {
         youtubeConnected: true,
         automationsEnabled: false,
-        aiEnabled: false,
+        aiEnabled: Boolean(process.env.OPENAI_API_KEY?.trim()),
       },
     };
   }

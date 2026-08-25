@@ -632,3 +632,42 @@ Em 24/08/2026, uma única consulta local de sete dias e `maxResults = 1` foi exe
 ### Próxima camada recomendada
 
 Expor a sincronização de performance em uma experiência operacional controlada ou avançar a inteligência de decisão sobre os sinais reais, sem introduzir polling antes de definir política de custo, quota e atualização.
+
+## Sprint 21 — Performance Operations UI
+
+**Status: CONCLUÍDA**
+
+**Fase principal: FASE 7 - Primeiro Operador**, tornando a Performance Intelligence operável no produto.
+
+### Objetivo
+
+Permitir consultar e sincronizar dados reais do YouTube Analytics pela interface, acompanhar baseline, sinais, memória do canal e evidências de decisão sem expor credenciais ou inventar métricas ausentes.
+
+### Entregas
+
+- API client centralizado para status, sincronização, última coleta, snapshots, baseline, sinais, aprendizados e evidências;
+- workspace de Analytics com estados conectado, sincronizado, não autorizado, não configurado e erro temporário;
+- sincronização manual por recentes, período ou vídeo, sem polling e com proteção contra cliques concorrentes;
+- cards reais para views, watch time, AVD, retenção média, inscritos ganhos/perdidos, likes e comentários;
+- valores ausentes exibidos como indisponíveis, sem conversão artificial de `null` em zero;
+- baseline com média, mediana, amostra e comparações disponíveis por formato;
+- visualizações legíveis de sinais, memória do canal e evidências de decisões, incluindo confiança, riscos e dados ausentes;
+- estados reais de YouTube, IA e automações no Supervisor;
+- feedback local acessível, lifecycle explícito, respostas obsoletas ignoradas e renderização textual segura;
+- regressão automatizada com 419 verificações aprovadas.
+
+### Validação controlada
+
+Em 24/08/2026, o fluxo frontend client -> sync -> provider -> ingestão -> baseline/sinais/memória foi executado uma vez com OAuth local válido e SQLite temporário. Um snapshot foi criado, as oito métricas suportadas estavam disponíveis e a memória foi recalculada. Nenhum token, título, ID de vídeo ou payload foi registrado, e o `dev.db` não foi usado.
+
+### Limites
+
+- sincronização permanece manual e explícita;
+- não há polling, automações recorrentes, vidIQ ou pesquisa web;
+- impressões e CTR permanecem indisponíveis quando a fonte não os fornece;
+- módulos não implementados continuam indicados como pendentes;
+- redesign amplo e refinamentos cosméticos permanecem no backlog.
+
+### Próxima camada recomendada
+
+Usar os sinais reais já visíveis para fechar o ciclo entre evidência, decisão editorial e ação no Planner, preservando classificação, confiança e rastreabilidade.

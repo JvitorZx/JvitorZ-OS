@@ -402,3 +402,142 @@ describe('Planner active memory API client', { concurrency: false }, () => {
     }
   });
 });
+
+describe('Performance Operations API client', { concurrency: false }, () => {
+  const baseUrl = 'http://localhost:4000';
+  const jsonResponse = (status, payload) => ({
+    ok: status >= 200 && status < 300,
+    status,
+    async json() { return payload; },
+  });
+
+  test('uses the centralized GET contracts for performance operations', async () => {
+    const originalFetch = globalThis.fetch;
+    const calls = [];
+    globalThis.fetch = async (...args) => {
+      calls.push(args);
+      return jsonResponse(200, {});
+    };
+    try {
+      const api = createApiClient(baseUrl);
+      await api.getYouTubePerformanceStatus();
+      await api.getYouTubeLastSync();
+      await api.listPerformanceRecords();
+      await api.getPerformanceBaseline();
+      await api.listPerformanceSignals();
+      await api.listChannelLearnings();
+      await api.getCreatorIntelligenceContext();
+      assert.deepEqual(calls.map(([url, options]) => [url, options]), [
+        [`${baseUrl}/api/operators/creator-intelligence/performance/youtube/status`, undefined],
+        [`${baseUrl}/api/operators/creator-intelligence/performance/youtube/last-sync`, undefined],
+        [`${baseUrl}/api/operators/creator-intelligence/performance/records`, undefined],
+        [`${baseUrl}/api/operators/creator-intelligence/performance/baseline`, undefined],
+        [`${baseUrl}/api/operators/creator-intelligence/performance/signals`, undefined],
+        [`${baseUrl}/api/operators/creator-intelligence/learnings`, undefined],
+        [`${baseUrl}/api/operators/creator-intelligence/context`, undefined],
+      ]);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  test('posts only the explicit synchronization input', async () => {
+    const originalFetch = globalThis.fetch;
+    const calls = [];
+    globalThis.fetch = async (...args) => {
+      calls.push(args);
+      return jsonResponse(200, { created: 1, updated: 0 });
+    };
+    try {
+      const api = createApiClient(baseUrl);
+      const input = {
+        mode: 'recent', startDate: '2026-08-01', endDate: '2026-08-24', limit: 10,
+      };
+      assert.deepEqual(await api.syncYouTubePerformance(input), { created: 1, updated: 0 });
+      assert.equal(calls[0][0], `${baseUrl}/api/operators/creator-intelligence/performance/youtube/sync`);
+      assert.deepEqual(calls[0][1], {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(input),
+      });
+      assert.ok(!calls[0][1].body.includes('token'));
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  test('opens decision evidence by encoded persisted id', async () => {
+    const originalFetch = globalThis.fetch;
+    const calls = [];
+    globalThis.fetch = async (...args) => {
+      calls.push(args);
+      return jsonResponse(200, { id: 'decision/one' });
+    };
+    try {
+      const api = createApiClient(baseUrl);
+      await api.getDecisionEvidence('decision/one');
+      assert.deepEqual(calls, [[
+        `${baseUrl}/api/operators/creator-intelligence/decisions/decision%2Fone/evidence`,
+        undefined,
+      ]]);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  test('preserves expected performance HTTP statuses without raw responses', async (t) => {
+    const originalFetch = globalThis.fetch;
+    try {
+      for (const status of [400, 401, 404, 429, 500, 503]) {
+        await t.test(`status ${status}`, async () => {
+          globalThis.fetch = async () => ({
+            ok: false,
+            status,
+            async json() { return { access_token: 'must-not-be-read', stack: 'private' }; },
+          });
+          const api = createApiClient(baseUrl);
+          await assert.rejects(
+            api.syncYouTubePerformance({ mode: 'period' }),
+            (error) => error instanceof ApiRequestError
+              && error.status === status
+              && !Object.hasOwn(error, 'response')
+              && !error.message.includes('private'),
+          );
+        });
+      }
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  test('rejects invalid synchronization input and decision ids before network', async () => {
+    const originalFetch = globalThis.fetch;
+    let calls = 0;
+    globalThis.fetch = async () => { calls += 1; return jsonResponse(200, {}); };
+    try {
+      const api = createApiClient(baseUrl);
+      await assert.rejects(api.syncYouTubePerformance(null), TypeError);
+      await assert.rejects(api.syncYouTubePerformance([]), TypeError);
+      await assert.rejects(api.getDecisionEvidence('  '), TypeError);
+      assert.equal(calls, 0);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  test('dashboard errors use the safe request error contract', async () => {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = async () => ({ ok: false, status: 500 });
+    try {
+      const api = createApiClient(baseUrl);
+      await assert.rejects(
+        api.getDashboard(),
+        (error) => error instanceof ApiRequestError
+          && error.status === 500
+          && !error.message.includes('stack'),
+      );
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+});

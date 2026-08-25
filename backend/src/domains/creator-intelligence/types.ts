@@ -94,6 +94,7 @@ export interface CreatorIntelligenceContext {
     classification: EvidenceClassification;
   }>;
   previousDecisions: Array<{
+    id: string;
     ideaId: string;
     category: ContentDecisionCategory;
     score: number;

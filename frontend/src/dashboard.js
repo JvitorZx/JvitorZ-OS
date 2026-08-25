@@ -1,4 +1,4 @@
-import { createApiClient } from './api/client.js';
+import { ApiRequestError, createApiClient } from './api/client.js';
 import { createFullscreenWorkspace, createIcon, html } from './design-system/index.js';
 import { dashboardModules } from './modules/index.js';
 import { createModuleLifecycle } from './modules/lifecycle.js';
@@ -213,7 +213,12 @@ export const createDashboard = ({
         rerender: true,
       });
     } catch (error) {
-      setGlobalState(`Nao foi possivel carregar o dashboard: ${error.message}`, 'error');
+      const message = error instanceof ApiRequestError
+        ? 'O dashboard nao conseguiu carregar os dados do backend.'
+        : error instanceof TypeError
+          ? 'Nao foi possivel conectar ao backend.'
+          : `Nao foi possivel carregar o dashboard: ${error.message}`;
+      setGlobalState(message, 'error');
       activateModuleFromHash();
     } finally {
       setLoading(false);

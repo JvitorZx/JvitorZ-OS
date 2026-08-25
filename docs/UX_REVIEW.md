@@ -91,4 +91,4 @@ As recomendações de redesign, breadcrumb, refinamento visual, responsividade e
 - Considerar breadcrumb, refinamentos responsivos e testes em navegador real.
 
 ## Conclusão
-A Sprint 14 concluiu a estabilização estrutural da navegação, workspace e lifecycle. Os pontos restantes desta revisão são melhorias visuais e de organização que não bloqueiam a adição de novos operadores.
+A Sprint 14 concluiu a estabilização estrutural da navegação, workspace e lifecycle. Na Sprint 21, Analytics deixou de ser placeholder e passou a oferecer status, sincronização manual, métricas, baseline, sinais, memória e evidências reais com feedback local acessível. Os testes de navegação confirmam que hash e seleção visual mudam juntos; não foi necessária alteração cosmética ou animação. Os pontos restantes desta revisão são melhorias visuais e de organização que não bloqueiam a evolução funcional.

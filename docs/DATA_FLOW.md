@@ -177,7 +177,7 @@ O feedback não expõe payloads, stack traces ou detalhes internos. Uma ação p
 
 ## Testes do Fluxo
 
-`npm test`, executado em `backend/`, cobre APIs reais com Prisma e SQLite em memória, providers/clients injetáveis, migrations e o controller frontend com DOM controlado. As 348 verificações atuais não dependem de OAuth, YouTube, OpenAI real, chave, rede externa ou `dev.db`.
+`npm test`, executado em `backend/`, cobre APIs reais com Prisma e SQLite em memória, providers/clients injetáveis, migrations e controllers frontend com DOM controlado. As 419 verificações atuais não dependem de OAuth, YouTube, OpenAI real, chave, rede externa ou `dev.db`.
 
 Permanece pendente, sem bloquear a Sprint, um smoke test manual com `OPENAI_API_KEY` válida para confirmar uma chamada real HTTP `201`. Chave, prompt e resposta do teste não devem ser registrados na documentação.
 
@@ -261,3 +261,24 @@ O serviço suporta sincronização explícita por vídeo, lista recente ou perí
 O provider solicita somente métricas permitidas; nenhuma IA participa da coleta. Campos ausentes permanecem `null`; impressões e CTR não são calculadas a partir de views. Falhas de OAuth, quota, timeout e API são convertidas em erros de domínio seguros antes da rota.
 
 O timestamp da última sincronização é derivado do snapshot persistido mais recente com `source = youtube-analytics`. O Supervisor lê esse estado sem impedir a inicialização do Dashboard em caso de indisponibilidade temporária.
+
+## Performance Operations UI — Sprint 21
+
+```text
+Analytics workspace
+  -> createApiClient()
+    -> status + last-sync + records + baseline + signals + learnings + context
+    -> POST sync manual
+      -> YouTubePerformanceSyncService
+        -> YouTube Analytics/Data APIs
+        -> PerformanceIngestionService
+          -> snapshots + signals + ChannelMemory
+    -> nova leitura dos dados persistidos
+      -> cards + baseline + sinais + memória + evidências
+```
+
+A montagem carrega as seções em paralelo com `Promise.allSettled`, permitindo que dados válidos continuem visíveis quando uma consulta independente falha. O formulário aceita modos recentes, período e vídeo; impede submissões concorrentes e não inicia polling.
+
+Depois de uma sincronização bem-sucedida, a UI recarrega o backend em vez de inventar resultados locais. Se essa atualização parcial falhar, o sucesso da coleta e a indisponibilidade de painéis são informados separadamente. Respostas tardias de montagem, sincronização ou seleção de evidência são ignoradas por tokens locais de geração.
+
+Métricas ausentes permanecem `null` no backend e aparecem como `—` na interface. Sinais e aprendizados exibem classificação e confiança; evidências de decisão exibem justificativa, componentes, riscos e dados ausentes sem apresentar JSON cru.

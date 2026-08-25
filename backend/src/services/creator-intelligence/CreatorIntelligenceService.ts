@@ -407,6 +407,7 @@ export class CreatorIntelligenceService implements PlannerEditorialIntelligenceP
         .map((decision) => {
           const evaluation = toEvaluationFromDecision(decision);
           return {
+            id: decision.id,
             ideaId: evaluation.ideaId,
             category: evaluation.category,
             score: evaluation.score,

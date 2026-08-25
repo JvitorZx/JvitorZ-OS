@@ -594,6 +594,6 @@ test('Supervisor renders the YouTube Analytics provider state without activating
 
   assert.match(synchronized, /YouTube Analytics[\s\S]*?Sincronizado/);
   assert.match(unauthorized, /YouTube Analytics[\s\S]*?Autorizacao necessaria/);
-  assert.match(synchronized, /IA[\s\S]*?Desativada/);
-  assert.match(synchronized, /Automacoes[\s\S]*?Desativadas/);
+  assert.match(synchronized, /IA[\s\S]*?Nao configurada/);
+  assert.match(synchronized, /Automacoes[\s\S]*?Nao implementadas/);
 });

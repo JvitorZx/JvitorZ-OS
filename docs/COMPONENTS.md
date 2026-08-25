@@ -57,6 +57,15 @@ Este documento descreve os componentes reutilizáveis do frontend do JvitorZ OS 
 - O módulo trata de estado local, chat e entradas do usuário.
 - Seu controller protege contra listeners duplicados e respostas assíncronas obsoletas e participa do lifecycle genérico sem acoplamento em `frontend/app.js` ou no Dashboard.
 
+### Analytics de Performance
+
+- Implementado como módulo operacional dentro do host compartilhado do Dashboard.
+- Usa controller com `mount`/`unmount`, listeners locais e tokens para ignorar respostas obsoletas.
+- Reúne status do provider, sincronização manual, métricas, baseline, sinais, memória e evidências sem `fetch` direto no módulo.
+- O formulário bloqueia somente a sincronização concorrente e usa `aria-busy`; o feedback local usa `aria-live`.
+- Listas e evidências recebidas do backend são construídas com DOM seguro e `textContent`.
+- Valores ausentes usam `—`; cards não fabricam zero para métricas `null`.
+
 ### Outras arquiteturas de workspace
 - Operadores futuros seguem o contrato estabilizado na Sprint 14:
   - `module.fullscreen = true` quando o operador precisar ocupar a área de trabalho;
