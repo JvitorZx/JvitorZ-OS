@@ -47,6 +47,18 @@ export const createApiClient = (baseUrl) => ({
     );
   },
 
+  async previewOrchestration(input) {
+    return requestJson(
+      `${baseUrl}/api/orchestrator/preview`,
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(input),
+      },
+      'Erro ao criar preview do plano',
+    );
+  },
+
   async runOrchestration(input) {
     return requestJson(
       `${baseUrl}/api/orchestrator/run`,
@@ -85,6 +97,63 @@ export const createApiClient = (baseUrl) => ({
       `${baseUrl}/api/orchestrator/executions/${encodeURIComponent(id)}/plan`,
       undefined,
       'Erro ao abrir plano do Gerente',
+    );
+  },
+
+  async getPlanReview(executionId) {
+    const id = requireIdentifier(executionId, 'executionId');
+    return requestJson(
+      `${baseUrl}/api/orchestrator/executions/${encodeURIComponent(id)}/review`,
+      undefined,
+      'Erro ao carregar revisao do plano',
+    );
+  },
+
+  async approveOrchestrationPlan(executionId, { reviewer, reason, expectedVersion }) {
+    const id = requireIdentifier(executionId, 'executionId');
+    return requestJson(
+      `${baseUrl}/api/orchestrator/executions/${encodeURIComponent(id)}/approve`,
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ reviewer, ...(reason ? { reason } : {}), expectedVersion }),
+      },
+      'Erro ao aprovar plano',
+    );
+  },
+
+  async rejectOrchestrationPlan(executionId, { reviewer, reason, expectedVersion }) {
+    const id = requireIdentifier(executionId, 'executionId');
+    return requestJson(
+      `${baseUrl}/api/orchestrator/executions/${encodeURIComponent(id)}/reject`,
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ reviewer, reason, expectedVersion }),
+      },
+      'Erro ao rejeitar plano',
+    );
+  },
+
+  async executeOrchestrationPlan(executionId) {
+    const id = requireIdentifier(executionId, 'executionId');
+    return requestJson(
+      `${baseUrl}/api/orchestrator/executions/${encodeURIComponent(id)}/execute`,
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: '{}',
+      },
+      'Erro ao executar plano aprovado',
+    );
+  },
+
+  async getOrchestrationAuditTrail(executionId) {
+    const id = requireIdentifier(executionId, 'executionId');
+    return requestJson(
+      `${baseUrl}/api/orchestrator/executions/${encodeURIComponent(id)}/audit`,
+      undefined,
+      'Erro ao carregar auditoria do plano',
     );
   },
 

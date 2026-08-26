@@ -220,4 +220,12 @@ OrchestrationExecution
 ```
 
 - Project 1:N OrchestrationExecution
+
+```text
+OrchestrationExecution
+  1 ─── 0..1 PlanReview
+  1 ─── N OrchestrationAuditEvent
+```
+
+`PlanReview.executionId` é único. Review e auditoria usam `ON DELETE CASCADE` para não deixar estado operacional órfão quando uma execução for removida.
 - A execução referencia capabilities por ID de contrato, sem foreign key para módulos ou classes concretas.

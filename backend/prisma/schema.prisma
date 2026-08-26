@@ -392,8 +392,48 @@ model OrchestrationExecution {
   completedAt       DateTime?
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
+  review             PlanReview?
+  auditEvents        OrchestrationAuditEvent[]
 
   @@index([projectId, createdAt])
   @@index([conversationId, createdAt])
   @@index([status, createdAt])
+}
+
+model PlanReview {
+  id                String   @id @default(cuid())
+  executionId       String   @unique
+  execution         OrchestrationExecution @relation(fields: [executionId], references: [id], onDelete: Cascade)
+  state             String
+  reviewer          String?
+  reviewedAt        DateTime?
+  decision          String?
+  reason            String?
+  riskLevel         String
+  sideEffectLevel   String
+  requiredApprovals Int      @default(0)
+  version           Int      @default(1)
+  planHash          String
+  approvedPlanHash  String?
+  approvedPlan      Json?
+  validUntil        DateTime
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([state, createdAt])
+  @@index([riskLevel, createdAt])
+}
+
+model OrchestrationAuditEvent {
+  id          String   @id @default(cuid())
+  executionId String
+  execution   OrchestrationExecution @relation(fields: [executionId], references: [id], onDelete: Cascade)
+  eventType   String
+  actor       String?
+  reason      String?
+  details     Json?
+  createdAt   DateTime @default(now())
+
+  @@index([executionId, createdAt])
+  @@index([eventType, createdAt])
 }

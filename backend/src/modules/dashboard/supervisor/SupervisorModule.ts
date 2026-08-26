@@ -2,12 +2,14 @@ import type { EditorialDecision } from '@prisma/client';
 import { YouTubePerformanceSyncService } from '../../../services/performance-intelligence/YouTubePerformanceSyncService';
 import { EditorialDecisionService } from '../../../services/creator-intelligence/EditorialDecisionService';
 import { OutcomeRefreshService } from '../../../services/creator-intelligence/OutcomeRefreshService';
+import { PlanReviewService } from '../../../services/orchestration/PlanReviewService';
 
 export class SupervisorModule {
   constructor(
     private readonly youtubeSyncService = new YouTubePerformanceSyncService(),
     private readonly editorialDecisionService = new EditorialDecisionService(),
     private readonly outcomeRefreshService = new OutcomeRefreshService(),
+    private readonly planReviewService = new PlanReviewService(),
   ) {}
 
   async getSupervisorOverview() {
@@ -54,6 +56,19 @@ export class SupervisorModule {
         return [`Ideia ${ideaId}: ${rationale}`];
       });
     }).slice(0, 5);
+    let orchestrationReviews = {
+      awaitingReview: 0,
+      approved: 0,
+      rejected: 0,
+      expired: 0,
+      executedRecently: 0,
+      blockedRecently: 0,
+    };
+    try {
+      orchestrationReviews = await this.planReviewService.getOperationalSummary();
+    } catch {
+      // Plan review is an operational section and must not break the Dashboard.
+    }
     return {
       alerts: [],
       issues: [],
@@ -72,6 +87,7 @@ export class SupervisorModule {
         actions: recentDecisions.slice(0, 3).map(({ nextAction }) => nextAction),
       },
       outcomeReviews,
+      orchestrationReviews,
     };
   }
 }

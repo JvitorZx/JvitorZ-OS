@@ -7,6 +7,7 @@ export * from './EditorialDecisionVideoLinkRepository';
 export * from './EditorialDecisionOutcomeRepository';
 export * from './EditorialDecisionOutcomeReviewRepository';
 export * from './OrchestrationExecutionRepository';
+export * from './PlanReviewRepository';
 export * from './MessageRepository';
 export * from './LibraryItemRepository';
 export * from './ConversationLibraryItemRepository';

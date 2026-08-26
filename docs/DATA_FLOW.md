@@ -393,6 +393,27 @@ O plano existe antes da execução. Cada step declara dependências e acesso; st
 
 Pergunta editorial no Planner → Orchestrator → Performance/Creator Intelligence → `planner.respond` → Planner persiste uma mensagem `operator`. O Gerente coordena, mas não assume a conversa nem substitui o especialista.
 
+## Plan Review & Approval — Sprint 26
+
+```text
+User intent
+  -> POST /api/orchestrator/preview
+  -> deterministic OrchestrationPlan
+  -> side-effect metadata validation
+  -> risk classification
+  -> OrchestrationExecution(pending) + PlanReview + PLAN_CREATED audit
+  -> policy auto-approval OR manual Approve/Reject
+  -> approved plan snapshot/hash
+  -> POST /executions/:id/execute
+  -> execution guard (state + version + expiry + hash + concurrency)
+  -> capabilities
+  -> persisted result
+  -> PLAN_EXECUTED audit
+  -> Supervisor read-only summary
+```
+
+Preview não chama capability. Uma alteração no plano após aprovação invalida o hash e expira o review. O compare-and-set de versão evita dupla decisão; `pending → running` atômico impede dupla execução. Eventos registram somente tipo, ator, motivo limitado e metadata operacional segura.
+
 O fluxo operacional externo é exclusivamente manual:
 
 ```text

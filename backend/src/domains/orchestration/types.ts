@@ -7,6 +7,9 @@ export type OrchestrationIntent =
   | 'general_operations';
 
 export type CapabilityAccess = 'read' | 'write' | 'external_side_effect';
+export type CapabilitySideEffect = 'READ_ONLY' | 'INTERNAL_WRITE' | 'EXTERNAL_READ' | 'EXTERNAL_WRITE';
+export type OrchestrationRiskLevel = 'LOW' | 'MEDIUM' | 'HIGH';
+export type PlanReviewState = 'draft' | 'review_required' | 'approved' | 'rejected' | 'expired' | 'executed';
 export type OrchestrationExecutionStatus = 'pending' | 'running' | 'completed' | 'partial' | 'failed';
 export type OrchestrationStepStatus = 'pending' | 'completed' | 'skipped' | 'failed';
 
@@ -33,6 +36,9 @@ export interface CapabilityDefinition {
   availability: 'available';
   dependencies: string[];
   access: CapabilityAccess;
+  sideEffect: CapabilitySideEffect;
+  persistentMutation: boolean;
+  maxAffectedItems?: number;
 }
 
 export interface OrchestrationStep {
@@ -41,6 +47,11 @@ export interface OrchestrationStep {
   objective: string;
   dependencies: string[];
   access: CapabilityAccess;
+  sideEffect: CapabilitySideEffect;
+  persistentMutation: boolean;
+  maxAffectedItems?: number;
+  inputs: string[];
+  outputs: string[];
   optional: boolean;
   condition?: {
     stepId: string;
@@ -58,6 +69,29 @@ export interface OrchestrationPlan {
   requiresWrite: boolean;
   hasExternalSideEffect: boolean;
   missingData: string[];
+}
+
+export interface PlanRiskAssessment {
+  riskLevel: OrchestrationRiskLevel;
+  sideEffectLevel: CapabilitySideEffect;
+  requiredApprovals: number;
+  reasons: string[];
+  validityMinutes: number;
+}
+
+export interface PlanPreview {
+  executionId: string;
+  plan: OrchestrationPlan;
+  review: {
+    state: PlanReviewState;
+    riskLevel: OrchestrationRiskLevel;
+    sideEffectLevel: CapabilitySideEffect;
+    requiredApprovals: number;
+    version: number;
+    reasons: string[];
+    validUntil: Date;
+  };
+  created: boolean;
 }
 
 export interface CapabilityOutput {

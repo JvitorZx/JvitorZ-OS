@@ -248,6 +248,19 @@ Memória estruturada e limitada de uma execução do Gerente.
 ```text
 Project 1 -> N OrchestrationExecution
 Conversation ID 0..1 -> N OrchestrationExecution (referência lógica)
+
+### PlanReview
+
+Review único por `OrchestrationExecution`. Persiste estado, revisor, decisão, motivo, risco, efeito dominante, aprovações exigidas, versão otimista, hash do plano, snapshot aprovado e validade. Estados: `draft`, `review_required`, `approved`, `rejected`, `expired`, `executed`.
+
+### OrchestrationAuditEvent
+
+Evento append-only ligado à execução. Registra `PLAN_CREATED`, `PLAN_APPROVED`, `PLAN_REJECTED`, `PLAN_EXPIRED`, `EXECUTION_ATTEMPTED`, `EXECUTION_BLOCKED` e `PLAN_EXECUTED`, sem payload externo bruto ou credencial.
+
+```text
+OrchestrationExecution 1 -> 0..1 PlanReview
+OrchestrationExecution 1 -> N OrchestrationAuditEvent
+```
 ```
 
 A migration `20260826150000_controlled_orchestration_foundation` é aditiva e não altera conversas, decisões, outcomes ou snapshots existentes.

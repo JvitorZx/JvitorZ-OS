@@ -49,7 +49,7 @@ export const createDefaultCapabilityRegistry = (
   registry.register({
     id: 'performance.read', responsibility: 'Ler snapshots, baseline e sinais persistidos.',
     inputs: ['projectId'], outputs: ['facts', 'baseline', 'signals'], availability: 'available',
-    dependencies: [], access: 'read',
+    dependencies: [], access: 'read', sideEffect: 'READ_ONLY', persistentMutation: false,
   }, async ({ request }) => {
     const [records, baseline, signals] = await Promise.all([
       dependencies.intelligence.listPerformanceRecords(request.projectId),
@@ -68,7 +68,7 @@ export const createDefaultCapabilityRegistry = (
   registry.register({
     id: 'analytics.read', responsibility: 'Interpretar o estado agregado de performance já carregado.',
     inputs: ['performance.read'], outputs: ['analytics summary'], availability: 'available',
-    dependencies: ['performance.read'], access: 'read',
+    dependencies: ['performance.read'], access: 'read', sideEffect: 'READ_ONLY', persistentMutation: false,
   }, async ({ results }) => {
     const performance = results.get('performance')?.output;
     const count = Number(performance?.data?.snapshotCount ?? 0);
@@ -84,7 +84,8 @@ export const createDefaultCapabilityRegistry = (
   registry.register({
     id: 'creator-intelligence.decide', responsibility: 'Gerar decisão editorial explicável.',
     inputs: ['intent', 'projectId', 'conversationId'], outputs: ['decision', 'evidence'], availability: 'available',
-    dependencies: ['performance.read'], access: 'write',
+    dependencies: ['performance.read'], access: 'write', sideEffect: 'INTERNAL_WRITE', persistentMutation: true,
+    maxAffectedItems: 1,
   }, async ({ request }) => {
     const { decision } = await dependencies.editorial.generate({
       question: request.intent,
@@ -107,7 +108,7 @@ export const createDefaultCapabilityRegistry = (
   registry.register({
     id: 'decision-outcomes.read', responsibility: 'Consultar outcomes editoriais persistidos.',
     inputs: ['projectId', 'conversationId'], outputs: ['outcomes'], availability: 'available',
-    dependencies: [], access: 'read',
+    dependencies: [], access: 'read', sideEffect: 'READ_ONLY', persistentMutation: false,
   }, async ({ request }) => {
     const outcomes = await dependencies.outcomes.listOutcomes({
       projectId: request.projectId,
@@ -128,7 +129,7 @@ export const createDefaultCapabilityRegistry = (
   registry.register({
     id: 'outcome-refresh.inspect', responsibility: 'Detectar outcomes com evidência nova.',
     inputs: [], outputs: ['review states'], availability: 'available',
-    dependencies: [], access: 'read',
+    dependencies: [], access: 'read', sideEffect: 'READ_ONLY', persistentMutation: false,
   }, async () => {
     const states = await dependencies.refresh.listStates();
     const reviewAvailable = states.filter(({ state }) => state === 'review_available').length;
@@ -145,7 +146,8 @@ export const createDefaultCapabilityRegistry = (
   registry.register({
     id: 'outcome-refresh.run', responsibility: 'Revisar outcomes elegíveis de forma explícita.',
     inputs: ['outcome-refresh.inspect'], outputs: ['review summary'], availability: 'available',
-    dependencies: ['outcome-refresh.inspect'], access: 'write',
+    dependencies: ['outcome-refresh.inspect'], access: 'write', sideEffect: 'INTERNAL_WRITE', persistentMutation: true,
+    maxAffectedItems: 20,
   }, async ({ results }) => {
     const available = Number(results.get('review-state')?.output?.data?.reviewAvailable ?? 0);
     if (available === 0) return { summary: 'Nenhum outcome precisa de revisão.', skipped: true, confidence: 1 };
@@ -162,7 +164,7 @@ export const createDefaultCapabilityRegistry = (
   registry.register({
     id: 'supervisor.read', responsibility: 'Consolidar o estado operacional do sistema.',
     inputs: [], outputs: ['operational status'], availability: 'available',
-    dependencies: [], access: 'read',
+    dependencies: [], access: 'read', sideEffect: 'READ_ONLY', persistentMutation: false,
   }, async () => {
     const overview = await dependencies.supervisor.getSupervisorOverview();
     return {
@@ -181,7 +183,7 @@ export const createDefaultCapabilityRegistry = (
   registry.register({
     id: 'library.read', responsibility: 'Consultar artefatos persistidos da Biblioteca.',
     inputs: [], outputs: ['library item summaries'], availability: 'available',
-    dependencies: [], access: 'read',
+    dependencies: [], access: 'read', sideEffect: 'READ_ONLY', persistentMutation: false,
   }, async () => {
     const items = await dependencies.library.listItems();
     return {
@@ -194,7 +196,8 @@ export const createDefaultCapabilityRegistry = (
   registry.register({
     id: 'youtube.sync', responsibility: 'Sincronizar manualmente métricas reais do YouTube.',
     inputs: ['sync parameters', 'explicit confirmation'], outputs: ['ingestion summary'], availability: 'available',
-    dependencies: [], access: 'external_side_effect',
+    dependencies: [], access: 'external_side_effect', sideEffect: 'EXTERNAL_READ', persistentMutation: true,
+    maxAffectedItems: 20,
   }, async ({ request }) => {
     if (!request.sync) throw new Error('Sync parameters are required');
     const result = await dependencies.youtube.sync({ ...request.sync, projectId: request.projectId });
@@ -209,7 +212,7 @@ export const createDefaultCapabilityRegistry = (
   registry.register({
     id: 'planner.respond', responsibility: 'Transformar contexto consolidado em resposta editorial legível.',
     inputs: ['capability outputs'], outputs: ['consolidated response'], availability: 'available',
-    dependencies: [], access: 'read',
+    dependencies: [], access: 'read', sideEffect: 'READ_ONLY', persistentMutation: false,
   }, async ({ results }) => {
     const synthetic = previousOutputs(results).map((output, index): OrchestrationStepResult => ({
       stepId: `input-${index}`, capabilityId: 'input', status: 'completed', durationMs: 0, output,

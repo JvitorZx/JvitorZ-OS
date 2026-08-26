@@ -23,6 +23,9 @@ export const classifyOrchestrationIntent = (value: string): OrchestrationIntent 
 
 type StepTemplate = [string, string, string[], CapabilityAccess, boolean?];
 
+const effectForAccess = (access: CapabilityAccess) => access === 'read'
+  ? 'READ_ONLY' as const : access === 'write' ? 'INTERNAL_WRITE' as const : 'EXTERNAL_READ' as const;
+
 const TEMPLATES: Record<OrchestrationIntent, { objective: string; steps: StepTemplate[] }> = {
   next_content: {
     objective: 'Recomendar o próximo teste editorial com base em evidências internas.',
@@ -84,7 +87,19 @@ export const createOrchestrationPlan = (request: OrchestrationRequest): Orchestr
   const template = TEMPLATES[intent];
   const steps: OrchestrationStep[] = template.steps.map(([
     id, capabilityId, dependencies, access, optional = false,
-  ]) => ({ id, capabilityId, objective: capabilityId, dependencies, access, optional }));
+  ]) => ({
+    id,
+    capabilityId,
+    objective: capabilityId,
+    dependencies,
+    access,
+    sideEffect: effectForAccess(access),
+    persistentMutation: access !== 'read',
+    ...(access !== 'read' ? { maxAffectedItems: 20 } : {}),
+    inputs: [],
+    outputs: [],
+    optional,
+  }));
   const refreshStep = steps.find(({ capabilityId }) => capabilityId === 'outcome-refresh.run');
   if (refreshStep) {
     refreshStep.condition = {

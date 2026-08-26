@@ -851,3 +851,42 @@ Permitir expressar uma intenção operacional em linguagem natural, montar um pl
 ### Próxima camada recomendada
 
 Auditar uso real do Gerente e definir a Sprint 26 antes de automatizar qualquer fluxo. Candidatas: aprovação em duas etapas para planos com escrita, políticas de orçamento/quota e avaliação de qualidade das decisões orquestradas.
+
+## Sprint 26 — Operational Plan Review & Approval
+
+**Status: CONCLUÍDA**
+
+**Fase principal: FASE 7 - Primeiro Operador**, consolidando controle humano antes de qualquer automação recorrente.
+
+### Objetivo
+
+Transformar intenção e plano em uma operação revisável, classificando risco e efeitos antes de permitir execução e preservando uma trilha auditável.
+
+### Entregas
+
+- domínio `PlanReview` com estados de draft a executed;
+- side effects `READ_ONLY`, `INTERNAL_WRITE`, `EXTERNAL_READ` e `EXTERNAL_WRITE` declarados pelas capabilities;
+- riscos `LOW`, `MEDIUM` e `HIGH` com política padrão determinística;
+- preview/dry-run persistido sem execução de capability;
+- aprovação/rejeição versionada, snapshot e hash do plano aprovado;
+- expiração por janela de validade ligada ao risco;
+- execution guard contra estado inválido, plano alterado e dupla execução;
+- audit trail de criação, decisão, tentativas, bloqueios e execução;
+- endpoints estritos para preview, review, approve, reject, expire, execute e audit;
+- Gerente com plano, steps, dados, ações, risco, efeitos e controles de decisão;
+- Supervisor com consolidação read-only de planos operacionais;
+- migration aditiva validada em SQLite isolado;
+- regressão automatizada com 520 testes aprovados.
+
+### Limites preservados
+
+- sem scheduler, cron, polling, n8n ou side effect externo automático;
+- sem novas capabilities fictícias, vidIQ, pesquisa web ou redesign;
+- Supervisor não aprova nem executa;
+- política ainda é fixa em código, preparada para configuração futura;
+- uma execução concorrente perde o compare-and-set e não repete capabilities;
+- banco local não é usado pelos testes nem alterado pela Sprint.
+
+### Próxima camada recomendada
+
+Antes de automação recorrente, formalizar políticas operacionais configuráveis de quota, orçamento, janela e recuperação de falhas, mantendo aprovação humana para `EXTERNAL_WRITE`.

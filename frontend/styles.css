@@ -1264,3 +1264,26 @@ dd {
 .manager-feedback.error { color: var(--danger, #b42318); }
 .manager-feedback.success { color: var(--success, #067647); }
 .manager-history-item { padding: 10px 0; border-bottom: 1px solid var(--border, #d0d5dd); }
+
+.manager-plan,
+.manager-review-actions {
+  margin-top: 16px;
+}
+
+.manager-plan-content {
+  display: grid;
+  gap: 8px;
+}
+
+.manager-plan-content ol {
+  margin: 4px 0;
+  padding-left: 24px;
+}
+
+.manager-review-actions {
+  display: grid;
+  gap: 8px;
+}
+
+.manager-review-actions[hidden] { display: none; }
+.manager-action-row { display: flex; flex-wrap: wrap; gap: 8px; }

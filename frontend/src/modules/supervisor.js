@@ -22,6 +22,7 @@ export const supervisorModule = {
     const opportunities = Array.isArray(editorial.opportunities) ? editorial.opportunities : [];
     const actions = Array.isArray(editorial.actions) ? editorial.actions : [];
     const outcomeReviews = data.supervisor?.outcomeReviews ?? {};
+    const orchestrationReviews = data.supervisor?.orchestrationReviews ?? {};
     const renderItems = (items, empty) => items.length > 0
       ? `<ul>${items.slice(0, 3).map((item) => `<li>${escapeHtml(item)}</li>`).join('')}</ul>`
       : `<p class="performance-empty">${empty}</p>`;
@@ -50,6 +51,16 @@ export const supervisorModule = {
           </div>
         </div>
         <div class="supervisor-editorial-grid">
+          <section>
+            <h3>Planos operacionais</h3>
+            <ul>
+              <li>Aguardando revisão: ${escapeHtml(orchestrationReviews.awaitingReview ?? 0)}</li>
+              <li>Aprovados: ${escapeHtml(orchestrationReviews.approved ?? 0)}</li>
+              <li>Rejeitados: ${escapeHtml(orchestrationReviews.rejected ?? 0)}</li>
+              <li>Bloqueados (24h): ${escapeHtml(orchestrationReviews.blockedRecently ?? 0)}</li>
+              <li>Executados (24h): ${escapeHtml(orchestrationReviews.executedRecently ?? 0)}</li>
+            </ul>
+          </section>
           <section>
             <h3>Revisão de outcomes</h3>
             <ul>

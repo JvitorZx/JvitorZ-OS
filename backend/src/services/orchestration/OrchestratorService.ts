@@ -3,6 +3,7 @@ import { DatabaseService } from '../../database/DatabaseService';
 import { OrchestrationExecutionRepository } from '../../database/repositories/OrchestrationExecutionRepository';
 import type {
   OrchestrationPlan,
+  PlanPreview,
   OrchestrationRequest,
   OrchestrationResult,
   OrchestrationStepResult,
@@ -11,6 +12,11 @@ import { CapabilityRegistry } from './CapabilityRegistry';
 import { composeOrchestrationResponse, consolidateEvidence } from './EvidenceConsolidator';
 import { createOrchestrationPlan } from './IntentRouter';
 import { createDefaultCapabilityRegistry } from './OrchestrationComposition';
+import {
+  PlanReviewConflictError,
+  PlanReviewRequiredError,
+  PlanReviewService,
+} from './PlanReviewService';
 
 export class OrchestrationValidationError extends Error {
   constructor(message: string) {
@@ -66,6 +72,7 @@ const isUniqueError = (error: unknown): boolean =>
 
 export class OrchestratorService {
   private executionRepository?: OrchestrationExecutionRepository;
+  private readonly planReviewService?: PlanReviewService;
   private readonly active = new Map<string, Promise<{
     execution: OrchestrationExecution;
     result: OrchestrationResult;
@@ -75,8 +82,10 @@ export class OrchestratorService {
   constructor(
     private readonly registry: CapabilityRegistry = createDefaultCapabilityRegistry(),
     executionRepository?: OrchestrationExecutionRepository,
+    planReviewService?: PlanReviewService,
   ) {
     this.executionRepository = executionRepository;
+    this.planReviewService = planReviewService ?? (executionRepository ? undefined : new PlanReviewService());
   }
 
   private get executions(): OrchestrationExecutionRepository {
@@ -97,12 +106,27 @@ export class OrchestratorService {
       steps: plan.steps.map((step) => ({
         ...step,
         objective: this.registry.get(step.capabilityId).definition.responsibility,
+        sideEffect: this.registry.get(step.capabilityId).definition.sideEffect,
+        persistentMutation: this.registry.get(step.capabilityId).definition.persistentMutation,
+        maxAffectedItems: this.registry.get(step.capabilityId).definition.maxAffectedItems,
+        inputs: [...this.registry.get(step.capabilityId).definition.inputs],
+        outputs: [...this.registry.get(step.capabilityId).definition.outputs],
       })),
     };
   }
 
   plan(input: OrchestrationRequest): OrchestrationPlan {
     return this.createPlan(normalizeRequest(input));
+  }
+
+  async preview(input: OrchestrationRequest): Promise<PlanPreview> {
+    if (!this.planReviewService) throw new PlanReviewConflictError('Plan review is not configured');
+    const request = normalizeRequest(input);
+    const plan = this.createPlan(request);
+    if (plan.missingData.length > 0) {
+      throw new OrchestrationValidationError(`missing required data: ${plan.missingData.join(', ')}`);
+    }
+    return this.planReviewService.preview(request, plan);
   }
 
   async run(input: OrchestrationRequest): Promise<{
@@ -130,6 +154,15 @@ export class OrchestratorService {
     const plan = this.createPlan(request);
     if (plan.missingData.length > 0) {
       throw new OrchestrationValidationError(`missing required data: ${plan.missingData.join(', ')}`);
+    }
+    if (this.planReviewService) {
+      const preview = await this.planReviewService.preview(request, plan);
+      const execution = await this.getExecution(preview.executionId);
+      if (execution.result) {
+        return { execution, result: execution.result as unknown as OrchestrationResult, created: false };
+      }
+      if (preview.review.state !== 'approved') throw new PlanReviewRequiredError(preview.executionId);
+      return this.executeApprovedPlan(preview.executionId, preview.created);
     }
     if (plan.hasExternalSideEffect && request.confirmExternalSideEffect !== true) {
       throw new OrchestrationConfirmationRequiredError();
@@ -164,6 +197,17 @@ export class OrchestratorService {
       throw error;
     }
     await this.executions.markRunning(execution.id);
+
+    return this.executeSteps(execution, request, plan, undefined, true);
+  }
+
+  private async executeSteps(
+    execution: OrchestrationExecution,
+    request: OrchestrationRequest,
+    plan: OrchestrationPlan,
+    approvedReview: Awaited<ReturnType<PlanReviewService['getReview']>> | undefined,
+    created: boolean,
+  ): Promise<{ execution: OrchestrationExecution; result: OrchestrationResult; created: boolean }> {
 
     const results = new Map<string, OrchestrationStepResult>();
     for (const step of plan.steps) {
@@ -229,7 +273,66 @@ export class OrchestratorService {
       failures: json(failures.map(({ stepId, capabilityId, errorType }) => ({ stepId, capabilityId, errorType }))),
       errorType: status === 'failed' ? 'OrchestrationFailed' : null,
     });
-    return { execution, result, created: true };
+    if (approvedReview && this.planReviewService) {
+      await this.planReviewService.markExecuted(execution.id, approvedReview);
+    }
+    return { execution, result, created };
+  }
+
+  async executeApprovedPlan(executionId: string, created = false): Promise<{
+    execution: OrchestrationExecution;
+    result: OrchestrationResult;
+    created: boolean;
+  }> {
+    if (!this.planReviewService) throw new PlanReviewConflictError('Plan review is not configured');
+    let execution = await this.getExecution(executionId);
+    if (execution.result) {
+      return { execution, result: execution.result as unknown as OrchestrationResult, created: false };
+    }
+    const request = execution.request as unknown as OrchestrationRequest;
+    const plan = execution.plan as unknown as OrchestrationPlan;
+    const review = await this.planReviewService.assertExecutable(execution, plan);
+    const claimed = await this.executions.tryMarkRunning(execution.id);
+    if (!claimed) {
+      execution = await this.getExecution(execution.id);
+      if (execution.result) {
+        return { execution, result: execution.result as unknown as OrchestrationResult, created: false };
+      }
+      await this.planReviewService.recordExecutionBlocked(execution.id, 'Execution is already running');
+      throw new PlanReviewConflictError('Execution is already running');
+    }
+    execution = await this.getExecution(execution.id);
+    return this.executeSteps(execution, request, plan, review, created);
+  }
+
+  async getPlanReview(id: string) {
+    if (!this.planReviewService) throw new PlanReviewConflictError('Plan review is not configured');
+    await this.getExecution(id);
+    return this.planReviewService.getReview(id);
+  }
+
+  async approvePlan(id: string, reviewer: unknown, reason: unknown, expectedVersion: number) {
+    if (!this.planReviewService) throw new PlanReviewConflictError('Plan review is not configured');
+    await this.getExecution(id);
+    return this.planReviewService.approve({ executionId: id, reviewer, reason, expectedVersion });
+  }
+
+  async rejectPlan(id: string, reviewer: unknown, reason: unknown, expectedVersion: number) {
+    if (!this.planReviewService) throw new PlanReviewConflictError('Plan review is not configured');
+    await this.getExecution(id);
+    return this.planReviewService.reject({ executionId: id, reviewer, reason, expectedVersion });
+  }
+
+  async expirePlan(id: string, reason?: string) {
+    if (!this.planReviewService) throw new PlanReviewConflictError('Plan review is not configured');
+    await this.getExecution(id);
+    return this.planReviewService.expire(id, reason);
+  }
+
+  async getAuditTrail(id: string) {
+    if (!this.planReviewService) throw new PlanReviewConflictError('Plan review is not configured');
+    await this.getExecution(id);
+    return this.planReviewService.getAuditTrail(id);
   }
 
   async getExecution(id: string): Promise<OrchestrationExecution> {

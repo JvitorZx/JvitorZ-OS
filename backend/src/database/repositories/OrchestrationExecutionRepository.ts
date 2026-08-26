@@ -35,6 +35,14 @@ export class OrchestrationExecutionRepository {
     return this.delegate.update({ where: { id }, data: { status: 'running' } });
   }
 
+  async tryMarkRunning(id: string): Promise<boolean> {
+    const result = await this.delegate.updateMany({
+      where: { id, status: 'pending' },
+      data: { status: 'running' },
+    });
+    return result.count === 1;
+  }
+
   async complete(id: string, data: {
     status: 'completed' | 'partial' | 'failed';
     result: Prisma.InputJsonValue;

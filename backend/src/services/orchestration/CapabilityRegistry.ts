@@ -3,6 +3,7 @@ import type {
   CapabilityExecutor,
   RegisteredCapability,
 } from '../../domains/orchestration';
+import { validateCapabilityMetadata } from './PlanRiskClassifier';
 
 export class CapabilityNotFoundError extends Error {
   constructor(id: string) {
@@ -15,6 +16,7 @@ export class CapabilityRegistry {
   private readonly capabilities = new Map<string, RegisteredCapability>();
 
   register(definition: CapabilityDefinition, execute: CapabilityExecutor): this {
+    validateCapabilityMetadata(definition);
     if (this.capabilities.has(definition.id)) {
       throw new Error(`Capability ${definition.id} is already registered`);
     }

@@ -766,7 +766,7 @@ Retorna `200` com intenção classificada, objetivo, passos, dependências, nece
 
 ### `POST /api/orchestrator/run`
 
-Executa e persiste o plano. Aceita os campos do plano, `idempotencyKey` opcional e, somente para sincronização controlada:
+Mantido por compatibilidade para planos que a política pode autoaprovar. Planos que exigem revisão são persistidos e retornam `409` com `executionId`; a confirmação booleana isolada não substitui aprovação.
 
 ```json
 {
@@ -776,7 +776,57 @@ Executa e persiste o plano. Aceita os campos do plano, `idempotencyKey` opcional
 }
 ```
 
-Retorna `201` para nova execução ou `200` quando a chave idempotente já foi concluída. `409` indica ausência de confirmação externa; `400`, payload ou parâmetros inválidos; `500`, erro interno sanitizado. O resultado contém interpretação, resposta, capabilities, steps e evidências separadas.
+Retorna `201` para nova execução autoaprovada ou `200` quando a chave idempotente já foi concluída. `409` indica revisão obrigatória ou conflito; `400`, payload inválido; `500`, erro interno sanitizado.
+
+### `POST /api/orchestrator/preview`
+
+Persiste plano e review sem executar nenhuma capability. Aceita o mesmo request de planejamento, incluindo `sync` quando a intenção exige sincronização. Retorna `201`, ou `200` para uma `idempotencyKey` já conhecida:
+
+```json
+{
+  "executionId": "execution-id",
+  "plan": { "intent": "controlled_sync_review", "steps": [] },
+  "review": {
+    "state": "review_required",
+    "riskLevel": "HIGH",
+    "sideEffectLevel": "EXTERNAL_READ",
+    "requiredApprovals": 1,
+    "version": 1,
+    "validUntil": "2026-08-27T12:15:00.000Z"
+  },
+  "created": true
+}
+```
+
+O preview informa serviços, ordem, inputs, outputs, persistência e limite estimado de itens. Ele nunca executa side effect.
+
+### `GET /api/orchestrator/executions/:id/review`
+
+Consulta o estado persistido `draft`, `review_required`, `approved`, `rejected`, `expired` ou `executed`. Retorna `200`, `404` ou erro seguro.
+
+### `POST /api/orchestrator/executions/:id/approve`
+
+```json
+{ "reviewer": "local-operator", "reason": "Plano conferido", "expectedVersion": 1 }
+```
+
+Aprova somente a versão vigente, registra snapshot e hash do plano e incrementa a versão do review. Retorna `200`; repetição após aprovação é idempotente. Retorna `400` para payload inválido, `404` para execução ausente, `409` para concorrência/estado incompatível e `410` para plano expirado.
+
+### `POST /api/orchestrator/executions/:id/reject`
+
+Recebe `reviewer`, `reason` obrigatório e `expectedVersion`. Registra rejeição sem executar. Retorna `200`, `400`, `404`, `409` ou `410`.
+
+### `POST /api/orchestrator/executions/:id/expire`
+
+Aceita `{ "reason": "opcional" }` e invalida review pendente/aprovado de forma explícita. A expiração automática usa a janela associada ao risco. Retorna `200`, `400`, `404` ou `409`.
+
+### `POST /api/orchestrator/executions/:id/execute`
+
+Body deve ser `{}`. Executa somente plano aprovado, não expirado e cujo hash ainda corresponde ao snapshot aprovado. Retentativa após conclusão retorna o resultado persistido; tentativa concorrente não duplica execução. Retorna `200`, `400`, `404`, `409`, `410` ou `500` sanitizado.
+
+### `GET /api/orchestrator/executions/:id/audit`
+
+Lista, em ordem cronológica, eventos sanitizados de criação, aprovação/rejeição/expiração, tentativa, bloqueio e execução. Não retorna secrets, tokens ou payloads externos brutos.
 
 ### `GET /api/orchestrator/executions/recent`
 

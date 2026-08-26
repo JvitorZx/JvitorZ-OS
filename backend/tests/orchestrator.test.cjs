@@ -43,9 +43,13 @@ class MemoryExecutionRepository {
   }
 }
 
-const definition = (id, access = 'read', dependencies = []) => ({
-  id, responsibility: id, inputs: [], outputs: [], availability: 'available', dependencies, access,
-});
+const definition = (id, access = 'read', dependencies = []) => {
+  const sideEffect = access === 'read' ? 'READ_ONLY' : access === 'write' ? 'INTERNAL_WRITE' : 'EXTERNAL_READ';
+  return {
+    id, responsibility: id, inputs: [], outputs: [], availability: 'available', dependencies, access,
+    sideEffect, persistentMutation: access !== 'read', ...(access !== 'read' ? { maxAffectedItems: 20 } : {}),
+  };
+};
 
 const createRegistry = (calls = [], overrides = {}) => {
   const registry = new CapabilityRegistry();

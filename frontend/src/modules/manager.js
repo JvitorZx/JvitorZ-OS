@@ -10,29 +10,39 @@ const syncPeriod = () => {
 const renderManager = () => {
   const period = syncPeriod();
   return createPanel({
-  eyebrow: 'Gerente',
-  title: 'Orquestração controlada',
-  className: 'manager-panel',
-  body: html`
-    <div class="manager-feedback" data-manager-feedback role="status" aria-live="polite" hidden></div>
-    <form class="manager-form" data-manager-form>
-      <label for="managerIntent">Solicitação</label>
-      <textarea id="managerIntent" data-manager-intent rows="3" maxlength="1000" required></textarea>
-      <div class="manager-sync-controls">
-        <label><input type="checkbox" data-manager-sync-confirm> Autorizar sincronização manual do YouTube</label>
-        <label>Início <input type="date" value="${period.start}" data-manager-sync-start></label>
-        <label>Fim <input type="date" value="${period.end}" data-manager-sync-end></label>
-      </div>
-      <button class="button" type="submit" data-manager-run>Executar plano</button>
-    </form>
-    <section class="manager-result" data-manager-result aria-live="polite">
-      <p class="performance-empty">Envie uma solicitação para coordenar as capacidades disponíveis.</p>
-    </section>
-    <section class="manager-history" aria-labelledby="manager-history-title">
-      <h3 id="manager-history-title">Execuções recentes</h3>
-      <div data-manager-history><p class="performance-empty">Nenhuma execução carregada.</p></div>
-    </section>
-  `,
+    eyebrow: 'Gerente',
+    title: 'Revisão de planos operacionais',
+    className: 'manager-panel',
+    body: html`
+      <div class="manager-feedback" data-manager-feedback role="status" aria-live="polite" hidden></div>
+      <form class="manager-form" data-manager-form>
+        <label for="managerIntent">Solicitação</label>
+        <textarea id="managerIntent" data-manager-intent rows="3" maxlength="1000" required></textarea>
+        <div class="manager-sync-controls">
+          <label><input type="checkbox" data-manager-sync-confirm> Incluir sincronização manual do YouTube no plano</label>
+          <label>Início <input type="date" value="${period.start}" data-manager-sync-start></label>
+          <label>Fim <input type="date" value="${period.end}" data-manager-sync-end></label>
+        </div>
+        <button class="button" type="submit" data-manager-preview>Gerar preview</button>
+      </form>
+      <section class="manager-plan" data-manager-plan aria-live="polite">
+        <p class="performance-empty">Gere um preview para revisar serviços, ordem e efeitos antes da execução.</p>
+      </section>
+      <section class="manager-review-actions" data-manager-review-actions hidden>
+        <label for="managerReviewReason">Motivo da decisão</label>
+        <input id="managerReviewReason" data-manager-review-reason maxlength="500">
+        <div class="manager-action-row">
+          <button class="button" type="button" data-manager-approve>Aprovar</button>
+          <button class="button secondary" type="button" data-manager-reject>Rejeitar</button>
+          <button class="button" type="button" data-manager-execute>Executar plano aprovado</button>
+        </div>
+      </section>
+      <section class="manager-result" data-manager-result aria-live="polite"></section>
+      <section class="manager-history" aria-labelledby="manager-history-title">
+        <h3 id="manager-history-title">Execuções recentes</h3>
+        <div data-manager-history><p class="performance-empty">Nenhuma execução carregada.</p></div>
+      </section>
+    `,
   });
 };
 
@@ -46,7 +56,8 @@ const text = (tag, value, className = '') => {
 export const createManagerController = ({ api }) => {
   let mounted = null;
   let generation = 0;
-  let running = false;
+  let busy = false;
+  let activePreview = null;
   let cleanup = () => {};
 
   const mount = (root) => {
@@ -58,19 +69,68 @@ export const createManagerController = ({ api }) => {
     const current = () => mounted === panel && generation === token;
     const form = panel.querySelector('[data-manager-form]');
     const intent = panel.querySelector('[data-manager-intent]');
-    const button = panel.querySelector('[data-manager-run]');
+    const previewButton = panel.querySelector('[data-manager-preview]');
     const syncConfirm = panel.querySelector('[data-manager-sync-confirm]');
     const syncStart = panel.querySelector('[data-manager-sync-start]');
     const syncEnd = panel.querySelector('[data-manager-sync-end]');
     const feedback = panel.querySelector('[data-manager-feedback]');
+    const planPanel = panel.querySelector('[data-manager-plan]');
+    const actions = panel.querySelector('[data-manager-review-actions]');
+    const reason = panel.querySelector('[data-manager-review-reason]');
+    const approveButton = panel.querySelector('[data-manager-approve]');
+    const rejectButton = panel.querySelector('[data-manager-reject]');
+    const executeButton = panel.querySelector('[data-manager-execute]');
     const result = panel.querySelector('[data-manager-result]');
     const history = panel.querySelector('[data-manager-history]');
-    if (![form, intent, button, syncConfirm, syncStart, syncEnd, feedback, result, history].every(Boolean)) return;
+    if (![form, intent, previewButton, syncConfirm, syncStart, syncEnd, feedback, planPanel,
+      actions, reason, approveButton, rejectButton, executeButton, result, history].every(Boolean)) return;
+
+    const approve = () => decide('approve');
+    const reject = () => decide('reject');
 
     const setFeedback = (message = '', variant = 'info') => {
       feedback.textContent = message;
       feedback.hidden = !message;
       feedback.className = `manager-feedback ${variant}`;
+    };
+
+    const setBusy = (value) => {
+      busy = value;
+      for (const button of [previewButton, approveButton, rejectButton, executeButton]) {
+        button.disabled = value;
+        button.setAttribute('aria-busy', String(value));
+      }
+    };
+
+    const renderActions = () => {
+      const state = activePreview?.review?.state;
+      actions.hidden = !state || ['rejected', 'expired', 'executed'].includes(state);
+      approveButton.hidden = state !== 'review_required';
+      rejectButton.hidden = state !== 'review_required';
+      executeButton.hidden = state !== 'approved';
+    };
+
+    const renderPlan = (preview) => {
+      const article = document.createElement('article');
+      article.className = 'manager-plan-content';
+      article.append(
+        text('strong', preview.plan.objective),
+        text('span', `Risco: ${preview.review.riskLevel}`),
+        text('span', `Efeito: ${preview.review.sideEffectLevel}`),
+        text('span', `Estado: ${preview.review.state}`),
+        text('small', `Aprovações necessárias: ${preview.review.requiredApprovals}`),
+      );
+      const list = document.createElement('ol');
+      for (const step of preview.plan.steps ?? []) {
+        const affected = step.maxAffectedItems ? ` — até ${step.maxAffectedItems} item(ns)` : '';
+        list.append(text('li', `${step.capabilityId} — ${step.objective} — ${step.sideEffect}${affected}`));
+        if (step.inputs?.length) list.append(text('small', `Dados usados: ${step.inputs.join(', ')}`));
+        if (step.outputs?.length) list.append(text('small', `Saídas previstas: ${step.outputs.join(', ')}`));
+      }
+      article.append(list);
+      for (const item of preview.review.reasons ?? []) article.append(text('small', item));
+      planPanel.replaceChildren(article);
+      renderActions();
     };
 
     const renderEvidence = (executionResult) => {
@@ -107,11 +167,8 @@ export const createManagerController = ({ api }) => {
       history.replaceChildren(...executions.map((execution) => {
         const row = document.createElement('article');
         row.className = 'manager-history-item';
-        row.append(
-          text('strong', execution.objective),
-          text('span', execution.status),
-          text('small', new Date(execution.createdAt).toLocaleString('pt-BR')),
-        );
+        row.append(text('strong', execution.objective), text('span', execution.status),
+          text('small', new Date(execution.createdAt).toLocaleString('pt-BR')));
         return row;
       }));
     };
@@ -125,52 +182,99 @@ export const createManagerController = ({ api }) => {
       }
     };
 
+    const requestInput = () => {
+      const request = { intent: intent.value.trim() };
+      if (syncConfirm.checked) {
+        request.sync = { mode: 'recent', startDate: syncStart.value, endDate: syncEnd.value, limit: 20 };
+      }
+      return request;
+    };
+
     const submit = async (event) => {
       event.preventDefault();
-      const value = intent.value.trim();
-      if (!value || running) return;
-      running = true;
-      button.disabled = true;
-      button.setAttribute('aria-busy', 'true');
-      setFeedback('Executando plano controlado...');
+      if (!intent.value.trim() || busy) return;
+      setBusy(true);
+      setFeedback('Gerando preview seguro...');
       try {
-        const request = { intent: value };
-        if (syncConfirm.checked) {
-          request.confirmExternalSideEffect = true;
-          request.sync = {
-            mode: 'recent',
-            startDate: syncStart.value,
-            endDate: syncEnd.value,
-            limit: 20,
-          };
-        }
-        const response = await api.runOrchestration(request);
+        const preview = await api.previewOrchestration(requestInput());
         if (!current()) return;
+        activePreview = preview;
+        result.replaceChildren();
+        renderPlan(preview);
+        setFeedback(preview.review.state === 'review_required'
+          ? 'Revise o plano antes de aprovar ou rejeitar.' : 'Plano de baixo risco pronto para execução.', 'success');
+      } catch {
+        if (current()) setFeedback('Não foi possível gerar o preview do plano.', 'error');
+      } finally {
+        if (current()) setBusy(false);
+      }
+    };
+
+    async function decide(decision) {
+      if (!activePreview || busy) return;
+      if (decision === 'reject' && !reason.value.trim()) {
+        setFeedback('Informe o motivo da rejeição.', 'error');
+        return;
+      }
+      setBusy(true);
+      try {
+        const payload = { reviewer: 'local-operator', reason: reason.value.trim(),
+          expectedVersion: activePreview.review.version };
+        const response = decision === 'approve'
+          ? await api.approveOrchestrationPlan(activePreview.executionId, payload)
+          : await api.rejectOrchestrationPlan(activePreview.executionId, payload);
+        if (!current()) return;
+        activePreview.review = { ...activePreview.review, ...response.review };
+        renderPlan(activePreview);
+        setFeedback(decision === 'approve' ? 'Plano aprovado.' : 'Plano rejeitado.', 'success');
+        await loadHistory();
+      } catch {
+        if (current()) setFeedback('Não foi possível registrar a revisão do plano.', 'error');
+      } finally {
+        if (current()) setBusy(false);
+      }
+    }
+
+    const execute = async () => {
+      if (!activePreview || activePreview.review.state !== 'approved' || busy) return;
+      setBusy(true);
+      setFeedback('Executando plano aprovado...');
+      try {
+        const response = await api.executeOrchestrationPlan(activePreview.executionId);
+        if (!current()) return;
+        activePreview.review.state = 'executed';
+        renderPlan(activePreview);
         renderEvidence(response.result);
         setFeedback(response.result.status === 'partial'
           ? 'Execução concluída parcialmente.' : 'Execução concluída.',
         response.result.status === 'partial' ? 'warning' : 'success');
         await loadHistory();
       } catch {
-        if (current()) setFeedback('Não foi possível executar esta solicitação.', 'error');
+        if (current()) setFeedback('Não foi possível executar o plano aprovado.', 'error');
       } finally {
-        running = false;
-        if (current()) {
-          button.disabled = false;
-          button.setAttribute('aria-busy', 'false');
-        }
+        if (current()) setBusy(false);
       }
     };
 
     form.addEventListener('submit', submit);
+    approveButton.addEventListener('click', approve);
+    rejectButton.addEventListener('click', reject);
+    executeButton.addEventListener('click', execute);
     loadHistory();
-    cleanup = () => form.removeEventListener('submit', submit);
+    cleanup = () => {
+      form.removeEventListener('submit', submit);
+      approveButton.removeEventListener('click', approve);
+      rejectButton.removeEventListener('click', reject);
+      executeButton.removeEventListener('click', execute);
+    };
   };
 
   const unmount = () => {
     cleanup();
     cleanup = () => {};
     mounted = null;
+    activePreview = null;
+    busy = false;
     generation += 1;
   };
 
