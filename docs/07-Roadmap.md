@@ -870,13 +870,14 @@ Transformar intenção e plano em uma operação revisável, classificando risco
 - preview/dry-run persistido sem execução de capability;
 - aprovação/rejeição versionada, snapshot e hash do plano aprovado;
 - expiração por janela de validade ligada ao risco;
-- execution guard contra estado inválido, plano alterado e dupla execução;
-- audit trail de criação, decisão, tentativas, bloqueios e execução;
+- execution guard contra estado inválido, request incompatível, plano/capability alterado e dupla execução;
+- chave idempotente vinculada ao request original, inclusive durante concorrência;
+- audit trail de criação, revisão, decisão, tentativas, bloqueios e execução;
 - endpoints estritos para preview, review, approve, reject, expire, execute e audit;
 - Gerente com plano, steps, dados, ações, risco, efeitos e controles de decisão;
 - Supervisor com consolidação read-only de planos operacionais;
 - migration aditiva validada em SQLite isolado;
-- regressão automatizada com 520 testes aprovados.
+- regressão automatizada com 529 testes aprovados.
 
 ### Limites preservados
 

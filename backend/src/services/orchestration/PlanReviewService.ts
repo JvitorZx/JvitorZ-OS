@@ -34,6 +34,10 @@ export class PlanReviewExpiredError extends Error {
   constructor() { super('Plan approval is expired or no longer matches the plan'); this.name = 'PlanReviewExpiredError'; }
 }
 
+export class PlanReviewRejectedError extends Error {
+  constructor() { super('Plan was rejected and cannot be executed'); this.name = 'PlanReviewRejectedError'; }
+}
+
 const stable = (value: unknown): unknown => {
   if (Array.isArray(value)) return value.map(stable);
   if (value && typeof value === 'object') {
@@ -44,11 +48,18 @@ const stable = (value: unknown): unknown => {
   return value;
 };
 
-export const hashOrchestrationPlan = (plan: OrchestrationPlan): string => createHash('sha256')
-  .update(JSON.stringify(stable(plan)))
+const hashValue = (value: unknown): string => createHash('sha256')
+  .update(JSON.stringify(stable(value)))
   .digest('hex');
 
+export const hashOrchestrationPlan = (plan: OrchestrationPlan): string => hashValue(plan);
+
+export const hashOrchestrationRequest = (request: OrchestrationRequest): string => hashValue(request);
+
 const json = (value: unknown): Prisma.InputJsonValue => JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
+
+const isUniqueError = (error: unknown): boolean =>
+  !!error && typeof error === 'object' && 'code' in error && error.code === 'P2002';
 
 const normalizeText = (value: unknown, field: string, required: boolean, max: number): string | null => {
   if (value === undefined || value === null) {
@@ -84,49 +95,84 @@ export class PlanReviewService {
     return this.reviewRepository;
   }
 
+  private async reusePreview(
+    execution: OrchestrationExecution,
+    request: OrchestrationRequest,
+    plan: OrchestrationPlan,
+  ): Promise<PlanPreview> {
+    const review = await this.reviews.findByExecutionId(execution.id);
+    if (!review) throw new PlanReviewConflictError('Idempotent execution has no plan review');
+    if (hashOrchestrationRequest(execution.request as unknown as OrchestrationRequest)
+      !== hashOrchestrationRequest(request)) {
+      throw new PlanReviewConflictError('Idempotency key is already bound to a different request');
+    }
+
+    const persistedPlan = execution.plan as unknown as OrchestrationPlan;
+    const persistedPlanMatches = hashOrchestrationPlan(persistedPlan) === review.planHash;
+    const currentPlanMatches = hashOrchestrationPlan(plan) === review.planHash;
+    if (!persistedPlanMatches || !currentPlanMatches) {
+      if (['draft', 'review_required', 'approved'].includes(review.state)) {
+        await this.expire(execution.id, 'Plan or capability definition changed after preview');
+        throw new PlanReviewExpiredError();
+      }
+      return this.toPreview(execution, review, persistedPlan, false);
+    }
+
+    return this.toPreview(execution, await this.expireIfNeeded(review), plan, false);
+  }
+
   async preview(request: OrchestrationRequest, plan: OrchestrationPlan): Promise<PlanPreview> {
     if (request.idempotencyKey) {
       const existing = await this.executions.findByIdempotencyKey(request.idempotencyKey);
-      if (existing) {
-        const review = await this.reviews.findByExecutionId(existing.id);
-        if (!review) throw new PlanReviewConflictError('Idempotent execution has no plan review');
-        return this.toPreview(existing, await this.expireIfNeeded(review), plan, false);
-      }
+      if (existing) return this.reusePreview(existing, request, plan);
     }
     const assessment = classifyPlanRisk(plan);
     const planHash = hashOrchestrationPlan(plan);
     const autoApproved = assessment.requiredApprovals === 0;
     const current = this.now();
     const validUntil = new Date(current.getTime() + assessment.validityMinutes * 60_000);
-    const created = await this.reviews.createPreview({
-      projectId: request.projectId ?? null,
-      conversationId: request.conversationId ?? null,
-      idempotencyKey: request.idempotencyKey ?? null,
-      intent: plan.intent,
-      objective: plan.objective,
-      capabilities: json(plan.capabilities),
-      request: json(request),
-      plan: json(plan),
-      failures: [],
-    }, {
-      state: autoApproved ? 'approved' : 'review_required',
-      reviewer: autoApproved ? 'policy:auto' : null,
-      reviewedAt: autoApproved ? current : null,
-      decision: autoApproved ? 'auto_approved' : null,
-      reason: autoApproved ? 'Default policy permits this bounded plan' : null,
-      riskLevel: assessment.riskLevel,
-      sideEffectLevel: assessment.sideEffectLevel,
-      requiredApprovals: assessment.requiredApprovals,
-      planHash,
-      approvedPlanHash: autoApproved ? planHash : null,
-      ...(autoApproved ? { approvedPlan: json(plan) } : {}),
-      validUntil,
-    }, [
-      { eventType: 'PLAN_CREATED', details: json({ intent: plan.intent, capabilities: plan.capabilities,
-        riskLevel: assessment.riskLevel, sideEffectLevel: assessment.sideEffectLevel }) },
-      ...(autoApproved ? [{ eventType: 'PLAN_APPROVED', actor: 'policy:auto',
-        reason: 'Default policy permits this bounded plan' }] : []),
-    ]);
+    let created;
+    try {
+      created = await this.reviews.createPreview({
+        projectId: request.projectId ?? null,
+        conversationId: request.conversationId ?? null,
+        idempotencyKey: request.idempotencyKey ?? null,
+        intent: plan.intent,
+        objective: plan.objective,
+        capabilities: json(plan.capabilities),
+        request: json(request),
+        plan: json(plan),
+        failures: [],
+      }, {
+        state: autoApproved ? 'approved' : 'review_required',
+        reviewer: autoApproved ? 'policy:auto' : null,
+        reviewedAt: autoApproved ? current : null,
+        decision: autoApproved ? 'auto_approved' : null,
+        reason: autoApproved ? 'Default policy permits this bounded plan' : null,
+        riskLevel: assessment.riskLevel,
+        sideEffectLevel: assessment.sideEffectLevel,
+        requiredApprovals: assessment.requiredApprovals,
+        planHash,
+        approvedPlanHash: autoApproved ? planHash : null,
+        ...(autoApproved ? { approvedPlan: json(plan) } : {}),
+        validUntil,
+      }, [
+        { eventType: 'PLAN_CREATED', details: json({ intent: plan.intent, capabilities: plan.capabilities }) },
+        { eventType: 'PLAN_REVIEWED', details: json({
+          riskLevel: assessment.riskLevel,
+          sideEffectLevel: assessment.sideEffectLevel,
+          requiredApprovals: assessment.requiredApprovals,
+          reasons: assessment.reasons,
+        }) },
+        ...(autoApproved ? [{ eventType: 'PLAN_APPROVED', actor: 'policy:auto',
+          reason: 'Default policy permits this bounded plan' }] : []),
+      ]);
+    } catch (error) {
+      if (!request.idempotencyKey || !isUniqueError(error)) throw error;
+      const existing = await this.executions.findByIdempotencyKey(request.idempotencyKey);
+      if (!existing) throw new PlanReviewConflictError('Concurrent preview could not be recovered');
+      return this.reusePreview(existing, request, plan);
+    }
     return this.toPreview(created.execution, created.review, plan, true, assessment.reasons);
   }
 
@@ -242,7 +288,8 @@ export class PlanReviewService {
     return { review: changed, changed: true };
   }
 
-  async expire(executionId: string, reason = 'Plan validity invalidated'): Promise<PlanReview> {
+  async expire(executionId: string, reason?: unknown): Promise<PlanReview> {
+    const normalizedReason = normalizeText(reason, 'reason', false, 500) ?? 'Plan validity invalidated';
     const review = await this.requireReview(executionId);
     if (review.state === 'expired') return review;
     if (!['review_required', 'approved'].includes(review.state)) {
@@ -250,8 +297,8 @@ export class PlanReviewService {
     }
     const changed = await this.reviews.transition({
       executionId, expectedStates: [review.state], expectedVersion: review.version,
-      data: { state: 'expired', reviewedAt: this.now(), decision: 'expired', reason },
-      audit: { eventType: 'PLAN_EXPIRED', reason },
+      data: { state: 'expired', reviewedAt: this.now(), decision: 'expired', reason: normalizedReason },
+      audit: { eventType: 'PLAN_EXPIRED', reason: normalizedReason },
     });
     if (!changed) throw new PlanReviewConflictError();
     return changed;
@@ -265,15 +312,48 @@ export class PlanReviewService {
       throw error;
     };
     if (review.state === 'expired') return block('Plan approval expired', new PlanReviewExpiredError());
+    if (review.state === 'rejected') {
+      return block('Plan was rejected', new PlanReviewRejectedError());
+    }
     if (review.state !== 'approved') {
       return block(`Plan is ${review.state}`, new PlanReviewRequiredError(execution.id));
     }
     const currentHash = hashOrchestrationPlan(plan);
-    if (!review.approvedPlanHash || currentHash !== review.planHash || currentHash !== review.approvedPlanHash) {
+    const persistedHash = hashOrchestrationPlan(execution.plan as unknown as OrchestrationPlan);
+    if (!review.approvedPlanHash || persistedHash !== review.planHash
+      || currentHash !== review.planHash || currentHash !== review.approvedPlanHash) {
       await this.expire(execution.id, 'Approved plan no longer matches current plan');
       return block('Plan version changed after approval', new PlanReviewExpiredError());
     }
     return review;
+  }
+
+  async invalidateForCapabilityChange(executionId: string): Promise<never> {
+    await this.reviews.addAuditEvent(executionId, { eventType: 'EXECUTION_ATTEMPTED' });
+    const review = await this.getReview(executionId);
+    if (review.state === 'rejected') {
+      await this.reviews.addAuditEvent(executionId, {
+        eventType: 'EXECUTION_BLOCKED', reason: 'Plan was rejected',
+      });
+      throw new PlanReviewRejectedError();
+    }
+    if (review.state === 'expired') {
+      await this.reviews.addAuditEvent(executionId, {
+        eventType: 'EXECUTION_BLOCKED', reason: 'Plan approval expired',
+      });
+      throw new PlanReviewExpiredError();
+    }
+    if (!['draft', 'review_required', 'approved'].includes(review.state)) {
+      await this.reviews.addAuditEvent(executionId, {
+        eventType: 'EXECUTION_BLOCKED', reason: `Plan is ${review.state}`,
+      });
+      throw new PlanReviewConflictError(`Plan is ${review.state}`);
+    }
+    await this.expire(executionId, 'Capability registry changed after preview');
+    await this.reviews.addAuditEvent(executionId, {
+      eventType: 'EXECUTION_BLOCKED', reason: 'Capability registry changed after preview',
+    });
+    throw new PlanReviewExpiredError();
   }
 
   async markExecuted(executionId: string, review: PlanReview): Promise<void> {

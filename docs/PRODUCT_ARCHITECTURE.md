@@ -337,7 +337,7 @@ O Planner continua dono de conversa e mensagem. Na composição real, perguntas 
 
 ## Operational Plan Review & Approval
 
-A execução controlada segue `Intent → Plan → Risk Classification → Review → Approval/Rejection → Execution → Audit`. `PlanReviewService` aplica política determinística, persiste review, snapshot/hash do plano aprovado e trilha append-only. `OrchestratorService` continua responsável pelo plano e pelas capabilities, mas o execution guard impede execução rejeitada, expirada, desatualizada ou concorrente.
+A execução controlada segue `Intent → Plan → Risk Classification → Review → Approval/Rejection → Execution → Audit`. `PlanReviewService` aplica política determinística, persiste review, snapshot/hash do plano aprovado e trilha append-only. `OrchestratorService` continua responsável pelo plano e pelas capabilities, mas o execution guard impede execução rejeitada, expirada, desatualizada ou concorrente. Antes de executar, o plano também é reconstruído com o registro atual; mudança ou remoção de capability expira a aprovação anterior.
 
 Cada capability declara `sideEffect`, `persistentMutation` e limite de itens afetados. O registry rejeita metadata incoerente antes da execução. Os níveis são `READ_ONLY`, `INTERNAL_WRITE`, `EXTERNAL_READ` e `EXTERNAL_WRITE`; riscos são `LOW`, `MEDIUM` e `HIGH`.
 
@@ -351,6 +351,6 @@ Política inicial:
 
 O Gerente cria preview sem executar, apresenta efeitos e coleta decisão. O Supervisor apenas consolida contagens de reviews e execuções; não aprova nem executa. Não existe scheduler, cron, polling ou n8n.
 
-Execuções são sequenciais, reutilizam outputs anteriores e aplicam short-circuit antes de uma etapa desnecessária. Falhas são sanitizadas por capability; quando ainda existe evidência útil, o resultado é `partial`. Uma chave opcional deduplica chamadas sequenciais e concorrentes.
+Execuções são sequenciais, reutilizam outputs anteriores e aplicam short-circuit antes de uma etapa desnecessária. Falhas são sanitizadas por capability; quando ainda existe evidência útil, o resultado é `partial`. Uma chave opcional deduplica chamadas sequenciais e concorrentes e fica vinculada ao request normalizado original; reutilizá-la para outro trabalho é conflito seguro.
 
 `youtube.sync` exige confirmação explícita e parâmetros limitados. A composição manual Sync → Detect → Review → Supervisor não cria scheduler, cron, polling, n8n ou processo em background.

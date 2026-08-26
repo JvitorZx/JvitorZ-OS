@@ -401,18 +401,19 @@ User intent
   -> deterministic OrchestrationPlan
   -> side-effect metadata validation
   -> risk classification
-  -> OrchestrationExecution(pending) + PlanReview + PLAN_CREATED audit
+  -> OrchestrationExecution(pending) + PlanReview
+  -> PLAN_CREATED + PLAN_REVIEWED audit
   -> policy auto-approval OR manual Approve/Reject
   -> approved plan snapshot/hash
   -> POST /executions/:id/execute
-  -> execution guard (state + version + expiry + hash + concurrency)
+  -> execution guard (state + version + expiry + request + current capability plan + concurrency)
   -> capabilities
   -> persisted result
   -> PLAN_EXECUTED audit
   -> Supervisor read-only summary
 ```
 
-Preview não chama capability. Uma alteração no plano após aprovação invalida o hash e expira o review. O compare-and-set de versão evita dupla decisão; `pending → running` atômico impede dupla execução. Eventos registram somente tipo, ator, motivo limitado e metadata operacional segura.
+Preview não chama capability. A `idempotencyKey` pertence ao request normalizado que criou o preview; outra entrada com a mesma chave é rejeitada. Previews concorrentes iguais convergem para uma execução. Alteração no plano persistido, no roteamento ou no metadata/registro das capabilities invalida o hash e expira o review. O compare-and-set de versão evita dupla decisão; `pending → running` atômico impede dupla execução. Eventos registram somente tipo, ator, motivo limitado e metadata operacional segura.
 
 O fluxo operacional externo é exclusivamente manual:
 

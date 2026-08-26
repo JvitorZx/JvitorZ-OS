@@ -8,7 +8,7 @@ import type {
   OrchestrationResult,
   OrchestrationStepResult,
 } from '../../domains/orchestration';
-import { CapabilityRegistry } from './CapabilityRegistry';
+import { CapabilityNotFoundError, CapabilityRegistry } from './CapabilityRegistry';
 import { composeOrchestrationResponse, consolidateEvidence } from './EvidenceConsolidator';
 import { createOrchestrationPlan } from './IntentRouter';
 import { createDefaultCapabilityRegistry } from './OrchestrationComposition';
@@ -16,6 +16,7 @@ import {
   PlanReviewConflictError,
   PlanReviewRequiredError,
   PlanReviewService,
+  hashOrchestrationRequest,
 } from './PlanReviewService';
 
 export class OrchestrationValidationError extends Error {
@@ -73,11 +74,14 @@ const isUniqueError = (error: unknown): boolean =>
 export class OrchestratorService {
   private executionRepository?: OrchestrationExecutionRepository;
   private readonly planReviewService?: PlanReviewService;
-  private readonly active = new Map<string, Promise<{
-    execution: OrchestrationExecution;
-    result: OrchestrationResult;
-    created: boolean;
-  }>>();
+  private readonly active = new Map<string, {
+    requestHash: string;
+    operation: Promise<{
+      execution: OrchestrationExecution;
+      result: OrchestrationResult;
+      created: boolean;
+    }>;
+  }>();
 
   constructor(
     private readonly registry: CapabilityRegistry = createDefaultCapabilityRegistry(),
@@ -138,9 +142,15 @@ export class OrchestratorService {
     const activeKey = request.idempotencyKey;
     if (activeKey) {
       const running = this.active.get(activeKey);
-      if (running) return running;
+      const requestHash = hashOrchestrationRequest(request);
+      if (running) {
+        if (running.requestHash !== requestHash) {
+          throw new PlanReviewConflictError('Idempotency key is already bound to a different request');
+        }
+        return running.operation;
+      }
       const operation = this.runNormalized(request).finally(() => this.active.delete(activeKey));
-      this.active.set(activeKey, operation);
+      this.active.set(activeKey, { requestHash, operation });
       return operation;
     }
     return this.runNormalized(request);
@@ -289,8 +299,23 @@ export class OrchestratorService {
     if (execution.result) {
       return { execution, result: execution.result as unknown as OrchestrationResult, created: false };
     }
-    const request = execution.request as unknown as OrchestrationRequest;
-    const plan = execution.plan as unknown as OrchestrationPlan;
+    const request = normalizeRequest(execution.request as unknown as OrchestrationRequest);
+    let plan: OrchestrationPlan;
+    try {
+      plan = this.createPlan(request);
+    } catch (error) {
+      if (error instanceof CapabilityNotFoundError) {
+        return this.planReviewService.invalidateForCapabilityChange(execution.id);
+      }
+      throw error;
+    }
+    if (plan.missingData.length > 0) {
+      await this.planReviewService.recordExecutionBlocked(
+        execution.id,
+        `Plan no longer has required data: ${plan.missingData.join(', ')}`,
+      );
+      throw new OrchestrationValidationError(`missing required data: ${plan.missingData.join(', ')}`);
+    }
     const review = await this.planReviewService.assertExecutable(execution, plan);
     const claimed = await this.executions.tryMarkRunning(execution.id);
     if (!claimed) {

@@ -22,7 +22,9 @@ export const validateCapabilityMetadata = (definition: CapabilityDefinition): vo
       ? definition.access === 'read' && !definition.persistentMutation
       : definition.sideEffect === 'INTERNAL_WRITE'
         ? definition.access === 'write' && definition.persistentMutation
-        : definition.access === 'external_side_effect'
+        : definition.sideEffect === 'EXTERNAL_READ'
+          ? definition.access === 'external_side_effect'
+          : definition.access === 'external_side_effect' && definition.persistentMutation
   );
   if (!valid || (definition.maxAffectedItems !== undefined
     && (!Number.isInteger(definition.maxAffectedItems) || definition.maxAffectedItems < 1))) {

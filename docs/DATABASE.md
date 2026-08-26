@@ -168,10 +168,10 @@ O modelo continua preparado para uma migração futura para PostgreSQL por meio 
 
 ## PlanReview e OrchestrationAuditEvent
 
-`PlanReview` é uma relação 1:1 com execução. A constraint única impede reviews paralelos para o mesmo plano; `version` suporta decisão otimista; `approvedPlanHash` e `approvedPlan` congelam a versão autorizada. `validUntil` permite expiração justificável pela classe de risco.
+`PlanReview` é uma relação 1:1 com execução. A constraint única impede reviews paralelos para o mesmo plano; `version` suporta decisão otimista; `approvedPlanHash` e `approvedPlan` congelam a versão autorizada. `validUntil` permite expiração justificável pela classe de risco. O guard compara o snapshot com o plano persistido e com o plano reconstruído pelo registro atual antes de executar.
 
 `OrchestrationAuditEvent` é append-only e possui índices por execução/data e tipo/data. Exclusão de uma execução remove review e eventos por cascade. A migration `20260827120000_orchestration_plan_review` é aditiva e não altera registros anteriores.
 
-O repository oferece criação, consulta por ID/chave idempotente, transição para `running`, conclusão e histórico recente. `idempotencyKey` possui constraint única; o serviço também compartilha a Promise ativa no processo para chamadas concorrentes iguais.
+O repository oferece criação, consulta por ID/chave idempotente, transição para `running`, conclusão e histórico recente. `idempotencyKey` possui constraint única; o serviço também compartilha a Promise ativa no processo para chamadas concorrentes iguais. A chave fica vinculada ao hash do request normalizado, impedindo que outro request receba ou execute o plano original.
 
 A migration `20260826150000_controlled_orchestration_foundation` cria tabela e índices de forma aditiva. Os testes validam a migration e o repository em SQLite `:memory:`; `backend/prisma/dev.db` não é usado.

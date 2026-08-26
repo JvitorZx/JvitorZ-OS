@@ -15,6 +15,7 @@ const { CapabilityRegistry } = require('../dist/services/orchestration/Capabilit
 const { OrchestratorService } = require('../dist/services/orchestration/OrchestratorService');
 const { classifyPlanRisk, CapabilityMetadataError } = require('../dist/services/orchestration/PlanRiskClassifier');
 const { PlanReviewConflictError, PlanReviewExpiredError, PlanReviewRequiredError,
+  PlanReviewRejectedError, PlanReviewValidationError,
   PlanReviewService } = require('../dist/services/orchestration/PlanReviewService');
 
 let client;
@@ -34,7 +35,7 @@ const metadata = (id, access = 'read', sideEffect = 'READ_ONLY', persistentMutat
   access, sideEffect, persistentMutation, ...(maxAffectedItems ? { maxAffectedItems } : {}),
 });
 
-const createRegistry = (calls = [], overrides = {}) => {
+const createRegistry = (calls = [], overrides = {}, definitionOverrides = {}, omitted = []) => {
   const registry = new CapabilityRegistry();
   const definitions = {
     'performance.read': metadata('performance.read'),
@@ -48,7 +49,8 @@ const createRegistry = (calls = [], overrides = {}) => {
     'youtube.sync': metadata('youtube.sync', 'external_side_effect', 'EXTERNAL_READ', true, 20),
   };
   for (const [id, definition] of Object.entries(definitions)) {
-    registry.register(definition, async (context) => {
+    if (omitted.includes(id)) continue;
+    registry.register({ ...definition, ...(definitionOverrides[id] ?? {}) }, async (context) => {
       calls.push(id);
       if (overrides[id]) return overrides[id](context);
       if (id === 'outcome-refresh.inspect') return { summary: id, data: { reviewAvailable: 1 }, confidence: 1 };
@@ -99,6 +101,8 @@ describe('risk and side-effect policy', () => {
   test('rejects inconsistent capability metadata before execution', () => {
     const registry = new CapabilityRegistry();
     assert.throws(() => registry.register(metadata('bad', 'read', 'EXTERNAL_WRITE', false), async () => ({ summary: 'bad' })), CapabilityMetadataError);
+    assert.throws(() => registry.register(metadata('external-write', 'external_side_effect', 'EXTERNAL_WRITE', false, 1),
+      async () => ({ summary: 'bad' })), CapabilityMetadataError);
   });
 });
 
@@ -136,7 +140,9 @@ describe('PlanReviewService and execution guard', () => {
     assert.equal(run.result.status, 'completed'); assert.equal((await orchestrator.getPlanReview(preview.executionId)).state, 'executed');
     assert.deepEqual(calls, ['youtube.sync', 'outcome-refresh.inspect', 'outcome-refresh.run', 'supervisor.read', 'planner.respond']);
     const events = await orchestrator.getAuditTrail(preview.executionId);
-    assert.deepEqual(events.map(({ eventType }) => eventType), ['PLAN_CREATED', 'PLAN_APPROVED', 'EXECUTION_ATTEMPTED', 'PLAN_EXECUTED']);
+    assert.deepEqual(events.map(({ eventType }) => eventType), [
+      'PLAN_CREATED', 'PLAN_REVIEWED', 'PLAN_APPROVED', 'EXECUTION_ATTEMPTED', 'PLAN_EXECUTED',
+    ]);
     assert.doesNotMatch(JSON.stringify(events), /token|secret|authorization/i);
   });
 
@@ -145,9 +151,11 @@ describe('PlanReviewService and execution guard', () => {
     const preview = await orchestrator.preview({ intent: 'Sincronize o YouTube e revise outcomes',
       sync: { mode: 'recent', startDate: '2026-08-20', endDate: '2026-08-27' } });
     await orchestrator.rejectPlan(preview.executionId, 'Reviewer', 'Janela incorreta', preview.review.version);
-    await assert.rejects(() => orchestrator.executeApprovedPlan(preview.executionId), PlanReviewRequiredError);
+    await assert.rejects(() => orchestrator.executeApprovedPlan(preview.executionId), PlanReviewRejectedError);
     assert.equal((await orchestrator.getPlanReview(preview.executionId)).state, 'rejected');
-    assert.equal((await orchestrator.getAuditTrail(preview.executionId)).at(-1).eventType, 'EXECUTION_BLOCKED');
+    const blocked = (await orchestrator.getAuditTrail(preview.executionId)).at(-1);
+    assert.equal(blocked.eventType, 'EXECUTION_BLOCKED');
+    assert.equal(blocked.reason, 'Plan was rejected');
   });
 
   test('expires plans only after their risk-based validity window', async () => {
@@ -181,6 +189,104 @@ describe('PlanReviewService and execution guard', () => {
     const approved = await orchestrator.approvePlan(first.executionId, 'Reviewer', null, first.review.version);
     const repeated = await orchestrator.approvePlan(first.executionId, 'Reviewer', null, first.review.version);
     assert.equal(approved.review.id, repeated.review.id); assert.equal(repeated.changed, false);
+  });
+
+  test('binds an idempotency key to the original normalized request', async () => {
+    const { orchestrator } = createService();
+    const first = { intent: 'Sincronize o YouTube e revise outcomes', idempotencyKey: 'bound-request',
+      sync: { mode: 'recent', startDate: '2026-08-20', endDate: '2026-08-27' } };
+    await orchestrator.preview(first);
+    await assert.rejects(() => orchestrator.preview({ ...first,
+      sync: { ...first.sync, startDate: '2026-08-19' } }), (error) => (
+      error instanceof PlanReviewConflictError && /different request/.test(error.message)
+    ));
+    assert.equal(await client.orchestrationExecution.count({ where: { idempotencyKey: 'bound-request' } }), 1);
+  });
+
+  test('recovers concurrent previews with the same request without leaking a unique conflict', async () => {
+    const { orchestrator } = createService();
+    const input = { intent: 'Como está meu canal?', idempotencyKey: 'concurrent-preview' };
+    const [first, second] = await Promise.all([orchestrator.preview(input), orchestrator.preview(input)]);
+    assert.equal(first.executionId, second.executionId);
+    assert.equal([first.created, second.created].filter(Boolean).length, 1);
+    assert.equal(await client.planReview.count(), 1);
+  });
+
+  test('rejects concurrent run requests that reuse one key for different work', async () => {
+    let release;
+    const gate = new Promise((resolve) => { release = resolve; });
+    const registry = createRegistry([], { 'supervisor.read': async () => {
+      await gate; return { summary: 'status', confidence: 1 };
+    } });
+    const { orchestrator } = createService(registry);
+    const first = orchestrator.run({ intent: 'status geral', idempotencyKey: 'active-request' });
+    await assert.rejects(
+      () => orchestrator.run({ intent: 'Como está meu canal?', idempotencyKey: 'active-request' }),
+      (error) => error instanceof PlanReviewConflictError && /different request/.test(error.message),
+    );
+    release();
+    await first;
+  });
+
+  test('expires approval when current capability metadata differs from the approved snapshot', async () => {
+    const calls = [];
+    const { orchestrator } = createService(createRegistry(calls));
+    const preview = await orchestrator.preview({ intent: 'Sincronize o YouTube e revise outcomes',
+      sync: { mode: 'recent', startDate: '2026-08-20', endDate: '2026-08-27' } });
+    await orchestrator.approvePlan(preview.executionId, 'Reviewer', null, preview.review.version);
+
+    const restartedReviews = new PlanReviewService(executionRepository, reviewRepository, () => new Date(now));
+    const restarted = new OrchestratorService(
+      createRegistry(calls, {}, { 'youtube.sync': { maxAffectedItems: 10 } }),
+      executionRepository,
+      restartedReviews,
+    );
+    await assert.rejects(() => restarted.executeApprovedPlan(preview.executionId), PlanReviewExpiredError);
+    assert.equal((await restarted.getPlanReview(preview.executionId)).state, 'expired');
+    assert.deepEqual(calls, []);
+  });
+
+  test('expires approval safely when an approved capability is no longer registered', async () => {
+    const calls = [];
+    const { orchestrator } = createService(createRegistry(calls));
+    const preview = await orchestrator.preview({ intent: 'Sincronize o YouTube e revise outcomes',
+      sync: { mode: 'recent', startDate: '2026-08-20', endDate: '2026-08-27' } });
+    await orchestrator.approvePlan(preview.executionId, 'Reviewer', null, preview.review.version);
+
+    const restartedReviews = new PlanReviewService(executionRepository, reviewRepository, () => new Date(now));
+    const restarted = new OrchestratorService(
+      createRegistry(calls, {}, {}, ['youtube.sync']),
+      executionRepository,
+      restartedReviews,
+    );
+    await assert.rejects(() => restarted.executeApprovedPlan(preview.executionId), PlanReviewExpiredError);
+    assert.equal((await restarted.getPlanReview(preview.executionId)).state, 'expired');
+    const events = await restarted.getAuditTrail(preview.executionId);
+    assert.equal(events.at(-1).eventType, 'EXECUTION_BLOCKED');
+    assert.doesNotMatch(JSON.stringify(events), /Capability youtube\.sync|stack|Prisma/i);
+    assert.deepEqual(calls, []);
+  });
+
+  test('allows exactly one decision when approval and rejection race', async () => {
+    const { orchestrator } = createService();
+    const preview = await orchestrator.preview({ intent: 'Sincronize o YouTube e revise outcomes',
+      sync: { mode: 'recent', startDate: '2026-08-20', endDate: '2026-08-27' } });
+    const decisions = await Promise.allSettled([
+      orchestrator.approvePlan(preview.executionId, 'Approver', null, preview.review.version),
+      orchestrator.rejectPlan(preview.executionId, 'Rejecter', 'Rejected concurrently', preview.review.version),
+    ]);
+    assert.equal(decisions.filter(({ status }) => status === 'fulfilled').length, 1);
+    assert.equal(decisions.filter(({ status, reason }) => status === 'rejected'
+      && reason instanceof PlanReviewConflictError).length, 1);
+    assert.ok(['approved', 'rejected'].includes((await orchestrator.getPlanReview(preview.executionId)).state));
+  });
+
+  test('validates a manual expiration reason before persisting it', async () => {
+    const { orchestrator } = createService();
+    const preview = await orchestrator.preview({ intent: 'Sincronize o YouTube e revise outcomes',
+      sync: { mode: 'recent', startDate: '2026-08-20', endDate: '2026-08-27' } });
+    await assert.rejects(() => orchestrator.expirePlan(preview.executionId, '   '), PlanReviewValidationError);
+    assert.equal((await orchestrator.getPlanReview(preview.executionId)).state, 'review_required');
   });
 
   test('allows only one concurrent execution to invoke capabilities', async () => {
@@ -249,6 +355,36 @@ describe('plan review HTTP integration', () => {
     assert.equal((await request('/preview', { method: 'POST', body: JSON.stringify({ intent: 'status', extra: true }) })).status, 400);
     const missing = await request('/executions/missing/review'); assert.equal(missing.status, 404);
     assert.doesNotMatch(JSON.stringify(missing.body), /Prisma|stack|token|secret/i);
+  });
+
+  test('maps idempotency, rejection and expiration validation to safe HTTP errors', async () => {
+    const input = { intent: 'Sincronize o YouTube e revise outcomes', idempotencyKey: 'http-bound-request',
+      sync: { mode: 'recent', startDate: '2026-08-20', endDate: '2026-08-27' } };
+    const preview = await request('/preview', { method: 'POST', body: JSON.stringify(input) });
+    const conflicting = await request('/preview', { method: 'POST', body: JSON.stringify({
+      ...input, sync: { ...input.sync, startDate: '2026-08-19' },
+    }) });
+    assert.equal(conflicting.status, 409);
+
+    await request(`/executions/${preview.body.executionId}/reject`, { method: 'POST', body: JSON.stringify({
+      reviewer: 'Reviewer', reason: 'Not approved', expectedVersion: preview.body.review.version,
+    }) });
+    const rejected = await request(`/executions/${preview.body.executionId}/execute`, {
+      method: 'POST', body: '{}',
+    });
+    assert.equal(rejected.status, 409);
+    assert.equal(rejected.body.error, 'Plan was rejected and cannot be executed');
+
+    const expirable = await request('/preview', { method: 'POST', body: JSON.stringify({
+      intent: 'Sincronize o YouTube e revise outcomes',
+      sync: { mode: 'recent', startDate: '2026-08-20', endDate: '2026-08-27' },
+    }) });
+    const invalidExpiration = await request(`/executions/${expirable.body.executionId}/expire`, {
+      method: 'POST', body: JSON.stringify({ reason: '   ' }),
+    });
+    assert.equal(invalidExpiration.status, 400);
+    assert.doesNotMatch(JSON.stringify([conflicting.body, rejected.body, invalidExpiration.body]),
+      /Prisma|stack|token|secret/i);
   });
 });
 

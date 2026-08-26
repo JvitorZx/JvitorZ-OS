@@ -10,6 +10,7 @@ import {
   PlanReviewConflictError,
   PlanReviewExpiredError,
   PlanReviewNotFoundError,
+  PlanReviewRejectedError,
   PlanReviewRequiredError,
   PlanReviewValidationError,
 } from '../services/orchestration/PlanReviewService';
@@ -52,6 +53,7 @@ const mapError = (error: unknown) => {
   if (error instanceof PlanReviewRequiredError) {
     return { status: 409, error: error.message, executionId: error.executionId };
   }
+  if (error instanceof PlanReviewRejectedError) return { status: 409, error: error.message };
   if (error instanceof PlanReviewConflictError) return { status: 409, error: error.message };
   if (error instanceof OrchestrationConfirmationRequiredError) return { status: 409, error: error.message };
   const name = error instanceof Error ? error.name : 'UnknownError';

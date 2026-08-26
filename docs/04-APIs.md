@@ -780,7 +780,7 @@ Retorna `201` para nova execução autoaprovada ou `200` quando a chave idempote
 
 ### `POST /api/orchestrator/preview`
 
-Persiste plano e review sem executar nenhuma capability. Aceita o mesmo request de planejamento, incluindo `sync` quando a intenção exige sincronização. Retorna `201`, ou `200` para uma `idempotencyKey` já conhecida:
+Persiste plano e review sem executar nenhuma capability. Aceita o mesmo request de planejamento, incluindo `sync` quando a intenção exige sincronização. Retorna `201`, ou `200` para uma `idempotencyKey` já conhecida e vinculada ao mesmo request. Reutilizar a chave com outro request retorna `409`:
 
 ```json
 {
@@ -822,11 +822,11 @@ Aceita `{ "reason": "opcional" }` e invalida review pendente/aprovado de forma e
 
 ### `POST /api/orchestrator/executions/:id/execute`
 
-Body deve ser `{}`. Executa somente plano aprovado, não expirado e cujo hash ainda corresponde ao snapshot aprovado. Retentativa após conclusão retorna o resultado persistido; tentativa concorrente não duplica execução. Retorna `200`, `400`, `404`, `409`, `410` ou `500` sanitizado.
+Body deve ser `{}`. Executa somente plano aprovado, não expirado e cujo hash ainda corresponde ao snapshot aprovado e ao plano reconstruído com as capabilities atuais. Plano rejeitado retorna `409` com motivo seguro; mudança ou remoção de capability expira a aprovação e retorna `410`. Retentativa após conclusão retorna o resultado persistido; tentativa concorrente não duplica execução. Retorna `200`, `400`, `404`, `409`, `410` ou `500` sanitizado.
 
 ### `GET /api/orchestrator/executions/:id/audit`
 
-Lista, em ordem cronológica, eventos sanitizados de criação, aprovação/rejeição/expiração, tentativa, bloqueio e execução. Não retorna secrets, tokens ou payloads externos brutos.
+Lista, em ordem cronológica, eventos sanitizados de criação, classificação/revisão, aprovação/rejeição/expiração, tentativa, bloqueio e execução. Não retorna secrets, tokens ou payloads externos brutos.
 
 ### `GET /api/orchestrator/executions/recent`
 

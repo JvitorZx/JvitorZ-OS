@@ -255,7 +255,7 @@ Review único por `OrchestrationExecution`. Persiste estado, revisor, decisão, 
 
 ### OrchestrationAuditEvent
 
-Evento append-only ligado à execução. Registra `PLAN_CREATED`, `PLAN_APPROVED`, `PLAN_REJECTED`, `PLAN_EXPIRED`, `EXECUTION_ATTEMPTED`, `EXECUTION_BLOCKED` e `PLAN_EXECUTED`, sem payload externo bruto ou credencial.
+Evento append-only ligado à execução. Registra `PLAN_CREATED`, `PLAN_REVIEWED`, `PLAN_APPROVED`, `PLAN_REJECTED`, `PLAN_EXPIRED`, `EXECUTION_ATTEMPTED`, `EXECUTION_BLOCKED` e `PLAN_EXECUTED`, sem payload externo bruto ou credencial.
 
 ```text
 OrchestrationExecution 1 -> 0..1 PlanReview
