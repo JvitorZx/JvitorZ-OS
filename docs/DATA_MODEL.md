@@ -140,7 +140,7 @@ Sinal histórico normalizado entre 0 e 100, com chave estável opcional, métric
 
 ### VideoPerformanceSnapshot
 
-Registro normalizado de desempenho de um vídeo em um projeto, fonte e período. `ingestionKey` é única e identifica `projectId + source + videoId + periodStart + periodEnd`. Campos observáveis incluem views, impressões, CTR, duração, AVD, percentual médio assistido, watch time, inscritos ganhos, inscritos perdidos, likes e comentários.
+Registro normalizado de desempenho de um vídeo em um projeto, fonte e período. `ingestionKey` é única e identifica `projectId + source + videoId + periodStart + periodEnd`. Campos observáveis incluem views, views engajadas, impressões, CTR, duração, AVD, percentual médio assistido, watch time, inscritos ganhos, inscritos perdidos, likes e comentários.
 
 Todos os campos que a fonte não fornece permanecem `null`; o sistema não substitui ausência por zero. `source`, `confidence` e `collectedAt` registram provenance. Atualizações do mesmo vídeo/período preservam a identidade do snapshot.
 
@@ -170,7 +170,7 @@ Decisão editorial operacional persistida. Mantém o snapshot lógico usado para
 - `risks` e `missingData`: limitações explícitas;
 - `dedupeKey`: chave única derivada do escopo e do estado das evidências;
 - `conversationId` e `operatorMessageId`: vínculos opcionais com o fluxo do Planner;
-- `outcomeSnapshotId` e `outcome`: vínculo opcional com performance futura e avaliação derivada.
+- `outcomeSnapshotId` e `outcome`: contrato legado opcional, preservado para compatibilidade.
 
 ```text
 Project 1 -> N EditorialDecision
@@ -180,3 +180,35 @@ VideoPerformanceSnapshot 1 -> N EditorialDecision (resultado)
 ```
 
 As relações usam `ON DELETE SET NULL` para preservar a memória editorial quando uma origem opcional deixa de existir. A migration `20260825220000_editorial_decision_loop` é aditiva e cria tabela, índices, chaves estrangeiras e unicidade sem alterar registros anteriores.
+
+### EditorialDecisionVideoLink
+
+Associação operacional entre uma decisão e um vídeo real já observado.
+
+- `decisionId`: decisão de origem, removida em cascata com o vínculo;
+- `sourceSnapshotId`: snapshot que comprovou a identidade do vídeo;
+- `videoId`: identidade persistida derivada do snapshot, nunca enviada como conteúdo arbitrário;
+- `origin`, `notes` e `linkedAt`: proveniência mínima da associação;
+- `@@unique([decisionId, videoId])`: uma decisão não liga o mesmo vídeo mais de uma vez.
+
+### EditorialDecisionOutcome
+
+Avaliação persistida de um vínculo em um snapshot de performance.
+
+- `decisionVideoLinkId` e `snapshotId`: origem rastreável da avaliação;
+- `learningInsightId`: memória revisável opcional criada a partir do resultado;
+- `baseline`, `facts`, `comparison` e `interpretation`: estruturas explícitas da análise;
+- `supportingMetrics`, `contradictingMetrics` e `missingData`: sustentação e limites;
+- `hypotheses`: próximos testes editoriais, não afirmações causais;
+- `confidence` e `classification`: confiança entre 0 e 1 e estado `POSITIVE`, `MIXED`, `NEGATIVE` ou `INCONCLUSIVE`;
+- `@@unique([decisionVideoLinkId, snapshotId])`: reavaliação do mesmo estado atualiza o outcome existente.
+
+```text
+EditorialDecision 1 -> N EditorialDecisionVideoLink
+VideoPerformanceSnapshot 1 -> N EditorialDecisionVideoLink (snapshot de origem)
+EditorialDecisionVideoLink 1 -> N EditorialDecisionOutcome
+VideoPerformanceSnapshot 1 -> N EditorialDecisionOutcome (snapshot avaliado)
+ChannelInsight 1 -> 0..1 EditorialDecisionOutcome
+```
+
+A migration `20260825233000_decision_outcome_loop` é aditiva: inclui `engagedViews` opcional, cria vínculos e outcomes e preserva snapshots e decisões existentes. O provider YouTube atual não oferece `engagedViews`, portanto grava `null` sem estimativa.

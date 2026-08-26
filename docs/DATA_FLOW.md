@@ -312,8 +312,41 @@ YouTube Analytics/Data API
 
 `EditorialDecision` preserva pergunta, intenção, decisão, alternativas, confiança, evidências, riscos, lacunas e data. O `dedupeKey` incorpora o escopo e a versão observada das evidências, evitando cópia desnecessária da mesma decisão sem impedir nova avaliação quando os dados mudarem.
 
-O endpoint de resultado associa uma decisão a um `VideoPerformanceSnapshot` do mesmo projeto. Os sinais desse snapshot produzem uma avaliação cautelosa e um aprendizado registrado no campo `outcome`. Não há job, polling ou publicação automática nesta Sprint.
+O endpoint legado de resultado permanece disponível para compatibilidade. O fluxo operacional de resultado usa um vínculo persistente entre decisão e vídeo e uma avaliação própria, conforme a Sprint 23.
 
 ### Supervisor
 
 O Dashboard solicita o overview existente. `SupervisorModule` consulta até cinco decisões recentes e devolve prioridades, riscos, oportunidades e ações. Falha local dessa consulta resulta em coleção vazia e não derruba o Dashboard nem ativa recursos não implementados.
+
+## Decision Outcome Loop — Sprint 23
+
+```text
+Decision persistida
+  -> associação manual a snapshot/vídeo persistido
+    -> EditorialDecisionVideoLink
+      -> sincronização explícita pode atualizar VideoPerformanceSnapshot
+        -> avaliação explícita
+          -> baseline sem o vídeo-alvo
+          -> fatos + comparação + interpretação + confiança + lacunas
+          -> EditorialDecisionOutcome
+            -> ChannelInsight revisável
+              -> Creator Intelligence
+                -> Planner / Analytics
+```
+
+### Associação e avaliação
+
+1. O Planner lista apenas snapshots reais já persistidos e envia somente `snapshotId` ao backend.
+2. O backend deriva `videoId`, valida projeto e cria um único vínculo por decisão e vídeo.
+3. A avaliação usa o snapshot solicitado ou o snapshot mais recente do mesmo vídeo.
+4. O próprio vídeo é excluído da baseline histórica para evitar comparação circular.
+5. Métricas disponíveis são comparadas com limiar previsível; `null` continua ausente.
+6. Menos de duas comparações válidas ou baseline insuficiente resulta em `INCONCLUSIVE`.
+7. O outcome é persistido e o aprendizado correspondente é criado ou revisado pela mesma chave.
+8. Perguntas posteriores do Planner recuperam o aprendizado pela memória existente, sem despejar o payload completo do outcome no prompt.
+
+Reavaliações são idempotentes para o mesmo vínculo e snapshot. Vínculos avaliados são preservados para manter rastreabilidade. `evaluateAvailableForVideo(videoId)` permite que uma futura política de sincronização invoque a avaliação, mas esta Sprint não adiciona job, polling nem execução recorrente.
+
+### Frontend
+
+O Planner mostra `Aguardando publicação`, `Aguardando dados`, `Avaliável` ou `Avaliada`, permite associar um snapshot real e iniciar avaliação. Analytics consulta os outcomes persistidos e mostra recomendação original, classificação, confiança, interpretação e evidências favoráveis/contrárias. Todo conteúdo usa DOM textual seguro, feedback local e proteção contra respostas obsoletas.

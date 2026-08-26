@@ -721,3 +721,46 @@ Transformar performance, baseline, sinais, memória e ideias persistidas em deci
 ### Próxima camada recomendada
 
 Vincular uma decisão a um vídeo publicado por um fluxo operacional explícito e acompanhar seu resultado no produto, fechando o feedback loop sem introduzir automação recorrente antes de existir uma política de sincronização.
+
+## Sprint 23 — Decision Outcome Loop
+
+**Status: CONCLUÍDA**
+
+**Fase principal: FASE 7 - Primeiro Operador**, fechando o ciclo observável entre decisão editorial, publicação, performance e aprendizado revisável.
+
+### Objetivo
+
+Permitir associar uma decisão editorial persistida a um vídeo real já sincronizado, comparar seu desempenho com baselines observadas e transformar o resultado em memória do canal sem atribuir causalidade não demonstrada.
+
+### Entregas
+
+- vínculo persistente e idempotente `EditorialDecisionVideoLink` entre decisão, vídeo e snapshot real de origem;
+- avaliação persistente `EditorialDecisionOutcome`, reexecutável para snapshots atualizados;
+- comparação de views, views engajadas quando disponíveis, impressões, CTR, watch time, duração média, retenção, inscritos, likes e comentários;
+- baselines por formato, jogo ou canal, sempre com amostra e dados ausentes explícitos;
+- classificações `POSITIVE`, `MIXED`, `NEGATIVE` e `INCONCLUSIVE`, sem previsão de views ou afirmação causal;
+- fatos, comparação, interpretação, evidências favoráveis/contrárias, confiança, lacunas e hipóteses editoriais testáveis;
+- memória derivada em `ChannelInsight`, atualizada pela mesma chave estável em reavaliações;
+- Planner usando essa memória em perguntas editoriais e oferecendo associação/avaliação manual do vídeo;
+- Analytics exibindo resultados editoriais compactos a partir do backend;
+- endpoints para associar, remover vínculo ainda não avaliado, listar, avaliar e abrir resultados;
+- contrato preparado para avaliar links quando uma sincronização futura trouxer dados novos, sem scheduler ou polling nesta Sprint;
+- migration aditiva e regressão automatizada com 458 verificações aprovadas.
+
+### Honestidade e limites
+
+- comparação temporal e correlação não demonstram que a decisão causou o resultado;
+- o YouTube provider atual não fornece `engagedViews`; o campo permanece `null` e nunca é estimado;
+- uma avaliação direcional exige pelo menos duas métricas comparáveis e baseline com amostra mínima;
+- vínculos avaliados não podem ser removidos pela API, preservando o histórico de aprendizado;
+- sincronização e avaliação continuam ações explícitas; não há execução recorrente automática;
+- não foram adicionados vidIQ, pesquisa web, automações, novos operadores ou redesign.
+
+### Critérios atendidos
+
+- decisão e vídeo pertencem ao mesmo projeto e usam snapshots persistidos reais;
+- vínculo e avaliação são idempotentes, inclusive sob chamadas concorrentes;
+- reavaliação revisa o mesmo aprendizado em vez de criar memória duplicada;
+- dados insuficientes produzem `INCONCLUSIVE` com lacunas explícitas;
+- Planner e Analytics ignoram respostas obsoletas e mantêm feedback local;
+- suíte, build, Prisma, migration, sintaxe frontend e `git diff --check` passam sem rede externa e sem uso do `dev.db`.

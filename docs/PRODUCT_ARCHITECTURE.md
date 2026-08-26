@@ -289,6 +289,28 @@ O serviço classifica a intenção, carrega apenas o contexto necessário e prod
 
 `PlannerService` recebe o serviço editorial por injeção. Quando a última mensagem do usuário é uma pergunta editorial reconhecida, a decisão é gerada antes da resposta, persistida e vinculada à mensagem `operator`. Conversas gerais continuam no `LanguageProvider`, mantendo OpenAI e Creator Intelligence desacoplados.
 
-O hash das entradas e do estado das evidências evita decisões duplicadas para a mesma situação. O modelo `EditorialDecision` pode apontar para conversa, mensagem `operator` e snapshot de resultado. O registro posterior de resultado compara sinais persistidos e grava uma avaliação cautelosa (`supported`, `mixed`, `contradicted` ou `unknown`) sem automatizar publicação ou sincronização.
+O hash das entradas e do estado das evidências evita decisões duplicadas para a mesma situação. O modelo `EditorialDecision` pode apontar para conversa e mensagem `operator`; o contrato legado de resultado permanece compatível, enquanto o ciclo operacional usa entidades próprias de vínculo e avaliação.
 
 O Planner renderiza explicação e confiança com DOM textual seguro e ignora respostas obsoletas após troca de conversa ou unmount. O Supervisor agrega decisões recentes em prioridades, riscos, oportunidades e ações, sem transformar ausência de dados em estado operacional falso.
+
+## Decision Outcome Loop
+
+O ciclo de resultado mantém decisão, publicação e avaliação como responsabilidades separadas:
+
+```text
+EditorialDecision
+  -> EditorialDecisionVideoLink
+    -> VideoPerformanceSnapshot real
+      -> DecisionOutcomeService
+        -> EditorialDecisionOutcome
+        -> ChannelInsight revisável
+          -> Creator Intelligence -> Planner
+```
+
+`EditorialDecisionVideoLink` registra a identidade do vídeo, o snapshot persistido que comprovou sua existência, a origem da associação e a data. A constraint `decisionId + videoId` torna o vínculo idempotente e impede duplicação concorrente.
+
+`DecisionOutcomeService` seleciona um snapshot persistido do vídeo e o compara com uma baseline histórica que exclui o próprio vídeo avaliado. A preferência é formato, depois jogo e por fim canal; cada dimensão exige ao menos duas amostras históricas. A avaliação produz fatos, comparação, interpretação, confiança, métricas favoráveis e contrárias, lacunas e hipóteses editoriais testáveis. `POSITIVE`, `MIXED`, `NEGATIVE` e `INCONCLUSIVE` descrevem a comparação, nunca causalidade.
+
+O resultado é persistido antes de virar aprendizado. Uma chave estável atualiza o mesmo `ChannelInsight` em reavaliações, permitindo revisar ou enfraquecer a memória quando novos dados chegam. O método `evaluateAvailableForVideo(videoId)` é a fronteira preparada para uma integração futura após sincronização; nenhum scheduler, polling ou gatilho automático foi ativado.
+
+No frontend, Planner e Analytics usam o API client central. Tokens de montagem, conversa e requisição impedem que associações, avaliações ou listagens tardias alterem a tela atual. O `statePanel` continua global; falhas dessas operações permanecem locais ao módulo.

@@ -579,6 +579,58 @@ Registra um resultado futuro a partir de um snapshot de performance já persisti
 
 Retorna `200` com a decisão atualizada; `400` para payload inválido; `404` para decisão ou snapshot inexistente; `409` quando o snapshot pertence a outro projeto; ou `500` seguro. O backend deriva a avaliação a partir dos sinais do snapshot e não aceita um resultado arbitrário enviado pelo cliente.
 
+## Decision Outcome Loop
+
+As rotas abaixo aceitam somente identificadores e metadados mínimos. Vídeo, métricas, baseline e conteúdo da decisão são sempre carregados do banco. Nenhuma resposta expõe stack ou detalhes do Prisma.
+
+### `POST /api/operators/creator-intelligence/editorial-decisions/:id/videos`
+
+Associa uma decisão a um vídeo por meio de um snapshot real:
+
+```json
+{ "snapshotId": "performance-snapshot-id", "origin": "manual", "notes": "opcional" }
+```
+
+`snapshotId` é obrigatório; `origin` aceita `manual` ou `youtube_sync`; `notes` é opcional. Retorna `201` ao criar ou `200` com o vínculo existente. Retorna `400` para payload/ID inválido, `404` para decisão ou snapshot ausente, `409` para projeto incompatível e `500` sanitizado.
+
+### `GET /api/operators/creator-intelligence/editorial-decisions/:id/videos`
+
+Lista os vínculos da decisão em ordem determinística, incluindo snapshot de origem, outcomes e status derivado `awaiting_data`, `evaluable` ou `evaluated`. Retorna `200`, `400`, `404` ou `500` seguro.
+
+### `DELETE /api/operators/creator-intelligence/editorial-decisions/:decisionId/videos/:linkId`
+
+Remove um vínculo ainda não avaliado e retorna `204`. É restrito à decisão indicada. Retorna `400` para IDs/body inválidos, `404` para decisão ou vínculo ausente, `409` quando o vínculo já possui outcome e `500` seguro.
+
+### `POST /api/operators/creator-intelligence/editorial-decisions/:decisionId/videos/:linkId/outcomes`
+
+Avalia o snapshot mais recente conhecido do vídeo, ou um snapshot específico do mesmo vídeo:
+
+```json
+{}
+```
+
+ou:
+
+```json
+{ "snapshotId": "performance-snapshot-id" }
+```
+
+Retorna `201` ao criar a avaliação ou `200` ao reavaliar o mesmo vínculo/snapshot. A resposta contém o outcome persistido e `created`. Retorna `400` para payload/ID inválido, `404` para decisão, vínculo ou snapshot ausente, `409` para escopo/vídeo incompatível e `500` sanitizado.
+
+### `GET /api/operators/creator-intelligence/editorial-decisions/:id/outcomes`
+
+Lista outcomes persistidos da decisão, mais recentes primeiro. Retorna `200`, `400`, `404` ou `500` seguro.
+
+### `GET /api/operators/creator-intelligence/decision-outcomes`
+
+Lista outcomes mais recentes. Aceita somente `projectId`, `conversationId`, `decisionId`, `videoId` e `limit` de 1 a 50. Retorna `200`, `400` ou `500` seguro.
+
+### `GET /api/operators/creator-intelligence/decision-outcomes/:id`
+
+Abre um outcome com vínculo, decisão, snapshot e aprendizado associado. Retorna `200`, `400`, `404` ou `500` seguro.
+
+As classificações possíveis são `POSITIVE`, `MIXED`, `NEGATIVE` e `INCONCLUSIVE`. Elas representam comparação contra baseline observada e não demonstram causalidade.
+
 ## YouTube Analytics Performance
 
 Estas rotas reutilizam o OAuth Google do backend e o contrato `PerformanceProvider`. Nenhuma rota recebe token ou credencial. A sincronização é explícita e limitada; não existe polling nesta Sprint.

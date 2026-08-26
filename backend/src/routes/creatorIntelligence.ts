@@ -11,6 +11,14 @@ import {
   EditorialDecisionSnapshotNotFoundError,
   EditorialDecisionValidationError,
 } from '../services/creator-intelligence/EditorialDecisionService';
+import {
+  DecisionOutcomeDecisionNotFoundError,
+  DecisionOutcomeLinkConflictError,
+  DecisionOutcomeLinkNotFoundError,
+  DecisionOutcomeService,
+  DecisionOutcomeSnapshotNotFoundError,
+  DecisionOutcomeValidationError,
+} from '../services/creator-intelligence/DecisionOutcomeService';
 import { PerformanceValidationError } from '../services/performance-intelligence/PerformanceNormalizer';
 import {
   YouTubeAnalyticsNotAuthorizedError,
@@ -24,7 +32,7 @@ import {
 
 const PERFORMANCE_RECORD_FIELDS = [
   'videoId', 'title', 'projectId', 'game', 'series', 'format', 'publishedAt',
-  'periodStart', 'periodEnd', 'views', 'impressions', 'ctr', 'durationSeconds',
+  'periodStart', 'periodEnd', 'views', 'engagedViews', 'impressions', 'ctr', 'durationSeconds',
   'averageViewDurationSeconds', 'averageViewPercentage', 'watchTimeMinutes',
   'subscribersGained', 'subscribersLost', 'likes', 'comments', 'confidence', 'collectedAt',
 ] as const;
@@ -63,6 +71,7 @@ export const createCreatorIntelligenceRouter = (
   service: CreatorIntelligenceService = new CreatorIntelligenceService(),
   youtubeSyncService: YouTubePerformanceSyncService = new YouTubePerformanceSyncService(),
   editorialDecisionService: EditorialDecisionService = new EditorialDecisionService(service),
+  decisionOutcomeService: DecisionOutcomeService = new DecisionOutcomeService(),
 ): Router => {
   const router = Router();
 
@@ -179,6 +188,152 @@ export const createCreatorIntelligenceRouter = (
       const name = error instanceof Error ? error.name : 'UnknownError';
       console.error(`Failed to register editorial outcome (${name})`);
       return res.status(500).json({ error: 'Failed to register editorial outcome' });
+    }
+  });
+
+  const sendDecisionOutcomeError = (error: unknown, operation: string) => {
+    if (
+      error instanceof DecisionOutcomeDecisionNotFoundError
+      || error instanceof DecisionOutcomeSnapshotNotFoundError
+      || error instanceof DecisionOutcomeLinkNotFoundError
+    ) {
+      return { status: 404, body: { error: error.message } };
+    }
+    if (error instanceof DecisionOutcomeLinkConflictError) {
+      return { status: 409, body: { error: error.message } };
+    }
+    if (error instanceof DecisionOutcomeValidationError) {
+      return { status: 400, body: { error: error.message } };
+    }
+    const name = error instanceof Error ? error.name : 'UnknownError';
+    console.error(`${operation} (${name})`);
+    return { status: 500, body: { error: 'Decision outcome operation failed' } };
+  };
+
+  router.post('/editorial-decisions/:id/videos', async (req, res) => {
+    const id = req.params.id?.trim();
+    if (!id) return res.status(400).json({ error: 'decision id is required' });
+    if (
+      !isObjectBody(req.body)
+      || !hasOnlyFields(req.body, ['snapshotId', 'origin', 'notes'])
+      || typeof req.body.snapshotId !== 'string'
+      || !isOptionalString(req.body.origin)
+      || !isOptionalString(req.body.notes)
+    ) {
+      return res.status(400).json({ error: 'invalid decision video link payload' });
+    }
+    try {
+      const result = await decisionOutcomeService.linkVideo(id, {
+        snapshotId: req.body.snapshotId,
+        origin: req.body.origin,
+        notes: req.body.notes,
+      });
+      return res.status(result.created ? 201 : 200).json(result.link);
+    } catch (error) {
+      const mapped = sendDecisionOutcomeError(error, 'Failed to link editorial decision video');
+      return res.status(mapped.status).json(mapped.body);
+    }
+  });
+
+  router.get('/editorial-decisions/:id/videos', async (req, res) => {
+    const id = req.params.id?.trim();
+    if (!id) return res.status(400).json({ error: 'decision id is required' });
+    try {
+      return res.status(200).json(await decisionOutcomeService.listLinks(id));
+    } catch (error) {
+      const mapped = sendDecisionOutcomeError(error, 'Failed to list editorial decision videos');
+      return res.status(mapped.status).json(mapped.body);
+    }
+  });
+
+  router.delete('/editorial-decisions/:decisionId/videos/:linkId', async (req, res) => {
+    const decisionId = req.params.decisionId?.trim();
+    const linkId = req.params.linkId?.trim();
+    if (!decisionId || !linkId) return res.status(400).json({ error: 'decision id and link id are required' });
+    try {
+      await decisionOutcomeService.removeLink(decisionId, linkId);
+      return res.status(204).send();
+    } catch (error) {
+      const mapped = sendDecisionOutcomeError(error, 'Failed to remove editorial decision video');
+      return res.status(mapped.status).json(mapped.body);
+    }
+  });
+
+  router.post('/editorial-decisions/:decisionId/videos/:linkId/outcomes', async (req, res) => {
+    const decisionId = req.params.decisionId?.trim();
+    const linkId = req.params.linkId?.trim();
+    if (!decisionId || !linkId) return res.status(400).json({ error: 'decision id and link id are required' });
+    if (
+      !isObjectBody(req.body)
+      || !hasOnlyFields(req.body, ['snapshotId'])
+      || !isOptionalString(req.body.snapshotId)
+    ) {
+      return res.status(400).json({ error: 'invalid decision outcome payload' });
+    }
+    try {
+      const links = await decisionOutcomeService.listLinks(decisionId);
+      if (!links.some(({ id }) => id === linkId)) {
+        return res.status(404).json({ error: 'Decision video link not found' });
+      }
+      const result = await decisionOutcomeService.evaluate(linkId, req.body.snapshotId);
+      return res.status(result.created ? 201 : 200).json(result.outcome);
+    } catch (error) {
+      const mapped = sendDecisionOutcomeError(error, 'Failed to evaluate editorial decision outcome');
+      return res.status(mapped.status).json(mapped.body);
+    }
+  });
+
+  router.get('/editorial-decisions/:id/outcomes', async (req, res) => {
+    const id = req.params.id?.trim();
+    if (!id) return res.status(400).json({ error: 'decision id is required' });
+    try {
+      await decisionOutcomeService.listLinks(id);
+      return res.status(200).json(await decisionOutcomeService.listOutcomes({ decisionId: id, limit: 50 }));
+    } catch (error) {
+      const mapped = sendDecisionOutcomeError(error, 'Failed to list editorial decision outcomes');
+      return res.status(mapped.status).json(mapped.body);
+    }
+  });
+
+  router.get('/decision-outcomes', async (req, res) => {
+    const allowed = ['projectId', 'conversationId', 'decisionId', 'videoId', 'limit'];
+    if (!Object.keys(req.query).every((field) => allowed.includes(field))) {
+      return res.status(400).json({ error: 'invalid decision outcome filters' });
+    }
+    const values = Object.fromEntries(allowed.flatMap((field) => (
+      req.query[field] === undefined ? [] : [[field, req.query[field]]]
+    ))) as Record<string, unknown>;
+    if (Object.entries(values).some(([field, value]) => field !== 'limit' && typeof value !== 'string')) {
+      return res.status(400).json({ error: 'invalid decision outcome filters' });
+    }
+    const limit = values.limit === undefined ? undefined : Number(values.limit);
+    if (values.limit !== undefined && !Number.isInteger(limit)) {
+      return res.status(400).json({ error: 'invalid decision outcome filters' });
+    }
+    try {
+      return res.status(200).json(await decisionOutcomeService.listOutcomes({
+        ...(typeof values.projectId === 'string' ? { projectId: values.projectId } : {}),
+        ...(typeof values.conversationId === 'string' ? { conversationId: values.conversationId } : {}),
+        ...(typeof values.decisionId === 'string' ? { decisionId: values.decisionId } : {}),
+        ...(typeof values.videoId === 'string' ? { videoId: values.videoId } : {}),
+        ...(limit !== undefined ? { limit } : {}),
+      }));
+    } catch (error) {
+      const mapped = sendDecisionOutcomeError(error, 'Failed to list decision outcomes');
+      return res.status(mapped.status).json(mapped.body);
+    }
+  });
+
+  router.get('/decision-outcomes/:id', async (req, res) => {
+    const id = req.params.id?.trim();
+    if (!id) return res.status(400).json({ error: 'outcome id is required' });
+    try {
+      const outcome = await decisionOutcomeService.getOutcome(id);
+      if (!outcome) return res.status(404).json({ error: 'Decision outcome not found' });
+      return res.status(200).json(outcome);
+    } catch (error) {
+      const mapped = sendDecisionOutcomeError(error, 'Failed to open decision outcome');
+      return res.status(mapped.status).json(mapped.body);
     }
   });
 

@@ -107,6 +107,7 @@ export class YouTubeAnalyticsPerformanceProvider implements PerformanceProvider 
           periodStart: this.options.startDate,
           periodEnd: this.options.endDate,
           views: finiteNumberOrNull(row.views),
+          engagedViews: null,
           impressions: null,
           ctr: null,
           averageViewDurationSeconds: finiteNumberOrNull(row.averageViewDuration),

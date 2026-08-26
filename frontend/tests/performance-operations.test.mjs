@@ -101,6 +101,7 @@ const defaultData = () => ({
       risks: ['Amostra pequena'], missingData: ['formatPerformance'],
     },
   },
+  outcomes: [],
 });
 
 const createApi = (overrides = {}) => {
@@ -115,6 +116,7 @@ const createApi = (overrides = {}) => {
     listPerformanceSignals: async () => { calls.push('signals'); return data.signals; },
     listChannelLearnings: async () => { calls.push('learnings'); return data.learnings; },
     getCreatorIntelligenceContext: async () => { calls.push('context'); return data.context; },
+    listDecisionOutcomes: async () => { calls.push('outcomes'); return data.outcomes; },
     syncYouTubePerformance: async (input) => { calls.push(['sync', structuredClone(input)]); return { created: 1, updated: 0 }; },
     getDecisionEvidence: async (id) => { calls.push(['decision', id]); return data.decision; },
     ...overrides,
@@ -133,11 +135,12 @@ const createDom = () => {
     '[data-performance-video-id]', '[data-performance-sync]', '[data-performance-video-title]',
     '[data-performance-collected-at]', '[data-performance-formats]', '[data-performance-signals]',
     '[data-channel-learnings]', '[data-performance-decisions]', '[data-decision-evidence]',
+    '[data-decision-outcomes]',
     '[data-baseline-sample]',
   ];
   for (const selector of selectors) panel.selectorMap.set(selector, new FakeElement());
   for (const field of [
-    'views', 'watchTimeMinutes', 'averageViewDurationSeconds', 'averageViewPercentage',
+    'views', 'engagedViews', 'watchTimeMinutes', 'averageViewDurationSeconds', 'averageViewPercentage',
     'subscribersGained', 'subscribersLost', 'likes', 'comments',
   ]) panel.selectorMap.set(`[data-performance-metric="${field}"]`, new FakeElement('strong'));
   for (const field of [
@@ -182,9 +185,33 @@ test('mount loads every real data source once and renders provider state', async
   const dom = createDom();
   createAnalyticsController({ api }).mount(dom.root);
   await flush();
-  assert.deepEqual(api.calls, ['status', 'lastSync', 'records', 'baseline', 'signals', 'learnings', 'context']);
+  assert.deepEqual(api.calls, ['status', 'lastSync', 'records', 'baseline', 'signals', 'learnings', 'context', 'outcomes']);
   assert.equal(dom.get('[data-youtube-performance-status]').textContent, 'Sincronizado');
   assert.equal(dom.get('[data-performance-feedback]').hidden, true);
+});
+
+test('renders evaluated editorial outcomes from real API data as literal text', async () => {
+  const unsafeRecommendation = '<img src=x onerror=alert(1)>';
+  const api = createApi({
+    listDecisionOutcomes: async () => [{
+      id: 'outcome-1',
+      classification: 'POSITIVE',
+      confidence: 0.8,
+      interpretation: { summary: 'Resultado acima do baseline.' },
+      supportingMetrics: [{ metric: 'views', label: 'Views' }],
+      contradictingMetrics: [],
+      snapshot: { title: 'Video avaliado' },
+      decisionVideoLink: { decision: { recommendation: unsafeRecommendation } },
+    }],
+  });
+  const dom = createDom();
+  createAnalyticsController({ api }).mount(dom.root);
+  await flush();
+  const row = dom.get('[data-decision-outcomes]').children[0];
+  assert.equal(row.children[0].textContent, 'Video avaliado');
+  assert.equal(row.children[1].textContent, unsafeRecommendation);
+  assert.equal(row.children[1].children.length, 0);
+  assert.match(row.children[2].textContent, /POSITIVE/);
 });
 
 test('renders the latest persisted snapshot and every supported metric', async () => {

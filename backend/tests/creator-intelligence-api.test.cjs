@@ -136,7 +136,7 @@ before(async () => {
     CREATE TABLE "VideoPerformanceSnapshot" (
       "id" TEXT NOT NULL PRIMARY KEY, "projectId" TEXT, "ingestionKey" TEXT NOT NULL UNIQUE,
       "videoId" TEXT NOT NULL, "title" TEXT NOT NULL, "game" TEXT, "series" TEXT, "format" TEXT,
-      "publishedAt" DATETIME, "periodStart" DATETIME, "periodEnd" DATETIME, "views" REAL,
+      "publishedAt" DATETIME, "periodStart" DATETIME, "periodEnd" DATETIME, "views" REAL, "engagedViews" REAL,
       "impressions" REAL, "ctr" REAL, "durationSeconds" REAL, "averageViewDurationSeconds" REAL,
       "averageViewPercentage" REAL, "watchTimeMinutes" REAL, "subscribersGained" INTEGER,
       "subscribersLost" INTEGER,

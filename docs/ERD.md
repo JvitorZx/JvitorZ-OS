@@ -110,7 +110,7 @@ VideoPerformanceSnapshot
 ├── ingestionKey (único)
 ├── videoId, title, game, series, format
 ├── publishedAt, periodStart, periodEnd
-├── views, impressions, ctr, durationSeconds
+├── views, engagedViews, impressions, ctr, durationSeconds
 ├── averageViewDurationSeconds, averageViewPercentage, watchTimeMinutes
 ├── subscribersGained, likes, comments
 ├── source, confidence, collectedAt
@@ -125,6 +125,36 @@ PerformanceSignal
 ├── game, series, format, metric, value
 ├── sampleSize, source, classification, confidence
 └── measuredAt, createdAt
+
+EditorialDecision
+├── id
+├── projectId -> Project.id (ON DELETE SET NULL)
+├── conversationId -> Conversation.id (ON DELETE SET NULL)
+├── operatorMessageId -> Message.id (ON DELETE SET NULL, único)
+├── outcomeSnapshotId -> VideoPerformanceSnapshot.id (contrato legado)
+├── dedupeKey (único)
+├── question, intent, recommendation, alternatives
+├── score, confidence, classification, evidence
+├── risks, missingData, nextAction, outcome
+└── createdAt, updatedAt
+
+EditorialDecisionVideoLink
+├── id
+├── decisionId -> EditorialDecision.id (ON DELETE CASCADE)
+├── sourceSnapshotId -> VideoPerformanceSnapshot.id (ON DELETE RESTRICT)
+├── videoId
+├── origin, notes, linkedAt
+└── unique(decisionId, videoId)
+
+EditorialDecisionOutcome
+├── id
+├── decisionVideoLinkId -> EditorialDecisionVideoLink.id (ON DELETE CASCADE)
+├── snapshotId -> VideoPerformanceSnapshot.id (ON DELETE RESTRICT)
+├── learningInsightId -> ChannelInsight.id (ON DELETE SET NULL, único)
+├── baseline, facts, comparison, interpretation
+├── supportingMetrics, contradictingMetrics, missingData, hypotheses
+├── confidence, classification, evaluatedAt, updatedAt
+└── unique(decisionVideoLinkId, snapshotId)
 
 ## Relacionamentos
 
@@ -141,6 +171,11 @@ PerformanceSignal
 - Project 1:N ChannelInsight
 - VideoIdea 1:N ContentDecision
 - VideoPerformanceSnapshot 1:N PerformanceSignal
+- EditorialDecision 1:N EditorialDecisionVideoLink
+- VideoPerformanceSnapshot 1:N EditorialDecisionVideoLink
+- EditorialDecisionVideoLink 1:N EditorialDecisionOutcome
+- VideoPerformanceSnapshot 1:N EditorialDecisionOutcome
+- ChannelInsight 1:0..1 EditorialDecisionOutcome
 
 ## Observações
 
@@ -149,5 +184,8 @@ PerformanceSignal
 - `ConversationLibraryItem` usa chave composta entre conversa e item, não copia conteúdo e é removido em cascata com qualquer lado da associação.
 - `VideoPerformanceSnapshot.ingestionKey` impede duplicação do mesmo projeto/fonte/vídeo/período; campos ausentes permanecem nulos.
 - `VideoPerformanceSnapshot.subscribersLost` é opcional e recebe dados reais do YouTube Analytics; snapshots anteriores permanecem válidos com `null`.
+- `VideoPerformanceSnapshot.engagedViews` é opcional; permanece `null` quando o provider não a fornece e nunca é estimado.
 - `PerformanceSignal.key` torna sinais derivados idempotentes e sua relação registra a evidência de origem.
+- vínculos usam snapshots reais e são únicos por decisão/vídeo; outcomes são únicos por vínculo/snapshot.
+- classificações de outcome representam comparação observada, não causalidade.
 - A modelagem preserva a arquitetura de futuro com PostgreSQL sem alterar o frontend ou as APIs.

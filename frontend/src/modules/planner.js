@@ -166,6 +166,9 @@ export const createPlannerController = ({ api }) => {
     let activeMemoryGeneration = 0;
     let editorialDecisions = [];
     let editorialDecisionGeneration = 0;
+    let performanceRecords = [];
+    let decisionLinks = new Map();
+    const pendingDecisionActions = new Set();
     const pendingMemoryItems = new Set();
 
     const setFeedback = (message = '') => {
@@ -430,6 +433,73 @@ export const createPlannerController = ({ api }) => {
       action.className = 'planner-decision-action';
       action.textContent = `Próxima ação: ${decision.nextAction ?? 'não definida'}`;
       details.append(action);
+
+      const links = decisionLinks.get(decision.id) ?? [];
+      const status = links.length === 0
+        ? 'Aguardando publicação'
+        : links.some((link) => link.status === 'evaluated')
+          ? 'Avaliada'
+          : links.some((link) => link.status === 'evaluable')
+            ? 'Avaliável'
+            : 'Aguardando dados';
+      const statusElement = document.createElement('small');
+      statusElement.className = 'planner-decision-status';
+      statusElement.textContent = status;
+      details.append(statusElement);
+      if (compact) return details;
+
+      const availableByVideo = new Map();
+      for (const record of performanceRecords) {
+        if (record?.videoId && !availableByVideo.has(record.videoId)) availableByVideo.set(record.videoId, record);
+      }
+      if (
+        typeof api.linkEditorialDecisionVideo === 'function'
+        && availableByVideo.size > 0
+      ) {
+        const controls = document.createElement('div');
+        controls.className = 'planner-decision-controls';
+        const select = document.createElement('select');
+        select.dataset.decisionVideoSelect = decision.id;
+        select.setAttribute('aria-label', 'Vídeo publicado');
+        for (const record of availableByVideo.values()) {
+          const option = document.createElement('option');
+          option.value = record.id;
+          option.textContent = record.title ?? record.videoId;
+          select.append(option);
+        }
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'button planner-decision-button';
+        button.dataset.linkDecisionVideo = decision.id;
+        button.textContent = 'Associar vídeo';
+        button.disabled = pendingDecisionActions.has(`link:${decision.id}`);
+        controls.append(select, button);
+        details.append(controls);
+      } else if (links.length === 0) {
+        const hint = document.createElement('p');
+        hint.className = 'performance-empty';
+        hint.textContent = 'Sincronize um vídeo em Analytics para associá-lo a esta decisão.';
+        details.append(hint);
+      }
+
+      for (const link of links) {
+        const linked = document.createElement('div');
+        linked.className = 'planner-decision-linked-video';
+        const title = document.createElement('span');
+        title.textContent = link.sourceSnapshot?.title ?? link.videoId;
+        linked.append(title);
+        if (link.status === 'evaluable' && typeof api.evaluateEditorialDecisionOutcome === 'function') {
+          const evaluate = document.createElement('button');
+          evaluate.type = 'button';
+          evaluate.className = 'button planner-decision-button';
+          evaluate.dataset.evaluateDecision = decision.id;
+          evaluate.dataset.decisionLinkId = link.id;
+          evaluate.textContent = 'Avaliar resultado';
+          evaluate.disabled = pendingDecisionActions.has(`evaluate:${link.id}`);
+          linked.append(evaluate);
+        }
+        details.append(linked);
+      }
       return details;
     };
 
@@ -455,7 +525,10 @@ export const createPlannerController = ({ api }) => {
       const token = ++editorialDecisionGeneration;
       const viewToken = conversationViewGeneration;
       try {
-        const decisions = await api.listEditorialDecisions({ conversationId, limit: 5 });
+        const [decisions, records] = await Promise.all([
+          api.listEditorialDecisions({ conversationId, limit: 5 }),
+          typeof api.listPerformanceRecords === 'function' ? api.listPerformanceRecords() : Promise.resolve([]),
+        ]);
         if (
           !isCurrentMount()
           || token !== editorialDecisionGeneration
@@ -463,6 +536,20 @@ export const createPlannerController = ({ api }) => {
           || activeConversationId !== conversationId
         ) return;
         editorialDecisions = Array.isArray(decisions) ? decisions : [];
+        performanceRecords = Array.isArray(records) ? records : [];
+        const links = typeof api.listEditorialDecisionVideos === 'function'
+          ? await Promise.all(editorialDecisions.map(async (decision) => [
+            decision.id,
+            await api.listEditorialDecisionVideos(decision.id),
+          ]))
+          : [];
+        if (
+          !isCurrentMount()
+          || token !== editorialDecisionGeneration
+          || viewToken !== conversationViewGeneration
+          || activeConversationId !== conversationId
+        ) return;
+        decisionLinks = new Map(links);
         renderEditorialDecisions();
       } catch (error) {
         if (
@@ -471,11 +558,76 @@ export const createPlannerController = ({ api }) => {
           || activeConversationId !== conversationId
         ) return;
         editorialDecisions = [];
+        performanceRecords = [];
+        decisionLinks = new Map();
         renderEditorialDecisions();
         setFeedback('Não foi possível carregar as decisões editoriais.');
         console.error('Planner editorial decisions loading failed', {
           error_name: getSafeErrorName(error),
         });
+      }
+    };
+
+    const handleEditorialDecisionClick = async (event) => {
+      const linkButton = event.target?.closest?.('[data-link-decision-video]');
+      const evaluateButton = event.target?.closest?.('[data-evaluate-decision]');
+      if (!linkButton && !evaluateButton) return;
+      const conversationId = activeConversationId;
+      const viewToken = conversationViewGeneration;
+      if (!conversationId) return;
+
+      if (linkButton) {
+        const decisionId = linkButton.dataset.linkDecisionVideo;
+        const select = linkButton.closest('details')?.querySelector?.(`[data-decision-video-select="${decisionId}"]`);
+        const snapshotId = select?.value;
+        const key = `link:${decisionId}`;
+        if (!decisionId || !snapshotId || pendingDecisionActions.has(key)) return;
+        pendingDecisionActions.add(key);
+        linkButton.disabled = true;
+        linkButton.setAttribute('aria-busy', 'true');
+        try {
+          await api.linkEditorialDecisionVideo(decisionId, { snapshotId, origin: 'manual' });
+          if (!isCurrentMount() || activeConversationId !== conversationId || viewToken !== conversationViewGeneration) return;
+          await loadEditorialDecisions(conversationId);
+          setFeedback();
+        } catch (error) {
+          if (isCurrentMount() && activeConversationId === conversationId && viewToken === conversationViewGeneration) {
+            setFeedback(error?.status === 409
+              ? 'Este vídeo não pertence ao mesmo projeto da decisão.'
+              : 'Não foi possível associar o vídeo à decisão.');
+          }
+        } finally {
+          pendingDecisionActions.delete(key);
+          if (isCurrentMount()) {
+            linkButton.disabled = false;
+            linkButton.setAttribute('aria-busy', 'false');
+          }
+        }
+        return;
+      }
+
+      const decisionId = evaluateButton.dataset.evaluateDecision;
+      const linkId = evaluateButton.dataset.decisionLinkId;
+      const key = `evaluate:${linkId}`;
+      if (!decisionId || !linkId || pendingDecisionActions.has(key)) return;
+      pendingDecisionActions.add(key);
+      evaluateButton.disabled = true;
+      evaluateButton.setAttribute('aria-busy', 'true');
+      try {
+        await api.evaluateEditorialDecisionOutcome(decisionId, linkId);
+        if (!isCurrentMount() || activeConversationId !== conversationId || viewToken !== conversationViewGeneration) return;
+        await loadEditorialDecisions(conversationId);
+        setFeedback();
+      } catch {
+        if (isCurrentMount() && activeConversationId === conversationId && viewToken === conversationViewGeneration) {
+          setFeedback('Não foi possível avaliar o resultado editorial.');
+        }
+      } finally {
+        pendingDecisionActions.delete(key);
+        if (isCurrentMount()) {
+          evaluateButton.disabled = false;
+          evaluateButton.setAttribute('aria-busy', 'false');
+        }
       }
     };
 
@@ -1010,6 +1162,7 @@ export const createPlannerController = ({ api }) => {
     activeMemoryList.addEventListener('click', handleActiveMemoryClick);
     newConversationBtn.addEventListener('click', createNewConversation);
     historyList.addEventListener('click', handleHistoryClick);
+    editorialDecisionList.addEventListener('click', handleEditorialDecisionClick);
     textarea.addEventListener('keydown', handleTextareaKeydown);
     promptBase.addEventListener('blur', saveContext);
 
@@ -1021,6 +1174,7 @@ export const createPlannerController = ({ api }) => {
       activeMemoryList.removeEventListener('click', handleActiveMemoryClick);
       newConversationBtn.removeEventListener('click', createNewConversation);
       historyList.removeEventListener('click', handleHistoryClick);
+      editorialDecisionList.removeEventListener('click', handleEditorialDecisionClick);
       textarea.removeEventListener('keydown', handleTextareaKeydown);
       promptBase.removeEventListener('blur', saveContext);
     };

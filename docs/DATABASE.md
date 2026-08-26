@@ -114,7 +114,19 @@ O campo opcional `subscribersLost` registra a métrica homônima quando fornecid
 
 `PerformanceSignal` pode apontar para o snapshot de origem e usa `key` única para substituir sinais derivados sem duplicação. A relação usa `ON DELETE CASCADE`: remover um snapshot remove somente seus sinais derivados. Sinais legados sem snapshot continuam válidos.
 
+`engagedViews` é uma métrica opcional adicionada pela migration `20260825233000_decision_outcome_loop`. O provider YouTube atual não a fornece e persiste `null`; o sistema não deriva nem estima esse valor.
+
 A migration `20260824213000_performance_intelligence` cria snapshots, preserva sinais anteriores e adiciona série, confiança, chave e relação de origem. Os testes aplicam a migration em SQLite em memória.
+
+## EditorialDecisionVideoLink e EditorialDecisionOutcome
+
+`EditorialDecisionVideoLink` liga uma decisão a um `videoId` derivado de um `VideoPerformanceSnapshot` real. A unicidade `(decisionId, videoId)` impede duplicação sequencial e concorrente. O snapshot de origem usa `ON DELETE RESTRICT`, preservando a prova do vínculo; remover a decisão remove seus vínculos em cascata.
+
+`EditorialDecisionOutcome` guarda uma avaliação por vínculo e snapshot. Baseline, fatos, comparação, interpretação, métricas favoráveis/contrárias, lacunas e hipóteses são JSON estruturado; confiança e classificação permanecem campos explícitos. A unicidade `(decisionVideoLinkId, snapshotId)` torna a reavaliação idempotente.
+
+O outcome pode apontar para um `ChannelInsight` único. Essa relação permite atualizar o mesmo aprendizado em uma reavaliação. Excluir o aprendizado apenas limpa a referência (`ON DELETE SET NULL`); não remove o histórico do outcome.
+
+A migration `20260825233000_decision_outcome_loop` apenas adiciona coluna, tabelas, índices e relações. Snapshots e decisões anteriores permanecem intactos. O teste de migration executa esse SQL em SQLite em memória e confirma preservação e unicidade.
 
 ## Organização
 
@@ -126,9 +138,12 @@ A migration `20260824213000_performance_intelligence` cria snapshots, preserva s
 - `backend/src/database/repositories/ConversationLibraryItemRepository.ts`: persistência atômica e consulta dos vínculos de memória.
 - `backend/src/database/repositories/VideoPerformanceSnapshotRepository.ts`: snapshots idempotentes e consultas determinísticas.
 - `backend/src/database/repositories/PerformanceSignalRepository.ts`: sinais históricos e substituição dos derivados por snapshot.
+- `backend/src/database/repositories/EditorialDecisionVideoLinkRepository.ts`: vínculos persistentes entre decisão e vídeo.
+- `backend/src/database/repositories/EditorialDecisionOutcomeRepository.ts`: avaliações idempotentes e consultas por escopo.
 - `backend/src/services/PlannerService.ts`: regras e coordenação do domínio do Planejador.
 - `backend/src/services/LibraryService.ts`: validação da origem, idempotência e coordenação da Biblioteca.
 - `backend/src/services/ConversationLibraryService.ts`: validação, limite e ciclo de vínculo dos artefatos ativos.
+- `backend/src/services/creator-intelligence/DecisionOutcomeService.ts`: validação, comparação, classificação e memória revisável dos resultados.
 - `backend/src/routes/operators.ts`: validação HTTP e delegação ao serviço.
 
 ## Testes

@@ -63,6 +63,40 @@
   color: #a7f3d0;
 }
 
+.planner-decision-status {
+  display: block;
+  margin-top: 8px;
+  color: #fbbf24;
+  font-weight: 700;
+}
+
+.planner-decision-controls,
+.planner-decision-linked-video {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 9px;
+}
+
+.planner-decision-controls select {
+  min-width: 0;
+  flex: 1;
+}
+
+.planner-decision-button {
+  flex: 0 0 auto;
+  font-size: 12px;
+  padding: 7px 9px;
+}
+
+.planner-decision-linked-video {
+  justify-content: space-between;
+  border-top: 1px solid #334155;
+  padding-top: 8px;
+  color: #cbd5e1;
+  font-size: 12px;
+}
+
 .supervisor-editorial-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1121,6 +1155,29 @@ dd {
 .performance-decision-detail {
   min-height: 180px;
   padding: 14px;
+}
+
+.performance-outcome-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.performance-outcome-item {
+  display: grid;
+  gap: 5px;
+  border-top: 1px solid var(--line);
+  padding-top: 10px;
+}
+
+.performance-outcome-item span,
+.performance-outcome-item p,
+.performance-outcome-item small {
+  margin: 0;
+}
+
+.performance-outcome-item small {
+  color: var(--muted);
 }
 
 .performance-evidence-content,

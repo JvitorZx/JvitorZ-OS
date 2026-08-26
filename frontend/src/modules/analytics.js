@@ -10,6 +10,7 @@ const STATUS = {
 
 const METRICS = [
   ['views', 'Views', 'number'],
+  ['engagedViews', 'Views engajadas', 'number'],
   ['watchTimeMinutes', 'Watch time', 'minutes'],
   ['averageViewDurationSeconds', 'Duracao media', 'duration'],
   ['averageViewPercentage', 'Percentual medio', 'percent'],
@@ -202,6 +203,7 @@ const renderAnalytics = () => {
             <p class="performance-empty">Selecione uma decisao para ver evidencias, riscos e dados ausentes.</p>
           </div>
         </div>
+        <div class="performance-outcome-list" data-decision-outcomes></div>
       </section>
     `,
   });
@@ -255,6 +257,7 @@ export const createAnalyticsController = ({ api }) => {
       learnings: panel.querySelector('[data-channel-learnings]'),
       decisions: panel.querySelector('[data-performance-decisions]'),
       decisionEvidence: panel.querySelector('[data-decision-evidence]'),
+      outcomes: panel.querySelector('[data-decision-outcomes]'),
       baselineSample: panel.querySelector('[data-baseline-sample]'),
     };
     if (Object.values(elements).some((element) => !element)) return;
@@ -406,6 +409,29 @@ export const createAnalyticsController = ({ api }) => {
       elements.decisionEvidence.replaceChildren(content);
     };
 
+    const renderOutcomes = (outcomes) => {
+      if (!Array.isArray(outcomes) || outcomes.length === 0) {
+        replaceWithEmpty(elements.outcomes, 'Nenhum vídeo ligado a uma decisão foi avaliado ainda.');
+        return;
+      }
+      elements.outcomes.replaceChildren(...outcomes.slice(0, 8).map((outcome) => {
+        const row = document.createElement('article');
+        row.className = 'performance-outcome-item';
+        const decision = outcome.decisionVideoLink?.decision;
+        const snapshot = outcome.snapshot;
+        const supporting = Array.isArray(outcome.supportingMetrics) ? outcome.supportingMetrics : [];
+        const contradicting = Array.isArray(outcome.contradictingMetrics) ? outcome.contradictingMetrics : [];
+        row.append(
+          createTextElement('strong', snapshot?.title ?? outcome.decisionVideoLink?.videoId ?? 'Vídeo avaliado'),
+          createTextElement('span', decision?.recommendation ?? 'Recomendação original indisponível'),
+          createTextElement('small', `${outcome.classification ?? 'INCONCLUSIVE'} · Confiança ${formatPerformanceValue((outcome.confidence ?? 0) * 100, 'percent')}`),
+          createTextElement('p', outcome.interpretation?.summary ?? 'Interpretação indisponível'),
+          createTextElement('small', `Sustentam: ${supporting.map((item) => item.label ?? item.metric).filter(Boolean).slice(0, 3).join(', ') || '--'} · Contradizem: ${contradicting.map((item) => item.label ?? item.metric).filter(Boolean).slice(0, 3).join(', ') || '--'}`),
+        );
+        return row;
+      }));
+    };
+
     const load = async ({ quiet = false } = {}) => {
       if (!quiet) {
         panel.setAttribute('aria-busy', 'true');
@@ -419,9 +445,10 @@ export const createAnalyticsController = ({ api }) => {
         api.listPerformanceSignals(),
         api.listChannelLearnings(),
         api.getCreatorIntelligenceContext(),
+        typeof api.listDecisionOutcomes === 'function' ? api.listDecisionOutcomes({ limit: 8 }) : Promise.resolve([]),
       ]);
       if (!isCurrent()) return false;
-      const [status, lastSync, records, baseline, signals, learnings, context] = requests;
+      const [status, lastSync, records, baseline, signals, learnings, context, outcomes] = requests;
       if (status.status === 'fulfilled') setStatus(status.value?.state);
       if (lastSync.status === 'fulfilled') elements.lastSync.textContent = formatDateTime(lastSync.value?.lastSyncAt);
       if (records.status === 'fulfilled') renderRecords(records.value);
@@ -434,6 +461,8 @@ export const createAnalyticsController = ({ api }) => {
       else replaceWithEmpty(elements.learnings, 'Nao foi possivel carregar os aprendizados.');
       if (context.status === 'fulfilled') renderDecisions(context.value);
       else replaceWithEmpty(elements.decisions, 'Nao foi possivel carregar as decisoes.');
+      if (outcomes.status === 'fulfilled') renderOutcomes(outcomes.value);
+      else replaceWithEmpty(elements.outcomes, 'Nao foi possivel carregar os resultados editoriais.');
       const failed = requests.find((request) => request.status === 'rejected');
       if (failed && !quiet) setFeedback(errorMessage(failed.reason), 'error');
       else if (!quiet) setFeedback('');

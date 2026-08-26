@@ -27,6 +27,7 @@ import {
   CreatorIntelligenceService,
 } from '../services/creator-intelligence/CreatorIntelligenceService';
 import { EditorialDecisionService } from '../services/creator-intelligence/EditorialDecisionService';
+import { DecisionOutcomeService } from '../services/creator-intelligence/DecisionOutcomeService';
 import { createCreatorIntelligenceRouter } from './creatorIntelligence';
 
 const createDefaultPlannerService = (
@@ -59,11 +60,13 @@ export const createOperatorsRouter = (
   conversationLibraryService: ConversationLibraryService = new ConversationLibraryService(),
   creatorIntelligenceService: CreatorIntelligenceService = new CreatorIntelligenceService(),
   editorialDecisionService?: EditorialDecisionService,
+  decisionOutcomeService?: DecisionOutcomeService,
 ): Router => {
   const router = Router();
   const planner = new PlannerModule();
   const resolvedEditorialDecisionService = editorialDecisionService
     ?? new EditorialDecisionService(creatorIntelligenceService);
+  const resolvedDecisionOutcomeService = decisionOutcomeService ?? new DecisionOutcomeService();
   const resolvedPlannerService = plannerService
     ?? createDefaultPlannerService(
       creatorIntelligenceService,
@@ -75,6 +78,7 @@ router.use('/creator-intelligence', createCreatorIntelligenceRouter(
   creatorIntelligenceService,
   undefined,
   resolvedEditorialDecisionService,
+  resolvedDecisionOutcomeService,
 ));
 
 router.get('/planner', async (_req, res) => {

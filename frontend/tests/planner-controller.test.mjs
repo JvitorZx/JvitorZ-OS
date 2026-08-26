@@ -67,17 +67,28 @@ class FakeElement {
   }
 
   append(...elements) {
+    for (const element of elements) element.parentElement = this;
     this.children.push(...elements);
     this.scrollHeight = this.children.length;
   }
 
   replaceChildren(...elements) {
+    for (const element of elements) element.parentElement = this;
     this.children = elements;
     this.scrollHeight = this.children.length;
   }
 
   querySelector(selector) {
-    return this.selectorMap.get(selector) ?? null;
+    const direct = this.selectorMap.get(selector);
+    if (direct) return direct;
+    const datasetMatch = /^\[data-([a-z-]+)="([^"]+)"\]$/.exec(selector);
+    const datasetKey = datasetMatch?.[1].replace(/-([a-z])/g, (_, letter) => letter.toUpperCase());
+    for (const child of this.children) {
+      if (datasetKey && child.dataset[datasetKey] === datasetMatch[2]) return child;
+      const nested = child.querySelector?.(selector);
+      if (nested) return nested;
+    }
+    return null;
   }
 
   querySelectorAll(selector) {
@@ -95,7 +106,10 @@ class FakeElement {
     if (selector === '[data-save-to-library]' && this.dataset.saveToLibrary) return this;
     if (selector === '[data-library-item-id]' && this.dataset.libraryItemId) return this;
     if (selector === '[data-unlink-memory-item]' && this.dataset.unlinkMemoryItem) return this;
-    return null;
+    if (selector === '[data-link-decision-video]' && this.dataset.linkDecisionVideo) return this;
+    if (selector === '[data-evaluate-decision]' && this.dataset.evaluateDecision) return this;
+    if (selector === 'details' && this.tagName === 'DETAILS') return this;
+    return this.parentElement?.closest?.(selector) ?? null;
   }
 
   focus() {}
@@ -161,6 +175,8 @@ const createMemoryApi = (
   initialLibraryItems = [],
   initialActiveMemory = {},
   initialEditorialDecisions = {},
+  initialPerformanceRecords = [],
+  initialDecisionLinks = {},
 ) => {
   const records = new Map(initialConversations.map((item) => [item.id, clone(item)]));
   const libraryRecords = initialLibraryItems.map(clone);
@@ -177,6 +193,10 @@ const createMemoryApi = (
     listConversationLibraryItems: [],
     unlinkLibraryItemFromConversation: [],
     listEditorialDecisions: [],
+    listPerformanceRecords: 0,
+    listEditorialDecisionVideos: [],
+    linkEditorialDecisionVideo: [],
+    evaluateEditorialDecisionOutcome: [],
   };
   let nextConversation = records.size + 1;
   let nextMessage = 1;
@@ -188,6 +208,9 @@ const createMemoryApi = (
   );
   const editorialDecisionRecords = new Map(
     Object.entries(initialEditorialDecisions).map(([conversationId, items]) => [conversationId, items.map(clone)]),
+  );
+  const decisionLinkRecords = new Map(
+    Object.entries(initialDecisionLinks).map(([decisionId, items]) => [decisionId, items.map(clone)]),
   );
 
   const api = {
@@ -254,6 +277,42 @@ const createMemoryApi = (
     async listEditorialDecisions({ conversationId }) {
       calls.listEditorialDecisions.push(conversationId);
       return (editorialDecisionRecords.get(conversationId) ?? []).map(clone);
+    },
+
+    async listPerformanceRecords() {
+      calls.listPerformanceRecords += 1;
+      return initialPerformanceRecords.map(clone);
+    },
+
+    async listEditorialDecisionVideos(decisionId) {
+      calls.listEditorialDecisionVideos.push(decisionId);
+      return (decisionLinkRecords.get(decisionId) ?? []).map(clone);
+    },
+
+    async linkEditorialDecisionVideo(decisionId, input) {
+      calls.linkEditorialDecisionVideo.push([decisionId, clone(input)]);
+      const record = initialPerformanceRecords.find((item) => item.id === input.snapshotId);
+      const existing = (decisionLinkRecords.get(decisionId) ?? [])
+        .find((item) => item.videoId === record?.videoId);
+      if (existing) return clone(existing);
+      const created = {
+        id: `link-${decisionId}-${input.snapshotId}`,
+        decisionId,
+        sourceSnapshotId: input.snapshotId,
+        videoId: record?.videoId ?? input.snapshotId,
+        status: 'evaluable',
+        sourceSnapshot: clone(record ?? { id: input.snapshotId, title: input.snapshotId }),
+      };
+      decisionLinkRecords.set(decisionId, [...(decisionLinkRecords.get(decisionId) ?? []), created]);
+      return clone(created);
+    },
+
+    async evaluateEditorialDecisionOutcome(decisionId, linkId) {
+      calls.evaluateEditorialDecisionOutcome.push([decisionId, linkId]);
+      const recordsForDecision = decisionLinkRecords.get(decisionId) ?? [];
+      const link = recordsForDecision.find((item) => item.id === linkId);
+      if (link) link.status = 'evaluated';
+      return { id: `outcome-${linkId}`, classification: 'POSITIVE' };
     },
 
     async saveMessageToLibrary(...args) {
@@ -1423,4 +1482,95 @@ test('ignores a late editorial decision list after switching conversations', asy
   await flush();
   assert.equal(dom.editorialDecisionList.children.length, 1);
   assert.equal(dom.editorialDecisionList.children[0].textContent, 'Nenhuma decisão editorial nesta conversa.');
+});
+
+test('renders decision publication status and links a persisted performance snapshot once', async () => {
+  const decision = {
+    id: 'decision-1', recommendation: 'Publicar teste controlado.', confidence: 0.8,
+    evidence: [], risks: [], missingData: [], nextAction: 'Publicar.',
+  };
+  const snapshot = { id: 'snapshot-1', videoId: 'video-1', title: 'Video publicado' };
+  const api = createMemoryApi([conversation('A')], [], {}, { A: [decision] }, [snapshot]);
+  const pending = deferred();
+  let calls = 0;
+  api.linkEditorialDecisionVideo = async (decisionId, input) => {
+    calls += 1;
+    api.calls.linkEditorialDecisionVideo.push([decisionId, clone(input)]);
+    return pending.promise;
+  };
+  const { dom } = await mount(api);
+  const details = dom.editorialDecisionList.children[0];
+  const status = details.children.find((child) => child.className === 'planner-decision-status');
+  const controls = details.children.find((child) => child.className === 'planner-decision-controls');
+  controls.children[0].value = 'snapshot-1';
+  const button = controls.children[1];
+  assert.equal(status.textContent, 'Aguardando publicação');
+
+  dom.editorialDecisionList.dispatch('click', { target: button });
+  dom.editorialDecisionList.dispatch('click', { target: button });
+  await flush();
+  assert.equal(calls, 1);
+  assert.deepEqual(api.calls.linkEditorialDecisionVideo[0], [
+    'decision-1',
+    { snapshotId: 'snapshot-1', origin: 'manual' },
+  ]);
+  assert.equal(button.disabled, true);
+  pending.resolve({ id: 'link-1' });
+  await flush();
+  assert.equal(button.disabled, false);
+});
+
+test('evaluates an eligible linked video once and refreshes its persisted status', async () => {
+  const decision = {
+    id: 'decision-1', recommendation: 'Testar serie.', confidence: 0.7,
+    evidence: [], risks: [], missingData: [], nextAction: 'Comparar resultado.',
+  };
+  const link = {
+    id: 'link-1', decisionId: 'decision-1', videoId: 'video-1', status: 'evaluable',
+    sourceSnapshot: { id: 'snapshot-1', videoId: 'video-1', title: 'Teste publicado' },
+  };
+  const api = createMemoryApi(
+    [conversation('A')], [], {}, { A: [decision] }, [link.sourceSnapshot], { 'decision-1': [link] },
+  );
+  const { dom } = await mount(api);
+  const details = dom.editorialDecisionList.children[0];
+  const linked = details.children.find((child) => child.className === 'planner-decision-linked-video');
+  const button = linked.children[1];
+  assert.equal(details.children.find((child) => child.className === 'planner-decision-status').textContent, 'Avaliável');
+  dom.editorialDecisionList.dispatch('click', { target: button });
+  dom.editorialDecisionList.dispatch('click', { target: button });
+  await flush();
+  assert.deepEqual(api.calls.evaluateEditorialDecisionOutcome, [['decision-1', 'link-1']]);
+  const refreshed = dom.editorialDecisionList.children[0];
+  assert.equal(refreshed.children.find((child) => child.className === 'planner-decision-status').textContent, 'Avaliada');
+});
+
+test('ignores a late outcome evaluation after switching conversations', async () => {
+  const decision = {
+    id: 'decision-A', recommendation: 'Decisão A', confidence: 0.7,
+    evidence: [], risks: [], missingData: [], nextAction: 'Avaliar.',
+  };
+  const link = {
+    id: 'link-A', decisionId: decision.id, videoId: 'video-A', status: 'evaluable',
+    sourceSnapshot: { id: 'snapshot-A', videoId: 'video-A', title: 'Video A' },
+  };
+  const api = createMemoryApi(
+    [conversation('B'), conversation('A')], [], {}, { A: [decision], B: [] },
+    [link.sourceSnapshot], { 'decision-A': [link] },
+  );
+  const pending = deferred();
+  api.evaluateEditorialDecisionOutcome = async (...args) => {
+    api.calls.evaluateEditorialDecisionOutcome.push(args);
+    return pending.promise;
+  };
+  const { dom } = await mount(api);
+  const details = dom.editorialDecisionList.children[0];
+  const button = details.children.find((child) => child.className === 'planner-decision-linked-video').children[1];
+  dom.editorialDecisionList.dispatch('click', { target: button });
+  await selectConversation(dom, 'B');
+  pending.resolve({ id: 'outcome-A' });
+  await flush();
+  assert.equal(dom.editorialDecisionList.children[0].textContent, 'Nenhuma decisão editorial nesta conversa.');
+  assert.equal(dom.feedback.textContent, '');
+  assert.equal(dom.globalStatePanel.textContent, 'Estado global preservado');
 });

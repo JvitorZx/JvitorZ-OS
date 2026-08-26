@@ -303,4 +303,103 @@ export const createApiClient = (baseUrl) => ({
       'Erro ao registrar resultado editorial',
     );
   },
+
+  async linkEditorialDecisionVideo(decisionId, input) {
+    const id = requireIdentifier(decisionId, 'decisionId');
+    if (!input || typeof input !== 'object' || Array.isArray(input)) {
+      throw new TypeError('decision video link input must be an object');
+    }
+    const snapshotId = requireIdentifier(input.snapshotId, 'snapshotId');
+    const body = { snapshotId };
+    if (input.origin !== undefined) body.origin = requireIdentifier(input.origin, 'origin');
+    if (input.notes !== undefined) {
+      if (typeof input.notes !== 'string') throw new TypeError('notes must be text');
+      body.notes = input.notes;
+    }
+    return requestJson(
+      `${baseUrl}/api/operators/creator-intelligence/editorial-decisions/${encodeURIComponent(id)}/videos`,
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(body),
+      },
+      'Erro ao associar video a decisao editorial',
+    );
+  },
+
+  async listEditorialDecisionVideos(decisionId) {
+    const id = requireIdentifier(decisionId, 'decisionId');
+    return requestJson(
+      `${baseUrl}/api/operators/creator-intelligence/editorial-decisions/${encodeURIComponent(id)}/videos`,
+      undefined,
+      'Erro ao carregar videos da decisao editorial',
+    );
+  },
+
+  async unlinkEditorialDecisionVideo(decisionId, linkId) {
+    const id = requireIdentifier(decisionId, 'decisionId');
+    const validLinkId = requireIdentifier(linkId, 'linkId');
+    return requestJson(
+      `${baseUrl}/api/operators/creator-intelligence/editorial-decisions/${encodeURIComponent(id)}/videos/${encodeURIComponent(validLinkId)}`,
+      { method: 'DELETE' },
+      'Erro ao remover video da decisao editorial',
+    );
+  },
+
+  async evaluateEditorialDecisionOutcome(decisionId, linkId, snapshotId) {
+    const id = requireIdentifier(decisionId, 'decisionId');
+    const validLinkId = requireIdentifier(linkId, 'linkId');
+    const body = snapshotId === undefined
+      ? {}
+      : { snapshotId: requireIdentifier(snapshotId, 'snapshotId') };
+    return requestJson(
+      `${baseUrl}/api/operators/creator-intelligence/editorial-decisions/${encodeURIComponent(id)}/videos/${encodeURIComponent(validLinkId)}/outcomes`,
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(body),
+      },
+      'Erro ao avaliar resultado editorial',
+    );
+  },
+
+  async listEditorialDecisionOutcomes(decisionId) {
+    const id = requireIdentifier(decisionId, 'decisionId');
+    return requestJson(
+      `${baseUrl}/api/operators/creator-intelligence/editorial-decisions/${encodeURIComponent(id)}/outcomes`,
+      undefined,
+      'Erro ao carregar resultados da decisao editorial',
+    );
+  },
+
+  async listDecisionOutcomes(filters = {}) {
+    if (!filters || typeof filters !== 'object' || Array.isArray(filters)) {
+      throw new TypeError('decision outcome filters must be an object');
+    }
+    const params = new URLSearchParams();
+    for (const field of ['projectId', 'conversationId', 'decisionId', 'videoId']) {
+      if (filters[field] !== undefined) params.set(field, requireIdentifier(filters[field], field));
+    }
+    if (filters.limit !== undefined) {
+      if (!Number.isInteger(filters.limit) || filters.limit < 1 || filters.limit > 50) {
+        throw new TypeError('limit must be an integer from 1 to 50');
+      }
+      params.set('limit', String(filters.limit));
+    }
+    const query = params.toString();
+    return requestJson(
+      `${baseUrl}/api/operators/creator-intelligence/decision-outcomes${query ? `?${query}` : ''}`,
+      undefined,
+      'Erro ao carregar resultados editoriais',
+    );
+  },
+
+  async getDecisionOutcome(outcomeId) {
+    const id = requireIdentifier(outcomeId, 'outcomeId');
+    return requestJson(
+      `${baseUrl}/api/operators/creator-intelligence/decision-outcomes/${encodeURIComponent(id)}`,
+      undefined,
+      'Erro ao abrir resultado editorial',
+    );
+  },
 });

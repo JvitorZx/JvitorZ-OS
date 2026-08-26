@@ -98,7 +98,7 @@ export const classifyEditorialIntent = (
 ): EditorialDecisionIntent => {
   const text = searchable(question);
   if (ideaCount > 1 || /qual dessas|compar|melhor ideia/.test(text)) return 'compare_ideas';
-  if (/por que|porque|foi fraco|desempenho|performance/.test(text)) return 'diagnose_performance';
+  if (/por que|porque|foi fraco|desempenho|performance|ultimo teste|deu certo|ainda funciona/.test(text)) return 'diagnose_performance';
   if (/continuar.*serie|vale.*serie|essa serie/.test(text)) return 'continue_series';
   if (/o que.*mudar|melhorar|proximo video/.test(text)) return 'improve_next';
   if (/o que.*gravar|vale gravar|jogo.*testar|vale testar|gravar agora/.test(text)) return 'next_content';
@@ -135,10 +135,14 @@ const recommendationText = (
   top: RankedIdeaEvaluation | undefined,
   latest: VideoPerformanceSnapshot | undefined,
 ): { recommendation: string; nextAction: string } => {
-  if (intent === 'diagnose_performance' && latest) {
+  if (intent === 'diagnose_performance') {
     return {
-      recommendation: 'Use o desempenho observado como diagnóstico, priorizando as métricas abaixo da baseline antes de repetir a fórmula.',
-      nextAction: 'Compare retenção, watch time e conversão do conteúdo com a baseline antes de definir a próxima mudança.',
+      recommendation: latest
+        ? 'Use o desempenho observado como diagnóstico, priorizando as métricas abaixo da baseline antes de repetir a fórmula.'
+        : 'Use os outcomes e aprendizados disponíveis como diagnóstico; sem métricas comparáveis, mantenha a conclusão inconclusiva.',
+      nextAction: latest
+        ? 'Compare retenção, watch time e conversão do conteúdo com a baseline antes de definir a próxima mudança.'
+        : 'Vincule a decisão ao vídeo publicado e sincronize dados suficientes antes de concluir se o teste funcionou.',
     };
   }
   if (intent === 'continue_series') {

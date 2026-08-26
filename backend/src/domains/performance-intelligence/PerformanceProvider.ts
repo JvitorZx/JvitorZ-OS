@@ -9,6 +9,7 @@ export interface RawVideoPerformanceRecord {
   periodStart?: unknown;
   periodEnd?: unknown;
   views?: unknown;
+  engagedViews?: unknown;
   impressions?: unknown;
   ctr?: unknown;
   durationSeconds?: unknown;

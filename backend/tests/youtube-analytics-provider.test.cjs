@@ -114,6 +114,7 @@ describe('YouTube Analytics performance provider', () => {
     assert.equal(record.videoId, 'abc');
     assert.equal(record.title, 'Video abc');
     assert.equal(record.views, 100);
+    assert.equal(record.engagedViews, null);
     assert.equal(record.watchTimeMinutes, 450);
     assert.equal(record.averageViewDurationSeconds, 270);
     assert.equal(record.averageViewPercentage, 45);
@@ -136,6 +137,7 @@ describe('YouTube Analytics performance provider', () => {
     });
     const [record] = await provider.fetch();
     assert.equal(record.averageViewPercentage, null);
+    assert.equal(record.engagedViews, null);
     assert.equal(record.subscribersLost, null);
     assert.equal(record.publishedAt, null);
     assert.equal(record.durationSeconds, null);

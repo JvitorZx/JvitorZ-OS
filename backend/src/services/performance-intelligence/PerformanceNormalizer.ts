@@ -103,6 +103,7 @@ export const normalizePerformanceRecord = (
     periodStart,
     periodEnd,
     views: numberOrNull(record.views, 'views'),
+    engagedViews: numberOrNull(record.engagedViews, 'engagedViews'),
     impressions: numberOrNull(record.impressions, 'impressions'),
     ctr: numberOrNull(record.ctr, 'ctr', { max: 100 }),
     durationSeconds: numberOrNull(record.durationSeconds, 'durationSeconds'),

@@ -608,4 +608,73 @@ describe('Editorial Decision API client', { concurrency: false }, () => {
       globalThis.fetch = originalFetch;
     }
   });
+
+  test('uses centralized decision outcome loop contracts with encoded identifiers', async () => {
+    const originalFetch = globalThis.fetch;
+    const calls = [];
+    globalThis.fetch = async (...args) => {
+      calls.push(args);
+      const status = args[1]?.method === 'POST' ? 201 : args[1]?.method === 'DELETE' ? 204 : 200;
+      return response(status, { id: 'outcome/1' });
+    };
+    try {
+      const api = createApiClient(baseUrl);
+      await api.linkEditorialDecisionVideo('decision/1', { snapshotId: 'snapshot/1', origin: 'manual' });
+      await api.listEditorialDecisionVideos('decision/1');
+      await api.unlinkEditorialDecisionVideo('decision/1', 'link/1');
+      await api.evaluateEditorialDecisionOutcome('decision/1', 'link/1');
+      await api.listEditorialDecisionOutcomes('decision/1');
+      await api.listDecisionOutcomes({ conversationId: 'conversation/1', videoId: 'video/1', limit: 8 });
+      await api.getDecisionOutcome('outcome/1');
+
+      assert.deepEqual(calls[0], [
+        `${baseUrl}/api/operators/creator-intelligence/editorial-decisions/decision%2F1/videos`,
+        {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ snapshotId: 'snapshot/1', origin: 'manual' }),
+        },
+      ]);
+      assert.deepEqual(calls[1], [
+        `${baseUrl}/api/operators/creator-intelligence/editorial-decisions/decision%2F1/videos`,
+        undefined,
+      ]);
+      assert.deepEqual(calls[2], [
+        `${baseUrl}/api/operators/creator-intelligence/editorial-decisions/decision%2F1/videos/link%2F1`,
+        { method: 'DELETE' },
+      ]);
+      assert.deepEqual(calls[3], [
+        `${baseUrl}/api/operators/creator-intelligence/editorial-decisions/decision%2F1/videos/link%2F1/outcomes`,
+        {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: '{}',
+        },
+      ]);
+      assert.equal(calls[4][0], `${baseUrl}/api/operators/creator-intelligence/editorial-decisions/decision%2F1/outcomes`);
+      assert.equal(calls[5][0], `${baseUrl}/api/operators/creator-intelligence/decision-outcomes?conversationId=conversation%2F1&videoId=video%2F1&limit=8`);
+      assert.equal(calls[6][0], `${baseUrl}/api/operators/creator-intelligence/decision-outcomes/outcome%2F1`);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  test('rejects invalid decision outcome loop input before network access', async () => {
+    const originalFetch = globalThis.fetch;
+    let calls = 0;
+    globalThis.fetch = async () => { calls += 1; return response(200, {}); };
+    try {
+      const api = createApiClient(baseUrl);
+      await assert.rejects(api.linkEditorialDecisionVideo('', { snapshotId: 'snapshot' }), TypeError);
+      await assert.rejects(api.linkEditorialDecisionVideo('decision', { snapshotId: '' }), TypeError);
+      await assert.rejects(api.unlinkEditorialDecisionVideo('decision', null), TypeError);
+      await assert.rejects(api.evaluateEditorialDecisionOutcome('decision', ' '), TypeError);
+      await assert.rejects(api.listDecisionOutcomes({ limit: 0 }), TypeError);
+      await assert.rejects(api.listDecisionOutcomes({ unknown: 'ignored', projectId: '' }), TypeError);
+      await assert.rejects(api.getDecisionOutcome(23), TypeError);
+      assert.equal(calls, 0);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
 });
