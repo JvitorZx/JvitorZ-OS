@@ -30,11 +30,13 @@ import { EditorialDecisionService } from '../services/creator-intelligence/Edito
 import { DecisionOutcomeService } from '../services/creator-intelligence/DecisionOutcomeService';
 import { OutcomeRefreshService } from '../services/creator-intelligence/OutcomeRefreshService';
 import { createCreatorIntelligenceRouter } from './creatorIntelligence';
+import { OrchestratorService } from '../services/orchestration/OrchestratorService';
 
 const createDefaultPlannerService = (
   creatorIntelligenceService: CreatorIntelligenceService,
   conversationLibraryService: ConversationLibraryService,
   editorialDecisionService: EditorialDecisionService,
+  orchestratorService: OrchestratorService,
 ): PlannerService =>
   new PlannerService(
     undefined,
@@ -43,6 +45,7 @@ const createDefaultPlannerService = (
     creatorIntelligenceService,
     conversationLibraryService,
     editorialDecisionService,
+    orchestratorService,
   );
 
 const toLibraryItemResponse = ({
@@ -70,11 +73,13 @@ export const createOperatorsRouter = (
     ?? new EditorialDecisionService(creatorIntelligenceService);
   const resolvedDecisionOutcomeService = decisionOutcomeService ?? new DecisionOutcomeService();
   const resolvedOutcomeRefreshService = outcomeRefreshService ?? new OutcomeRefreshService();
+  const resolvedOrchestratorService = new OrchestratorService();
   const resolvedPlannerService = plannerService
     ?? createDefaultPlannerService(
       creatorIntelligenceService,
       conversationLibraryService,
       resolvedEditorialDecisionService,
+      resolvedOrchestratorService,
     );
 
 router.use('/creator-intelligence', createCreatorIntelligenceRouter(

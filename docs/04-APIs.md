@@ -745,3 +745,47 @@ Sem sincronização anterior, `lastSyncAt` é `null`. Falha interna retorna `500
 O módulo Analytics usa exclusivamente `frontend/src/api/client.js`. Na montagem, consulta status, última sincronização, snapshots, baseline, sinais, aprendizados e contexto de decisões. O POST de sincronização envia somente modo, datas, limite e, quando aplicável, ID do vídeo; tokens e credenciais nunca fazem parte do payload do frontend.
 
 Após sucesso, o frontend consulta novamente os dados persistidos. Respostas não `2xx` são representadas por erro seguro com status HTTP, permitindo mensagens locais específicas para `400`, `401`, `404`, `429` e `503` sem expor resposta crua do provider.
+
+## Orchestrator
+
+Todas as rotas usam `/api/orchestrator`. Payloads rejeitam campos extras e respostas de erro não expõem stack, token, credencial ou output bruto de capability.
+
+### `GET /api/orchestrator/capabilities`
+
+Lista somente capabilities reais registradas, incluindo responsabilidade, inputs, outputs, dependências, disponibilidade e classe de acesso. Retorna `200`.
+
+### `POST /api/orchestrator/plan`
+
+Cria um plano sem executar ou persistir trabalho:
+
+```json
+{ "intent": "Como está meu canal?", "projectId": "opcional", "conversationId": "opcional" }
+```
+
+Retorna `200` com intenção classificada, objetivo, passos, dependências, necessidade de escrita, side effect externo e dados ausentes. Retorna `400` para payload inválido.
+
+### `POST /api/orchestrator/run`
+
+Executa e persiste o plano. Aceita os campos do plano, `idempotencyKey` opcional e, somente para sincronização controlada:
+
+```json
+{
+  "intent": "Sincronize o YouTube e revise outcomes",
+  "confirmExternalSideEffect": true,
+  "sync": { "mode": "recent", "startDate": "2026-08-18", "endDate": "2026-08-25", "limit": 20 }
+}
+```
+
+Retorna `201` para nova execução ou `200` quando a chave idempotente já foi concluída. `409` indica ausência de confirmação externa; `400`, payload ou parâmetros inválidos; `500`, erro interno sanitizado. O resultado contém interpretação, resposta, capabilities, steps e evidências separadas.
+
+### `GET /api/orchestrator/executions/recent`
+
+Lista histórico recente em ordem determinística. Aceita `projectId`, `conversationId` e `limit` de 1 a 50. Retorna `200` ou `400`.
+
+### `GET /api/orchestrator/executions/:id`
+
+Abre a execução persistida. Retorna `200`, `400`, `404` ou `500` seguro.
+
+### `GET /api/orchestrator/executions/:id/plan`
+
+Retorna o plano persistido da execução. Retorna `200`, `400`, `404` ou `500` seguro.

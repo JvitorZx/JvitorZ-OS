@@ -161,3 +161,11 @@ Os testes do Planner, Biblioteca e Performance Intelligence usam SQLite `:memory
 ## Evolução futura
 
 O modelo continua preparado para uma migração futura para PostgreSQL por meio do Prisma. Essa migração permanece fora do escopo atual.
+
+## OrchestrationExecution
+
+`OrchestrationExecution` persiste somente memória operacional relevante: intenção, plano, capabilities, resultados limitados, evidências classificadas, falhas seguras e timestamps. Não armazena tokens, secrets, prompts completos de provider ou payloads externos brutos.
+
+O repository oferece criação, consulta por ID/chave idempotente, transição para `running`, conclusão e histórico recente. `idempotencyKey` possui constraint única; o serviço também compartilha a Promise ativa no processo para chamadas concorrentes iguais.
+
+A migration `20260826150000_controlled_orchestration_foundation` cria tabela e índices de forma aditiva. Os testes validam a migration e o repository em SQLite `:memory:`; `backend/prisma/dev.db` não é usado.

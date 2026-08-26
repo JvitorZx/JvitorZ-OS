@@ -1,5 +1,11 @@
 export const operatorRegistry = [
   {
+    id: 'manager',
+    name: 'Gerente de Operações',
+    status: 'ready',
+    description: 'Interpreta intenções e coordena capacidades reais do sistema.',
+  },
+  {
     id: 'content-planner',
     name: 'Planejador de Conteudo',
     status: 'ready',

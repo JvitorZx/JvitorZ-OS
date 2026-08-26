@@ -813,3 +813,41 @@ Detectar quando um outcome deixou de refletir os dados persistidos atuais, permi
 ### Próxima camada recomendada
 
 Definir a próxima Sprint a partir do roadmap e dos dados operacionais acumulados. Automação recorrente deve continuar separada até existir política explícita de quota, frequência e recuperação de falhas.
+
+## Sprint 25 — Controlled Orchestration Foundation
+
+**Status: CONCLUÍDA**
+
+**Fase principal: FASE 7 - Primeiro Operador**, introduzindo a primeira camada real do Gerente sem automação recorrente.
+
+### Objetivo
+
+Permitir expressar uma intenção operacional em linguagem natural, montar um plano explícito, coordenar capabilities reais, consolidar evidências e registrar a execução sem exigir seleção manual de operadores.
+
+### Entregas
+
+- domínio `OrchestrationRequest`, `OrchestrationPlan`, `OrchestrationStep`, `OrchestrationResult` e `OrchestrationExecution`;
+- `CapabilityRegistry` injetável com dez capabilities reais e classes de acesso;
+- roteamento determinístico para conteúdo, outcome, canal, série e sync/review controlado;
+- execução sequencial com dependências, reuse de outputs, short-circuit e falha parcial;
+- consolidação separada de fatos, inferências, recomendações, riscos e dados ausentes;
+- memória persistida com histórico recente e idempotência sequencial/concorrente;
+- integração do Planner sem transferir a propriedade de mensagens e decisões;
+- Supervisor somente como fonte de estado;
+- composição manual YouTube Sync → Detect → Review → Supervisor;
+- API para capabilities, plano, execução e histórico;
+- workspace mínima do Gerente com lifecycle, feedback local, XSS seguro e confirmação externa;
+- migration aditiva e regressão automatizada com 500 testes aprovados.
+
+### Limites
+
+- sem scheduler, cron, polling, n8n ou background job;
+- sem capabilities fictícias, vidIQ ou web research;
+- sincronização YouTube exige confirmação explícita e parâmetros limitados;
+- roteamento usa regras determinísticas; classificador LLM permanece uma extensão futura;
+- execução é sequencial; paralelismo futuro exige política explícita;
+- não há previsão exata de views nem causalidade inferida.
+
+### Próxima camada recomendada
+
+Auditar uso real do Gerente e definir a Sprint 26 antes de automatizar qualquer fluxo. Candidatas: aprovação em duas etapas para planos com escrita, políticas de orçamento/quota e avaliação de qualidade das decisões orquestradas.

@@ -31,6 +31,7 @@ model Project {
   performanceSignals PerformanceSignal[]
   videoPerformanceSnapshots VideoPerformanceSnapshot[]
   editorialDecisions EditorialDecision[]
+  orchestrationExecutions OrchestrationExecution[]
   createdAt        DateTime           @default(now())
   updatedAt        DateTime           @updatedAt
 }
@@ -369,4 +370,30 @@ model EditorialDecisionOutcomeReview {
   @@index([sourceOutcomeId, startedAt])
   @@index([status, startedAt])
   @@index([currentSnapshotId])
+}
+
+model OrchestrationExecution {
+  id                String    @id @default(cuid())
+  projectId         String?
+  project           Project?  @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  conversationId    String?
+  idempotencyKey    String?   @unique
+  intent            String
+  objective         String
+  status            String    @default("pending")
+  capabilities      Json
+  request           Json
+  plan              Json
+  result             Json?
+  evidence          Json?
+  failures          Json
+  errorType         String?
+  startedAt         DateTime  @default(now())
+  completedAt       DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@index([projectId, createdAt])
+  @@index([conversationId, createdAt])
+  @@index([status, createdAt])
 }

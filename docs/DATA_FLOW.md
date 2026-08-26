@@ -373,3 +373,35 @@ A revisão é explícita. Analytics oferece ação individual e em lote, recarre
 Cada tentativa cria histórico antes da avaliação. Sucesso liga estado anterior e resultado; ausência de mudança fica como `unchanged`; falha preserva o outcome anterior e marca somente o registro da tentativa. O `reviewKey` único e o controle em processo evitam trabalho duplicado para a mesma evidência.
 
 Não existe scheduler, polling ou rede externa nova. A sincronização YouTube e a revisão permanecem comandos manuais separados.
+
+## Controlled Orchestration — Sprint 25
+
+```text
+João
+  -> Gerente / Orchestrator API
+    -> classificação determinística da intenção
+    -> OrchestrationPlan persistível
+      -> CapabilityRegistry
+        -> serviços de domínio existentes
+          -> outputs intermediários limitados
+      -> consolidação de fatos / inferências / recomendações
+    -> OrchestrationExecution
+  -> resposta consolidada para João
+```
+
+O plano existe antes da execução. Cada step declara dependências e acesso; steps bloqueados são pulados, outputs são reutilizados e nenhuma capability aparece duas vezes no plano. O consolidator mantém fatos, inferências, recomendações, riscos e dados ausentes em canais diferentes.
+
+Pergunta editorial no Planner → Orchestrator → Performance/Creator Intelligence → `planner.respond` → Planner persiste uma mensagem `operator`. O Gerente coordena, mas não assume a conversa nem substitui o especialista.
+
+O fluxo operacional externo é exclusivamente manual:
+
+```text
+confirmação do usuário
+  -> YouTube Sync
+  -> detectar reviews disponíveis
+  -> short-circuit quando zero
+  -> Outcome Refresh
+  -> Supervisor atualizado por leitura
+```
+
+Não existe execução recorrente, polling ou chamada externa implícita.

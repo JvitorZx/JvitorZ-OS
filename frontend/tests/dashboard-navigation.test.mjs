@@ -466,7 +466,10 @@ test('available Operators catalog items only link to registered modules', () => 
     .map((match) => ({ href: match[1], id: match[2] }));
   const moduleIds = new Set(dashboardModules.map((module) => module.id));
 
-  assert.deepEqual(linkedOperators, [{ href: 'content-planner', id: 'content-planner' }]);
+  assert.deepEqual(linkedOperators, [
+    { href: 'manager', id: 'manager' },
+    { href: 'content-planner', id: 'content-planner' },
+  ]);
   assert.ok(linkedOperators.every((operator) => moduleIds.has(operator.href)));
   assert.match(markup, /data-operator="content-planner"[\s\S]*?data-operator-available="true"/);
 });
@@ -480,7 +483,7 @@ test('unavailable Operators remain visible with non-interactive status', () => {
   assert.doesNotMatch(markup, /href="#automation-runner"/);
   assert.deepEqual(
     operatorRegistry.map((operator) => operator.id),
-    ['content-planner', 'youtube-monitor', 'automation-runner'],
+    ['manager', 'content-planner', 'youtube-monitor', 'automation-runner'],
   );
 });
 

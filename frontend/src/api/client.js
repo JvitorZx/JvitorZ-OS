@@ -27,6 +27,67 @@ const requireIdentifier = (value, name) => {
 };
 
 export const createApiClient = (baseUrl) => ({
+  async listOrchestrationCapabilities() {
+    return requestJson(
+      `${baseUrl}/api/orchestrator/capabilities`,
+      undefined,
+      'Erro ao carregar capabilities do Gerente',
+    );
+  },
+
+  async planOrchestration(input) {
+    return requestJson(
+      `${baseUrl}/api/orchestrator/plan`,
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(input),
+      },
+      'Erro ao montar plano do Gerente',
+    );
+  },
+
+  async runOrchestration(input) {
+    return requestJson(
+      `${baseUrl}/api/orchestrator/run`,
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(input),
+      },
+      'Erro ao executar solicitacao do Gerente',
+    );
+  },
+
+  async listOrchestrationExecutions({ projectId, conversationId, limit = 10 } = {}) {
+    const query = new URLSearchParams({ limit: String(limit) });
+    if (projectId) query.set('projectId', projectId);
+    if (conversationId) query.set('conversationId', conversationId);
+    return requestJson(
+      `${baseUrl}/api/orchestrator/executions/recent?${query}`,
+      undefined,
+      'Erro ao carregar historico do Gerente',
+    );
+  },
+
+  async getOrchestrationExecution(executionId) {
+    const id = requireIdentifier(executionId, 'executionId');
+    return requestJson(
+      `${baseUrl}/api/orchestrator/executions/${encodeURIComponent(id)}`,
+      undefined,
+      'Erro ao abrir execucao do Gerente',
+    );
+  },
+
+  async getOrchestrationPlan(executionId) {
+    const id = requireIdentifier(executionId, 'executionId');
+    return requestJson(
+      `${baseUrl}/api/orchestrator/executions/${encodeURIComponent(id)}/plan`,
+      undefined,
+      'Erro ao abrir plano do Gerente',
+    );
+  },
+
   async getDashboard() {
     const response = await fetch(`${baseUrl}/api/dashboard`);
 

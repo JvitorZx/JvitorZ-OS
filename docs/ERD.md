@@ -206,3 +206,18 @@ EditorialDecisionOutcomeReview
 - classificações de outcome representam comparação observada, não causalidade.
 - revisões preservam estado anterior e resultado, e `reviewKey` impede repetir a mesma evidência.
 - A modelagem preserva a arquitetura de futuro com PostgreSQL sem alterar o frontend ou as APIs.
+
+```text
+OrchestrationExecution
+├── id
+├── projectId -> Project.id (ON DELETE SET NULL)
+├── conversationId (referência lógica opcional)
+├── idempotencyKey (unique, opcional)
+├── intent, objective, status
+├── capabilities, request, plan
+├── result, evidence, failures, errorType
+└── startedAt, completedAt, createdAt, updatedAt
+```
+
+- Project 1:N OrchestrationExecution
+- A execução referencia capabilities por ID de contrato, sem foreign key para módulos ou classes concretas.

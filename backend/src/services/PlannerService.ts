@@ -20,6 +20,7 @@ import {
   isEditorialQuestion,
   parseEditorialDecisionArrays,
 } from './creator-intelligence/EditorialDecisionService';
+import type { OrchestratorService } from './orchestration/OrchestratorService';
 
 export interface CreateConversationInput {
   title?: string;
@@ -89,6 +90,7 @@ export class PlannerService {
   private readonly editorialIntelligence?: PlannerEditorialIntelligenceProvider;
   private readonly conversationLibraryService?: ConversationLibraryService;
   private readonly editorialDecisionService?: EditorialDecisionService;
+  private readonly orchestrator?: Pick<OrchestratorService, 'run'>;
 
   constructor(
     conversationRepository?: ConversationRepository,
@@ -97,6 +99,7 @@ export class PlannerService {
     editorialIntelligence?: PlannerEditorialIntelligenceProvider,
     conversationLibraryService?: ConversationLibraryService,
     editorialDecisionService?: EditorialDecisionService,
+    orchestrator?: Pick<OrchestratorService, 'run'>,
   ) {
     this.conversationRepository = conversationRepository;
     this.messageRepository = messageRepository;
@@ -104,6 +107,7 @@ export class PlannerService {
     this.editorialIntelligence = editorialIntelligence;
     this.conversationLibraryService = conversationLibraryService;
     this.editorialDecisionService = editorialDecisionService;
+    this.orchestrator = orchestrator;
   }
 
   private get repository(): ConversationRepository {
@@ -181,7 +185,7 @@ export class PlannerService {
 
   async generateReply(
     conversationId: string,
-  ): Promise<(Message & { editorialDecision?: EditorialDecision }) | null> {
+  ): Promise<(Message & { editorialDecision?: EditorialDecision; orchestrationExecutionId?: string }) | null> {
     const conversation = await this.repository.findById(conversationId.trim());
 
     if (!conversation) {
@@ -191,6 +195,31 @@ export class PlannerService {
     const latestUserMessage = [...conversation.messages]
       .reverse()
       .find(({ sender }) => sender === 'user');
+    if (latestUserMessage && this.orchestrator && isEditorialQuestion(latestUserMessage.text)) {
+      const orchestration = await this.orchestrator.run({
+        intent: latestUserMessage.text,
+        projectId: conversation.projectId,
+        conversationId: conversation.id,
+      });
+      const message = await this.messages.create({
+        conversationId: conversation.id,
+        sender: 'operator',
+        text: orchestration.result.response,
+      });
+      const decisionId = orchestration.result.steps
+        .find(({ capabilityId }) => capabilityId === 'creator-intelligence.decide')
+        ?.output?.data?.decisionId;
+      const decision = typeof decisionId === 'string' && this.editorialDecisionService
+        ? await this.editorialDecisionService.getById(decisionId)
+        : null;
+      if (decision && !decision.operatorMessageId) {
+        await this.editorialDecisionService?.attachOperatorMessage(decision.id, message.id);
+      }
+      return Object.assign(message, {
+        ...(decision ? { editorialDecision: decision } : {}),
+        orchestrationExecutionId: orchestration.execution.id,
+      });
+    }
     if (
       latestUserMessage
       && this.editorialDecisionService

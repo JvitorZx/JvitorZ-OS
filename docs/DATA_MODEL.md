@@ -231,3 +231,23 @@ VideoPerformanceSnapshot 1 -> N EditorialDecisionOutcomeReview (anterior e atual
 ```
 
 A migration `20260826010000_outcome_review_refresh` remove apenas a unicidade antiga de `learningInsightId`, cria índice não exclusivo e adiciona a tabela de revisões. Outcomes, snapshots e aprendizados existentes são preservados.
+
+### OrchestrationExecution
+
+Memória estruturada e limitada de uma execução do Gerente.
+
+- `intent` e `objective`: interpretação e objetivo operacional;
+- `request` e `plan`: entrada validada e plano criado antes da execução;
+- `capabilities`: IDs reais selecionados;
+- `result`, `evidence` e `failures`: resposta consolidada, evidências classificadas e falhas sanitizadas;
+- `status`: `pending`, `running`, `completed`, `partial` ou `failed`;
+- `idempotencyKey`: chave opcional e única para deduplicação explícita;
+- `projectId` e `conversationId`: escopos opcionais; somente projeto possui relação Prisma nesta etapa;
+- timestamps permitem observar ordem e duração sem guardar logs sensíveis.
+
+```text
+Project 1 -> N OrchestrationExecution
+Conversation ID 0..1 -> N OrchestrationExecution (referência lógica)
+```
+
+A migration `20260826150000_controlled_orchestration_foundation` é aditiva e não altera conversas, decisões, outcomes ou snapshots existentes.

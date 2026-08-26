@@ -1242,3 +1242,25 @@ dd {
     display: grid;
   }
 }
+.manager-panel {
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+.manager-form,
+.manager-result-content,
+.manager-history {
+  display: grid;
+  gap: 12px;
+}
+
+.manager-form textarea {
+  width: 100%;
+  resize: vertical;
+}
+
+.manager-sync-controls { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+
+.manager-feedback.error { color: var(--danger, #b42318); }
+.manager-feedback.success { color: var(--success, #067647); }
+.manager-history-item { padding: 10px 0; border-bottom: 1px solid var(--border, #d0d5dd); }
