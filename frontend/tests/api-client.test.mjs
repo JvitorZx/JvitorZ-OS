@@ -33,6 +33,37 @@ test('generatePlannerReply posts once to the encoded conversation endpoint witho
   }
 });
 
+test('outcome review API client uses explicit safe contracts and validates ids', async () => {
+  const originalFetch = globalThis.fetch;
+  const calls = [];
+  globalThis.fetch = async (...args) => {
+    calls.push(args);
+    return { ok: true, status: 200, async json() { return { status: 'reviewed' }; } };
+  };
+  try {
+    const api = createApiClient('http://localhost:4000');
+    await api.listOutcomeReviewStates();
+    await api.getOutcomeReviewState('outcome/1');
+    await api.reviewDecisionOutcome('outcome/1');
+    await api.reviewAvailableOutcomes();
+    await api.listOutcomeReviews('outcome/1');
+    await api.getOutcomeReviewStatus();
+    assert.equal(calls[0][0], 'http://localhost:4000/api/operators/creator-intelligence/decision-outcomes/review-states');
+    assert.equal(calls[1][0], 'http://localhost:4000/api/operators/creator-intelligence/decision-outcomes/outcome%2F1/review-state');
+    assert.deepEqual(calls[2][1], { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' });
+    assert.equal(calls[3][0], 'http://localhost:4000/api/operators/creator-intelligence/decision-outcomes/review');
+    assert.equal(calls[4][0], 'http://localhost:4000/api/operators/creator-intelligence/decision-outcomes/outcome%2F1/reviews');
+    assert.equal(calls[5][0], 'http://localhost:4000/api/operators/creator-intelligence/decision-outcomes/review-status');
+    const beforeInvalid = calls.length;
+    await assert.rejects(api.getOutcomeReviewState(' '), TypeError);
+    await assert.rejects(api.reviewDecisionOutcome(null), TypeError);
+    await assert.rejects(api.listOutcomeReviews(42), TypeError);
+    assert.equal(calls.length, beforeInvalid);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test('generatePlannerReply exposes only a safe HTTP status on non-success responses', async () => {
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async () => ({ ok: false, status: 503 });

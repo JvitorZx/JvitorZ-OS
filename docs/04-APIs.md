@@ -631,6 +631,38 @@ Abre um outcome com vínculo, decisão, snapshot e aprendizado associado. Retorn
 
 As classificações possíveis são `POSITIVE`, `MIXED`, `NEGATIVE` e `INCONCLUSIVE`. Elas representam comparação contra baseline observada e não demonstram causalidade.
 
+## Outcome Review & Refresh Loop
+
+As revisões abaixo usam somente dados persistidos. POSTs aceitam body ausente ou `{}` e rejeitam campos extras. Erros nunca retornam stack, detalhes Prisma ou payload de provider.
+
+### `GET /api/operators/creator-intelligence/decision-outcomes/review-states`
+
+Lista o estado derivado dos outcomes atuais: `current`, `review_available`, `stale` ou `insufficient_data`. Inclui motivo, última avaliação, IDs dos snapshots comparados, métricas alteradas e indicador de baseline alterada. Retorna `200` ou `500` seguro.
+
+### `GET /api/operators/creator-intelligence/decision-outcomes/reviewable`
+
+Lista somente outcomes com `review_available`, preservando a ordem determinística do serviço. Retorna `200` ou `500` seguro.
+
+### `GET /api/operators/creator-intelligence/decision-outcomes/review-status`
+
+Retorna contagens operacionais `current`, `reviewAvailable`, `stale`, `insufficientData` e `recentFailures`. Não dispara revisão. Retorna `200` ou `500` seguro.
+
+### `GET /api/operators/creator-intelligence/decision-outcomes/:id/review-state`
+
+Abre o estado derivado de um outcome. Retorna `200`, `400`, `404` ou `500` seguro.
+
+### `POST /api/operators/creator-intelligence/decision-outcomes/:id/review`
+
+Revisa um outcome contra a evidência mais recente. Retorna `200` com `status` igual a `reviewed`, `unchanged`, `skipped` ou `failed`, o estado derivado e o registro de revisão quando criado. Uma falha de avaliação é representada de forma segura e preserva o outcome anterior. Retorna `400`, `404` ou `500` para falha inesperada.
+
+### `POST /api/operators/creator-intelligence/decision-outcomes/review`
+
+Revisa em sequência todos os outcomes atualmente elegíveis e retorna contagens de `reviewed`, `unchanged`, `skipped`, `failed` e os resultados individuais. A falha de um item não interrompe o lote. Retorna `200`, `400` para body inesperado ou `500` seguro.
+
+### `GET /api/operators/creator-intelligence/decision-outcomes/:id/reviews`
+
+Lista o histórico append-only relacionado ao outcome, seja ele origem ou resultado da revisão, mais recente primeiro. Retorna `200`, `400`, `404` ou `500` seguro.
+
 ## YouTube Analytics Performance
 
 Estas rotas reutilizam o OAuth Google do backend e o contrato `PerformanceProvider`. Nenhuma rota recebe token ou credencial. A sincronização é explícita e limitada; não existe polling nesta Sprint.

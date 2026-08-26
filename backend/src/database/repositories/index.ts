@@ -5,6 +5,7 @@ export * from './ConversationRepository';
 export * from './EditorialDecisionRepository';
 export * from './EditorialDecisionVideoLinkRepository';
 export * from './EditorialDecisionOutcomeRepository';
+export * from './EditorialDecisionOutcomeReviewRepository';
 export * from './MessageRepository';
 export * from './LibraryItemRepository';
 export * from './ConversationLibraryItemRepository';

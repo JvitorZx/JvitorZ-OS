@@ -196,6 +196,7 @@ const renderAnalytics = () => {
             <p class="eyebrow">Decisoes</p>
             <h3 id="decision-evidence-title">Por que o sistema recomendou</h3>
           </div>
+          <button class="button" type="button" data-review-outcomes>Revisar outcomes disponíveis</button>
         </div>
         <div class="performance-decision-layout">
           <div class="performance-list" data-performance-decisions></div>
@@ -227,6 +228,8 @@ export const createAnalyticsController = ({ api }) => {
   let mountedRoot = null;
   let generation = 0;
   let syncing = false;
+  let reviewingAll = false;
+  const reviewingOutcomes = new Set();
   let decisionRequest = 0;
   let cleanup = () => {};
 
@@ -258,6 +261,7 @@ export const createAnalyticsController = ({ api }) => {
       decisions: panel.querySelector('[data-performance-decisions]'),
       decisionEvidence: panel.querySelector('[data-decision-evidence]'),
       outcomes: panel.querySelector('[data-decision-outcomes]'),
+      reviewOutcomes: panel.querySelector('[data-review-outcomes]'),
       baselineSample: panel.querySelector('[data-baseline-sample]'),
     };
     if (Object.values(elements).some((element) => !element)) return;
@@ -409,25 +413,44 @@ export const createAnalyticsController = ({ api }) => {
       elements.decisionEvidence.replaceChildren(content);
     };
 
-    const renderOutcomes = (outcomes) => {
-      if (!Array.isArray(outcomes) || outcomes.length === 0) {
+    const renderOutcomes = (reviewStates) => {
+      if (!Array.isArray(reviewStates) || reviewStates.length === 0) {
         replaceWithEmpty(elements.outcomes, 'Nenhum vídeo ligado a uma decisão foi avaliado ainda.');
         return;
       }
-      elements.outcomes.replaceChildren(...outcomes.slice(0, 8).map((outcome) => {
+      elements.outcomes.replaceChildren(...reviewStates.slice(0, 8).map((reviewState) => {
+        const outcome = reviewState?.outcome ?? reviewState;
         const row = document.createElement('article');
         row.className = 'performance-outcome-item';
         const decision = outcome.decisionVideoLink?.decision;
         const snapshot = outcome.snapshot;
         const supporting = Array.isArray(outcome.supportingMetrics) ? outcome.supportingMetrics : [];
         const contradicting = Array.isArray(outcome.contradictingMetrics) ? outcome.contradictingMetrics : [];
+        const state = reviewState?.state ?? 'current';
+        const stateLabels = {
+          current: 'Atual',
+          review_available: 'Revisão disponível',
+          stale: 'Histórico',
+          insufficient_data: 'Dados insuficientes',
+        };
+        row.dataset.outcomeId = outcome.id;
         row.append(
           createTextElement('strong', snapshot?.title ?? outcome.decisionVideoLink?.videoId ?? 'Vídeo avaliado'),
           createTextElement('span', decision?.recommendation ?? 'Recomendação original indisponível'),
           createTextElement('small', `${outcome.classification ?? 'INCONCLUSIVE'} · Confiança ${formatPerformanceValue((outcome.confidence ?? 0) * 100, 'percent')}`),
           createTextElement('p', outcome.interpretation?.summary ?? 'Interpretação indisponível'),
           createTextElement('small', `Sustentam: ${supporting.map((item) => item.label ?? item.metric).filter(Boolean).slice(0, 3).join(', ') || '--'} · Contradizem: ${contradicting.map((item) => item.label ?? item.metric).filter(Boolean).slice(0, 3).join(', ') || '--'}`),
+          createTextElement('small', `${stateLabels[state] ?? state} · Última avaliação ${formatDateTime(reviewState?.lastEvaluationAt ?? outcome.evaluatedAt)}`),
         );
+        if (state === 'review_available' && typeof api.reviewDecisionOutcome === 'function') {
+          const button = document.createElement('button');
+          button.type = 'button';
+          button.className = 'button performance-outcome-review';
+          button.dataset.reviewOutcome = outcome.id;
+          button.textContent = 'Reavaliar';
+          button.disabled = reviewingOutcomes.has(outcome.id);
+          row.append(button);
+        }
         return row;
       }));
     };
@@ -445,7 +468,11 @@ export const createAnalyticsController = ({ api }) => {
         api.listPerformanceSignals(),
         api.listChannelLearnings(),
         api.getCreatorIntelligenceContext(),
-        typeof api.listDecisionOutcomes === 'function' ? api.listDecisionOutcomes({ limit: 8 }) : Promise.resolve([]),
+        typeof api.listOutcomeReviewStates === 'function'
+          ? api.listOutcomeReviewStates()
+          : typeof api.listDecisionOutcomes === 'function'
+            ? api.listDecisionOutcomes({ limit: 8 })
+            : Promise.resolve([]),
       ]);
       if (!isCurrent()) return false;
       const [status, lastSync, records, baseline, signals, learnings, context, outcomes] = requests;
@@ -523,9 +550,59 @@ export const createAnalyticsController = ({ api }) => {
       }
     };
 
+    const handleOutcomeClick = async (event) => {
+      const button = event.target.closest?.('[data-review-outcome]');
+      const outcomeId = button?.dataset.reviewOutcome;
+      if (!outcomeId || reviewingOutcomes.has(outcomeId)) return;
+      reviewingOutcomes.add(outcomeId);
+      button.disabled = true;
+      button.setAttribute('aria-busy', 'true');
+      try {
+        const result = await api.reviewDecisionOutcome(outcomeId);
+        if (!isCurrent()) return;
+        await load({ quiet: true });
+        if (!isCurrent()) return;
+        setFeedback(result?.status === 'failed'
+          ? 'Não foi possível concluir a revisão deste outcome.'
+          : 'Outcome revisado com os dados disponíveis.', result?.status === 'failed' ? 'error' : 'success');
+      } catch {
+        if (isCurrent()) setFeedback('Não foi possível revisar este outcome.', 'error');
+      } finally {
+        reviewingOutcomes.delete(outcomeId);
+        if (isCurrent()) {
+          button.disabled = false;
+          button.setAttribute('aria-busy', 'false');
+        }
+      }
+    };
+
+    const handleReviewAll = async () => {
+      if (reviewingAll || typeof api.reviewAvailableOutcomes !== 'function') return;
+      reviewingAll = true;
+      elements.reviewOutcomes.disabled = true;
+      elements.reviewOutcomes.setAttribute('aria-busy', 'true');
+      try {
+        const summary = await api.reviewAvailableOutcomes();
+        if (!isCurrent()) return;
+        await load({ quiet: true });
+        if (!isCurrent()) return;
+        setFeedback(`Revisão concluída: ${summary?.reviewed ?? 0} alterado(s), ${summary?.unchanged ?? 0} sem mudança e ${summary?.failed ?? 0} falha(s).`, summary?.failed ? 'warning' : 'success');
+      } catch {
+        if (isCurrent()) setFeedback('Não foi possível revisar os outcomes disponíveis.', 'error');
+      } finally {
+        reviewingAll = false;
+        if (isCurrent()) {
+          elements.reviewOutcomes.disabled = false;
+          elements.reviewOutcomes.setAttribute('aria-busy', 'false');
+        }
+      }
+    };
+
     elements.form.addEventListener('submit', handleSync);
     elements.mode.addEventListener('change', updateVideoField);
     elements.decisions.addEventListener('click', handleDecisionClick);
+    elements.outcomes.addEventListener('click', handleOutcomeClick);
+    elements.reviewOutcomes.addEventListener('click', handleReviewAll);
     updateVideoField();
     load();
 
@@ -533,6 +610,8 @@ export const createAnalyticsController = ({ api }) => {
       elements.form.removeEventListener('submit', handleSync);
       elements.mode.removeEventListener('change', updateVideoField);
       elements.decisions.removeEventListener('click', handleDecisionClick);
+      elements.outcomes.removeEventListener('click', handleOutcomeClick);
+      elements.reviewOutcomes.removeEventListener('click', handleReviewAll);
     };
   };
 

@@ -402,4 +402,55 @@ export const createApiClient = (baseUrl) => ({
       'Erro ao abrir resultado editorial',
     );
   },
+
+  async listOutcomeReviewStates() {
+    return requestJson(
+      `${baseUrl}/api/operators/creator-intelligence/decision-outcomes/review-states`,
+      undefined,
+      'Erro ao carregar estados de revisão dos outcomes',
+    );
+  },
+
+  async getOutcomeReviewState(outcomeId) {
+    const id = requireIdentifier(outcomeId, 'outcomeId');
+    return requestJson(
+      `${baseUrl}/api/operators/creator-intelligence/decision-outcomes/${encodeURIComponent(id)}/review-state`,
+      undefined,
+      'Erro ao carregar estado de revisão do outcome',
+    );
+  },
+
+  async reviewDecisionOutcome(outcomeId) {
+    const id = requireIdentifier(outcomeId, 'outcomeId');
+    return requestJson(
+      `${baseUrl}/api/operators/creator-intelligence/decision-outcomes/${encodeURIComponent(id)}/review`,
+      { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' },
+      'Erro ao revisar outcome',
+    );
+  },
+
+  async reviewAvailableOutcomes() {
+    return requestJson(
+      `${baseUrl}/api/operators/creator-intelligence/decision-outcomes/review`,
+      { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' },
+      'Erro ao revisar outcomes disponíveis',
+    );
+  },
+
+  async listOutcomeReviews(outcomeId) {
+    const id = requireIdentifier(outcomeId, 'outcomeId');
+    return requestJson(
+      `${baseUrl}/api/operators/creator-intelligence/decision-outcomes/${encodeURIComponent(id)}/reviews`,
+      undefined,
+      'Erro ao carregar histórico de revisões',
+    );
+  },
+
+  async getOutcomeReviewStatus() {
+    return requestJson(
+      `${baseUrl}/api/operators/creator-intelligence/decision-outcomes/review-status`,
+      undefined,
+      'Erro ao carregar resumo de revisão dos outcomes',
+    );
+  },
 });

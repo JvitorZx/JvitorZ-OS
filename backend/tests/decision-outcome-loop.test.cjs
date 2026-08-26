@@ -12,12 +12,14 @@ const { ChannelInsightRepository } = require('../dist/database/repositories/Chan
 const { ConversationRepository } = require('../dist/database/repositories/ConversationRepository');
 const { EditorialDecisionRepository } = require('../dist/database/repositories/EditorialDecisionRepository');
 const { EditorialDecisionOutcomeRepository } = require('../dist/database/repositories/EditorialDecisionOutcomeRepository');
+const { EditorialDecisionOutcomeReviewRepository } = require('../dist/database/repositories/EditorialDecisionOutcomeReviewRepository');
 const { EditorialDecisionVideoLinkRepository } = require('../dist/database/repositories/EditorialDecisionVideoLinkRepository');
 const { MessageRepository } = require('../dist/database/repositories/MessageRepository');
 const { PerformanceSignalRepository } = require('../dist/database/repositories/PerformanceSignalRepository');
 const { VideoPerformanceSnapshotRepository } = require('../dist/database/repositories/VideoPerformanceSnapshotRepository');
 const { createCreatorIntelligenceRouter } = require('../dist/routes/creatorIntelligence');
 const { PlannerService } = require('../dist/services/PlannerService');
+const { SupervisorModule } = require('../dist/modules/dashboard/supervisor/SupervisorModule');
 const { ChannelMemoryService } = require('../dist/services/creator-intelligence/ChannelMemoryService');
 const { CreatorIntelligenceService } = require('../dist/services/creator-intelligence/CreatorIntelligenceService');
 const {
@@ -27,10 +29,15 @@ const {
   DecisionOutcomeSnapshotNotFoundError,
 } = require('../dist/services/creator-intelligence/DecisionOutcomeService');
 const { EditorialDecisionService } = require('../dist/services/creator-intelligence/EditorialDecisionService');
+const { OutcomeRefreshService } = require('../dist/services/creator-intelligence/OutcomeRefreshService');
 
 const migrationSql = readFileSync(path.resolve(
   __dirname,
   '../prisma/migrations/20260825233000_decision_outcome_loop/migration.sql',
+), 'utf8');
+const reviewMigrationSql = readFileSync(path.resolve(
+  __dirname,
+  '../prisma/migrations/20260826010000_outcome_review_refresh/migration.sql',
 ), 'utf8');
 
 let client;
@@ -39,11 +46,13 @@ let messages;
 let decisions;
 let links;
 let outcomes;
+let reviews;
 let snapshots;
 let signals;
 let insights;
 let memory;
 let outcomeService;
+let refreshService;
 let intelligence;
 let editorialService;
 let server;
@@ -201,16 +210,19 @@ before(async () => {
   await client.$executeRawUnsafe('PRAGMA foreign_keys = ON');
   await executeSql(baseSchema);
   await executeSql(migrationSql);
+  await executeSql(reviewMigrationSql);
   conversations = new ConversationRepository(client);
   messages = new MessageRepository(client);
   decisions = new EditorialDecisionRepository(client);
   links = new EditorialDecisionVideoLinkRepository(client);
   outcomes = new EditorialDecisionOutcomeRepository(client);
+  reviews = new EditorialDecisionOutcomeReviewRepository(client);
   snapshots = new VideoPerformanceSnapshotRepository(client);
   signals = new PerformanceSignalRepository(client);
   insights = new ChannelInsightRepository(client);
   memory = new ChannelMemoryService(insights, signals, snapshots);
-  outcomeService = new DecisionOutcomeService(decisions, links, outcomes, snapshots, memory);
+  outcomeService = new DecisionOutcomeService(decisions, links, outcomes, snapshots, memory, client);
+  refreshService = new OutcomeRefreshService(outcomes, reviews, snapshots, outcomeService, client);
   intelligence = new CreatorIntelligenceService({
     insightRepository: insights,
     performanceSignalRepository: signals,
@@ -221,7 +233,7 @@ before(async () => {
   const youtube = { async getStatus() { return { state: 'connected', lastSyncAt: null, lastErrorType: null }; } };
   const app = express();
   app.use(express.json());
-  app.use(createCreatorIntelligenceRouter(intelligence, youtube, editorialService, outcomeService));
+  app.use(createCreatorIntelligenceRouter(intelligence, youtube, editorialService, outcomeService, refreshService));
   await new Promise((resolve) => {
     server = app.listen(0, '127.0.0.1', () => {
       baseUrl = `http://127.0.0.1:${server.address().port}`;
@@ -231,6 +243,7 @@ before(async () => {
 });
 
 beforeEach(async () => {
+  await client.editorialDecisionOutcomeReview.deleteMany();
   await client.editorialDecisionOutcome.deleteMany();
   await client.editorialDecisionVideoLink.deleteMany();
   await client.editorialDecision.deleteMany();
@@ -367,6 +380,24 @@ describe('Decision outcome evaluation', { concurrency: false }, () => {
     assert.equal(await client.channelInsight.count(), 1);
     assert.notEqual(second.outcome.learningInsight.statement, firstLearning.statement);
   });
+
+  test('rolls back outcome and memory when a related decision update fails', async () => {
+    await createHistory();
+    const decision = await createDecision();
+    const snapshot = await createSnapshot({ videoId: 'transaction-rollback', views: 180, watchTimeMinutes: 720 });
+    const { link } = await outcomeService.linkVideo(decision.id, { snapshotId: snapshot.id });
+    await client.$executeRawUnsafe(`CREATE TRIGGER reject_outcome_decision_update
+      BEFORE UPDATE ON EditorialDecision
+      WHEN NEW.id = '${decision.id}'
+      BEGIN SELECT RAISE(ABORT, 'forced rollback'); END`);
+    try {
+      await assert.rejects(() => outcomeService.evaluate(link.id, snapshot.id));
+      assert.equal(await client.editorialDecisionOutcome.count(), 0);
+      assert.equal(await client.channelInsight.count(), 0);
+    } finally {
+      await client.$executeRawUnsafe('DROP TRIGGER reject_outcome_decision_update');
+    }
+  });
 });
 
 describe('Decision outcome HTTP API', { concurrency: false }, () => {
@@ -430,6 +461,249 @@ describe('Decision outcome memory integration', { concurrency: false }, () => {
   });
 });
 
+describe('Outcome review and refresh loop', { concurrency: false }, () => {
+  const evaluatedTarget = async (overrides = {}) => {
+    await createHistory();
+    const decision = await createDecision();
+    const snapshot = await createSnapshot({
+      videoId: `review-video-${++sequence}`,
+      collectedAt: new Date('2026-08-24T12:00:00.000Z'),
+      ...overrides,
+    });
+    const { link } = await outcomeService.linkVideo(decision.id, { snapshotId: snapshot.id });
+    const { outcome } = await outcomeService.evaluate(link.id, snapshot.id);
+    return { decision, snapshot, link, outcome };
+  };
+
+  test('keeps an outcome current when no relevant evidence changed', async () => {
+    const { outcome } = await evaluatedTarget({ views: 180, watchTimeMinutes: 720 });
+    const state = await refreshService.inspect(outcome.id);
+    assert.equal(state.state, 'current');
+    assert.deepEqual(state.changedMetrics, []);
+    assert.equal((await refreshService.refresh(outcome.id)).status, 'skipped');
+  });
+
+  test('detects a newer snapshot by identity rather than timestamp alone', async () => {
+    const { outcome, snapshot } = await evaluatedTarget({ views: 180, watchTimeMinutes: 720 });
+    const newer = await createSnapshot({
+      videoId: snapshot.videoId,
+      views: 185,
+      watchTimeMinutes: 725,
+      collectedAt: new Date('2026-08-25T12:00:00.000Z'),
+    });
+    const state = await refreshService.inspect(outcome.id);
+    assert.equal(state.state, 'review_available');
+    assert.equal(state.latestSnapshotId, newer.id);
+    assert.match(state.reason, /newer performance snapshot/i);
+  });
+
+  test('detects previously missing engaged views without estimating them', async () => {
+    const data = snapshotData({ videoId: 'engaged-review', engagedViews: null, views: 180, watchTimeMinutes: 720 });
+    await createHistory();
+    const snapshot = (await snapshots.upsert(data)).snapshot;
+    const decision = await createDecision();
+    const { link } = await outcomeService.linkVideo(decision.id, { snapshotId: snapshot.id });
+    const { outcome } = await outcomeService.evaluate(link.id, snapshot.id);
+    assert.equal(outcome.facts.engagedViews, null);
+    await snapshots.upsert({ ...data, engagedViews: 140 });
+    const state = await refreshService.inspect(outcome.id);
+    assert.equal(state.state, 'review_available');
+    assert.ok(state.changedMetrics.includes('engagedViews'));
+    assert.match(state.reason, /missing performance data/i);
+  });
+
+  test('detects a changed comparison baseline even when the target snapshot is unchanged', async () => {
+    const { outcome } = await evaluatedTarget({ views: 180, watchTimeMinutes: 720 });
+    await createSnapshot({
+      videoId: 'new-baseline-evidence',
+      views: 900,
+      watchTimeMinutes: 2_400,
+      averageViewPercentage: 72,
+    });
+    const state = await refreshService.inspect(outcome.id);
+    assert.equal(state.state, 'review_available');
+    assert.equal(state.baselineChanged, true);
+    assert.match(state.reason, /baseline changed/i);
+  });
+
+  test('refreshes INCONCLUSIVE to POSITIVE and revises one stable memory', async () => {
+    const decision = await createDecision();
+    const initial = await createSnapshot({
+      videoId: 'inconclusive-review',
+      views: 100,
+      engagedViews: null,
+      impressions: null,
+      ctr: null,
+      watchTimeMinutes: null,
+      averageViewDurationSeconds: null,
+      averageViewPercentage: null,
+      subscribersGained: null,
+      subscribersLost: null,
+      likes: null,
+      comments: null,
+    });
+    const { link } = await outcomeService.linkVideo(decision.id, { snapshotId: initial.id });
+    const first = (await outcomeService.evaluate(link.id, initial.id)).outcome;
+    assert.equal(first.classification, 'INCONCLUSIVE');
+    const initialLearning = await client.channelInsight.findFirstOrThrow();
+    await createHistory();
+    await createSnapshot({
+      videoId: initial.videoId,
+      views: 190,
+      watchTimeMinutes: 760,
+      averageViewPercentage: 58,
+      collectedAt: new Date('2026-08-25T12:00:00.000Z'),
+    });
+    const result = await refreshService.refresh(first.id);
+    assert.equal(result.status, 'reviewed');
+    assert.equal(result.review.currentClassification, 'POSITIVE');
+    assert.equal(await client.channelInsight.count(), 1);
+    const reinforcedLearning = await client.channelInsight.findFirstOrThrow();
+    assert.ok(reinforcedLearning.confidence > initialLearning.confidence);
+    assert.equal(reinforcedLearning.evidence.revision, 'reinforced');
+    assert.equal((await refreshService.history(first.id)).length, 1);
+    assert.equal((await refreshService.history(result.review.resultOutcomeId)).length, 1);
+  });
+
+  test('records an unchanged review and does not fabricate a classification change', async () => {
+    const { outcome, snapshot } = await evaluatedTarget({ views: 180, watchTimeMinutes: 720 });
+    await createSnapshot({
+      videoId: snapshot.videoId,
+      views: 190,
+      watchTimeMinutes: 750,
+      averageViewPercentage: 55,
+      collectedAt: new Date('2026-08-25T12:00:00.000Z'),
+    });
+    const result = await refreshService.refresh(outcome.id);
+    assert.equal(result.status, 'unchanged');
+    assert.equal(result.review.previousClassification, 'POSITIVE');
+    assert.equal(result.review.currentClassification, 'POSITIVE');
+  });
+
+  test('supports a POSITIVE to MIXED transition with explicit changed evidence', async () => {
+    const { outcome, snapshot } = await evaluatedTarget({ views: 180, watchTimeMinutes: 720, averageViewPercentage: 55 });
+    const initialLearning = await client.channelInsight.findFirstOrThrow();
+    await createSnapshot({
+      videoId: snapshot.videoId,
+      views: 190,
+      watchTimeMinutes: 180,
+      averageViewPercentage: 25,
+      collectedAt: new Date('2026-08-25T12:00:00.000Z'),
+    });
+    const result = await refreshService.refresh(outcome.id);
+    assert.equal(result.status, 'reviewed');
+    assert.equal(result.review.currentClassification, 'MIXED');
+    assert.ok(result.review.currentState);
+    const weakenedLearning = await client.channelInsight.findFirstOrThrow();
+    assert.ok(weakenedLearning.confidence < initialLearning.confidence);
+    assert.equal(weakenedLearning.evidence.revision, 'weakened');
+  });
+
+  test('deduplicates concurrent refresh calls and persists one history row', async () => {
+    const { outcome, snapshot } = await evaluatedTarget({ views: 180, watchTimeMinutes: 720 });
+    await createSnapshot({ videoId: snapshot.videoId, views: 40, watchTimeMinutes: 100, collectedAt: new Date('2026-08-25T12:00:00.000Z') });
+    const [first, second] = await Promise.all([refreshService.refresh(outcome.id), refreshService.refresh(outcome.id)]);
+    assert.equal(first.review.id, second.review.id);
+    assert.equal(await client.editorialDecisionOutcomeReview.count(), 1);
+  });
+
+  test('refreshes every eligible outcome independently and returns a summary', async () => {
+    const first = await evaluatedTarget({ views: 180, watchTimeMinutes: 720 });
+    const second = await evaluatedTarget({ views: 50, watchTimeMinutes: 150, subscribersLost: 4 });
+    await createSnapshot({ videoId: first.snapshot.videoId, views: 185, watchTimeMinutes: 730, collectedAt: new Date('2026-08-25T12:00:00.000Z') });
+    await createSnapshot({ videoId: second.snapshot.videoId, views: 55, watchTimeMinutes: 160, subscribersLost: 4, collectedAt: new Date('2026-08-25T12:00:00.000Z') });
+    const summary = await refreshService.refreshAvailable();
+    assert.equal(summary.results.length, 2);
+    assert.equal(summary.failed, 0);
+    assert.equal(summary.reviewed + summary.unchanged, 2);
+  });
+
+  test('isolates a failed item during batch refresh and preserves successful reviews', async () => {
+    const first = await evaluatedTarget({ views: 180, watchTimeMinutes: 720 });
+    const second = await evaluatedTarget({ views: 50, watchTimeMinutes: 150 });
+    await createSnapshot({ videoId: first.snapshot.videoId, views: 20, watchTimeMinutes: 40, collectedAt: new Date('2026-08-25T12:00:00.000Z') });
+    await createSnapshot({ videoId: second.snapshot.videoId, views: 190, watchTimeMinutes: 760, collectedAt: new Date('2026-08-25T12:00:00.000Z') });
+    const selectiveEvaluator = {
+      evaluate: (linkId, snapshotId) => linkId === first.link.id
+        ? Promise.reject(new Error('private provider detail'))
+        : outcomeService.evaluate(linkId, snapshotId),
+    };
+    const service = new OutcomeRefreshService(outcomes, reviews, snapshots, selectiveEvaluator);
+    const summary = await service.refreshAvailable();
+    assert.equal(summary.results.length, 2);
+    assert.equal(summary.failed, 1);
+    assert.equal(summary.reviewed + summary.unchanged, 1);
+    assert.equal((await service.history(first.outcome.id))[0].status, 'failed');
+    assert.equal(await outcomes.findById(first.outcome.id).then(Boolean), true);
+  });
+
+  test('rolls back a revised outcome and memory when review completion fails', async () => {
+    const { outcome, snapshot } = await evaluatedTarget({ views: 180, watchTimeMinutes: 720 });
+    await createSnapshot({
+      videoId: snapshot.videoId,
+      views: 20,
+      watchTimeMinutes: 40,
+      collectedAt: new Date('2026-08-25T12:00:00.000Z'),
+    });
+    await client.$executeRawUnsafe(`CREATE TRIGGER reject_review_completion
+      BEFORE UPDATE ON EditorialDecisionOutcomeReview
+      WHEN NEW.status IN ('reviewed', 'unchanged')
+      BEGIN SELECT RAISE(ABORT, 'forced review rollback'); END`);
+    try {
+      const result = await refreshService.refresh(outcome.id);
+      assert.equal(result.status, 'failed');
+      assert.equal(await client.editorialDecisionOutcome.count(), 1);
+      assert.equal(await client.channelInsight.count(), 1);
+      assert.equal((await client.channelInsight.findFirstOrThrow()).evidence.outcomeId, outcome.id);
+      assert.equal((await refreshService.history(outcome.id))[0].status, 'failed');
+    } finally {
+      await client.$executeRawUnsafe('DROP TRIGGER reject_review_completion');
+    }
+  });
+
+  test('Supervisor exposes review counts without triggering a refresh', async () => {
+    let refreshCalls = 0;
+    const supervisor = new SupervisorModule(
+      { getStatus: async () => ({ state: 'synchronized', lastSyncAt: null, lastErrorType: null }) },
+      { list: async () => [] },
+      {
+        getOperationalStatus: async () => ({
+          current: 2,
+          reviewAvailable: 3,
+          stale: 1,
+          insufficientData: 4,
+          recentFailures: 1,
+        }),
+        refreshAvailable: async () => { refreshCalls += 1; },
+      },
+    );
+    const overview = await supervisor.getSupervisorOverview();
+    assert.deepEqual(overview.outcomeReviews, {
+      current: 2,
+      reviewAvailable: 3,
+      stale: 1,
+      insufficientData: 4,
+      recentFailures: 1,
+    });
+    assert.equal(refreshCalls, 0);
+  });
+
+  test('exposes safe review state, individual, batch and history HTTP contracts', async () => {
+    const { outcome, snapshot } = await evaluatedTarget({ views: 180, watchTimeMinutes: 720 });
+    await createSnapshot({ videoId: snapshot.videoId, views: 190, watchTimeMinutes: 740, collectedAt: new Date('2026-08-25T12:00:00.000Z') });
+    assert.equal((await request('/decision-outcomes/reviewable')).status, 200);
+    assert.equal((await request('/decision-outcomes/review-states')).body[0].state, 'review_available');
+    assert.equal((await request(`/decision-outcomes/${outcome.id}/review-state`)).status, 200);
+    const reviewed = await request(`/decision-outcomes/${outcome.id}/review`, { method: 'POST', body: '{}' });
+    assert.equal(reviewed.status, 200);
+    assert.ok(['reviewed', 'unchanged'].includes(reviewed.body.status));
+    assert.equal((await request(`/decision-outcomes/${outcome.id}/reviews`)).body.length, 1);
+    assert.equal((await request('/decision-outcomes/review', { method: 'POST', body: '{}' })).status, 200);
+    assert.equal((await request('/decision-outcomes/missing/review-state')).status, 404);
+    assert.equal((await request(`/decision-outcomes/${outcome.id}/review`, { method: 'POST', body: '{"extra":true}' })).status, 400);
+  });
+});
+
 describe('Decision outcome migration', () => {
   test('is additive, preserves snapshots and enforces link identity', () => {
     const database = new Database(':memory:');
@@ -449,6 +723,9 @@ describe('Decision outcome migration', () => {
         ("id", "decisionId", "sourceSnapshotId", "videoId") VALUES ('link', 'decision', 'snapshot', 'video')`).run();
       assert.throws(() => database.prepare(`INSERT INTO "EditorialDecisionVideoLink"
         ("id", "decisionId", "sourceSnapshotId", "videoId") VALUES ('link-2', 'decision', 'snapshot', 'video')`).run(), /UNIQUE/);
+      database.exec(reviewMigrationSql);
+      assert.ok(database.prepare('SELECT name FROM sqlite_master WHERE type = \'table\' AND name = \'EditorialDecisionOutcomeReview\'').get());
+      assert.equal(database.prepare('SELECT name FROM sqlite_master WHERE type = \'index\' AND name = \'EditorialDecisionOutcome_learningInsightId_key\'').get(), undefined);
     } finally {
       database.close();
     }

@@ -124,9 +124,15 @@ A migration `20260824213000_performance_intelligence` cria snapshots, preserva s
 
 `EditorialDecisionOutcome` guarda uma avaliação por vínculo e snapshot. Baseline, fatos, comparação, interpretação, métricas favoráveis/contrárias, lacunas e hipóteses são JSON estruturado; confiança e classificação permanecem campos explícitos. A unicidade `(decisionVideoLinkId, snapshotId)` torna a reavaliação idempotente.
 
-O outcome pode apontar para um `ChannelInsight` único. Essa relação permite atualizar o mesmo aprendizado em uma reavaliação. Excluir o aprendizado apenas limpa a referência (`ON DELETE SET NULL`); não remove o histórico do outcome.
+O outcome pode apontar para um `ChannelInsight` revisável. Outcomes sucessivos podem apontar para o mesmo aprendizado, permitindo preservar avaliações anteriores enquanto a memória é atualizada pela chave estável. Excluir o aprendizado apenas limpa a referência (`ON DELETE SET NULL`); não remove o histórico do outcome.
 
 A migration `20260825233000_decision_outcome_loop` apenas adiciona coluna, tabelas, índices e relações. Snapshots e decisões anteriores permanecem intactos. O teste de migration executa esse SQL em SQLite em memória e confirma preservação e unicidade.
+
+## EditorialDecisionOutcomeReview
+
+`EditorialDecisionOutcomeReview` registra cada tentativa manual de revisar um outcome contra evidência persistida mais recente. O registro guarda outcome e snapshot anteriores, outcome e snapshot resultantes, classificação, confiança, estado estruturado, métricas alteradas e timestamps. Falhas ficam registradas com tipo sanitizado e não apagam o outcome anterior.
+
+`reviewKey` é único e deriva do outcome de origem e da evidência atual. Essa constraint fornece a garantia final contra revisões duplicadas; o serviço também compartilha a mesma Promise dentro do processo. Outcome, memória, decisão e conclusão da revisão são gravados em uma transação; em falha, somente a tentativa externa é marcada como `failed`. A migration `20260826010000_outcome_review_refresh` é aditiva, preserva dados existentes e torna a relação com `ChannelInsight` um-para-muitos.
 
 ## Organização
 
@@ -140,10 +146,12 @@ A migration `20260825233000_decision_outcome_loop` apenas adiciona coluna, tabel
 - `backend/src/database/repositories/PerformanceSignalRepository.ts`: sinais históricos e substituição dos derivados por snapshot.
 - `backend/src/database/repositories/EditorialDecisionVideoLinkRepository.ts`: vínculos persistentes entre decisão e vídeo.
 - `backend/src/database/repositories/EditorialDecisionOutcomeRepository.ts`: avaliações idempotentes e consultas por escopo.
+- `backend/src/database/repositories/EditorialDecisionOutcomeReviewRepository.ts`: histórico e deduplicação das revisões.
 - `backend/src/services/PlannerService.ts`: regras e coordenação do domínio do Planejador.
 - `backend/src/services/LibraryService.ts`: validação da origem, idempotência e coordenação da Biblioteca.
 - `backend/src/services/ConversationLibraryService.ts`: validação, limite e ciclo de vínculo dos artefatos ativos.
 - `backend/src/services/creator-intelligence/DecisionOutcomeService.ts`: validação, comparação, classificação e memória revisável dos resultados.
+- `backend/src/services/creator-intelligence/OutcomeRefreshService.ts`: estado derivado, revisão individual/lote e status operacional.
 - `backend/src/routes/operators.ts`: validação HTTP e delegação ao serviço.
 
 ## Testes

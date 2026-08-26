@@ -314,3 +314,15 @@ EditorialDecision
 O resultado é persistido antes de virar aprendizado. Uma chave estável atualiza o mesmo `ChannelInsight` em reavaliações, permitindo revisar ou enfraquecer a memória quando novos dados chegam. O método `evaluateAvailableForVideo(videoId)` é a fronteira preparada para uma integração futura após sincronização; nenhum scheduler, polling ou gatilho automático foi ativado.
 
 No frontend, Planner e Analytics usam o API client central. Tokens de montagem, conversa e requisição impedem que associações, avaliações ou listagens tardias alterem a tela atual. O `statePanel` continua global; falhas dessas operações permanecem locais ao módulo.
+
+## Outcome Review & Refresh Loop
+
+`OutcomeRefreshService` é a fronteira operacional entre novos dados de performance e uma avaliação editorial anterior. Ele deriva `current`, `review_available`, `stale` ou `insufficient_data` a partir do banco, sem relógio artificial e sem consultar rede externa.
+
+Uma revisão disponível exige evidência objetiva: snapshot mais novo, valor relevante alterado, métrica antes ausente agora presente ou baseline aplicável diferente. A execução reutiliza `DecisionOutcomeService`, persiste um novo outcome quando a evidência muda e atualiza o `ChannelInsight` pela chave estável. Outcomes anteriores permanecem imutáveis como histórico.
+
+`EditorialDecisionOutcomeReview` funciona como journal append-only da operação. A chave única de revisão e o mapa de operações ativas tornam o comando idempotente para a mesma evidência. Outcome, memória, decisão e conclusão do review são confirmados na mesma transação; uma falha reverte esse conjunto, é sanitizada no registro da tentativa e não invalida a classificação anterior. O lote continua nos demais itens.
+
+Analytics controla revisão individual e em lote. Planner apenas informa quando a avaliação usada está desatualizada. Supervisor consulta contagens de estados e falhas recentes, sem iniciar revisões. Todos mantêm feedback local e proteção contra respostas obsoletas.
+
+Esta camada não atribui causalidade, não prevê views, não estima `engagedViews`, não cria scheduler e não muda o contrato do provider YouTube.

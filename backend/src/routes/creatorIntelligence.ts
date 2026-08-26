@@ -19,6 +19,11 @@ import {
   DecisionOutcomeSnapshotNotFoundError,
   DecisionOutcomeValidationError,
 } from '../services/creator-intelligence/DecisionOutcomeService';
+import {
+  OutcomeRefreshNotFoundError,
+  OutcomeRefreshService,
+  OutcomeRefreshValidationError,
+} from '../services/creator-intelligence/OutcomeRefreshService';
 import { PerformanceValidationError } from '../services/performance-intelligence/PerformanceNormalizer';
 import {
   YouTubeAnalyticsNotAuthorizedError,
@@ -72,6 +77,7 @@ export const createCreatorIntelligenceRouter = (
   youtubeSyncService: YouTubePerformanceSyncService = new YouTubePerformanceSyncService(),
   editorialDecisionService: EditorialDecisionService = new EditorialDecisionService(service),
   decisionOutcomeService: DecisionOutcomeService = new DecisionOutcomeService(),
+  outcomeRefreshService: OutcomeRefreshService = new OutcomeRefreshService(),
 ): Router => {
   const router = Router();
 
@@ -239,7 +245,14 @@ export const createCreatorIntelligenceRouter = (
     const id = req.params.id?.trim();
     if (!id) return res.status(400).json({ error: 'decision id is required' });
     try {
-      return res.status(200).json(await decisionOutcomeService.listLinks(id));
+      const links = await decisionOutcomeService.listLinks(id);
+      const enriched = await Promise.all(links.map(async (link) => ({
+        ...link,
+        reviewState: link.outcomes[0]
+          ? await outcomeRefreshService.inspect(link.outcomes[0].id)
+          : null,
+      })));
+      return res.status(200).json(enriched);
     } catch (error) {
       const mapped = sendDecisionOutcomeError(error, 'Failed to list editorial decision videos');
       return res.status(mapped.status).json(mapped.body);
@@ -320,6 +333,89 @@ export const createCreatorIntelligenceRouter = (
       }));
     } catch (error) {
       const mapped = sendDecisionOutcomeError(error, 'Failed to list decision outcomes');
+      return res.status(mapped.status).json(mapped.body);
+    }
+  });
+
+  const sendOutcomeRefreshError = (error: unknown, operation: string) => {
+    if (error instanceof OutcomeRefreshNotFoundError) {
+      return { status: 404, body: { error: error.message } };
+    }
+    if (error instanceof OutcomeRefreshValidationError) {
+      return { status: 400, body: { error: error.message } };
+    }
+    const name = error instanceof Error ? error.name : 'UnknownError';
+    console.error(`${operation} (${name})`);
+    return { status: 500, body: { error: 'Outcome review operation failed' } };
+  };
+
+  router.get('/decision-outcomes/reviewable', async (_req, res) => {
+    try {
+      return res.status(200).json(await outcomeRefreshService.listReviewable());
+    } catch (error) {
+      const mapped = sendOutcomeRefreshError(error, 'Failed to list reviewable outcomes');
+      return res.status(mapped.status).json(mapped.body);
+    }
+  });
+
+  router.get('/decision-outcomes/review-states', async (_req, res) => {
+    try {
+      return res.status(200).json(await outcomeRefreshService.listStates());
+    } catch (error) {
+      const mapped = sendOutcomeRefreshError(error, 'Failed to list outcome review states');
+      return res.status(mapped.status).json(mapped.body);
+    }
+  });
+
+  router.get('/decision-outcomes/review-status', async (_req, res) => {
+    try {
+      return res.status(200).json(await outcomeRefreshService.getOperationalStatus());
+    } catch (error) {
+      const mapped = sendOutcomeRefreshError(error, 'Failed to read outcome review status');
+      return res.status(mapped.status).json(mapped.body);
+    }
+  });
+
+  router.post('/decision-outcomes/review', async (req, res) => {
+    if (!isEmptyBody(req.body)) return res.status(400).json({ error: 'outcome review body must be empty' });
+    try {
+      return res.status(200).json(await outcomeRefreshService.refreshAvailable());
+    } catch (error) {
+      const mapped = sendOutcomeRefreshError(error, 'Failed to review available outcomes');
+      return res.status(mapped.status).json(mapped.body);
+    }
+  });
+
+  router.get('/decision-outcomes/:id/review-state', async (req, res) => {
+    const id = req.params.id?.trim();
+    if (!id) return res.status(400).json({ error: 'outcome id is required' });
+    try {
+      return res.status(200).json(await outcomeRefreshService.inspect(id));
+    } catch (error) {
+      const mapped = sendOutcomeRefreshError(error, 'Failed to inspect outcome review state');
+      return res.status(mapped.status).json(mapped.body);
+    }
+  });
+
+  router.post('/decision-outcomes/:id/review', async (req, res) => {
+    const id = req.params.id?.trim();
+    if (!id) return res.status(400).json({ error: 'outcome id is required' });
+    if (!isEmptyBody(req.body)) return res.status(400).json({ error: 'outcome review body must be empty' });
+    try {
+      return res.status(200).json(await outcomeRefreshService.refresh(id));
+    } catch (error) {
+      const mapped = sendOutcomeRefreshError(error, 'Failed to review decision outcome');
+      return res.status(mapped.status).json(mapped.body);
+    }
+  });
+
+  router.get('/decision-outcomes/:id/reviews', async (req, res) => {
+    const id = req.params.id?.trim();
+    if (!id) return res.status(400).json({ error: 'outcome id is required' });
+    try {
+      return res.status(200).json(await outcomeRefreshService.history(id));
+    } catch (error) {
+      const mapped = sendOutcomeRefreshError(error, 'Failed to list decision outcome reviews');
       return res.status(mapped.status).json(mapped.body);
     }
   });

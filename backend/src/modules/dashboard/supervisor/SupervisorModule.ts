@@ -1,11 +1,13 @@
 import type { EditorialDecision } from '@prisma/client';
 import { YouTubePerformanceSyncService } from '../../../services/performance-intelligence/YouTubePerformanceSyncService';
 import { EditorialDecisionService } from '../../../services/creator-intelligence/EditorialDecisionService';
+import { OutcomeRefreshService } from '../../../services/creator-intelligence/OutcomeRefreshService';
 
 export class SupervisorModule {
   constructor(
     private readonly youtubeSyncService = new YouTubePerformanceSyncService(),
     private readonly editorialDecisionService = new EditorialDecisionService(),
+    private readonly outcomeRefreshService = new OutcomeRefreshService(),
   ) {}
 
   async getSupervisorOverview() {
@@ -24,6 +26,18 @@ export class SupervisorModule {
       recentDecisions = await this.editorialDecisionService.list({ limit: 5 });
     } catch {
       recentDecisions = [];
+    }
+    let outcomeReviews = {
+      current: 0,
+      reviewAvailable: 0,
+      stale: 0,
+      insufficientData: 0,
+      recentFailures: 0,
+    };
+    try {
+      outcomeReviews = await this.outcomeRefreshService.getOperationalStatus();
+    } catch {
+      // Outcome review is a local operational section and must not break the Dashboard.
     }
     const risks = [...new Set(recentDecisions.flatMap((decision) => (
       Array.isArray(decision.risks) ? decision.risks.filter((risk): risk is string => typeof risk === 'string') : []
@@ -57,6 +71,7 @@ export class SupervisorModule {
         opportunities,
         actions: recentDecisions.slice(0, 3).map(({ nextAction }) => nextAction),
       },
+      outcomeReviews,
     };
   }
 }

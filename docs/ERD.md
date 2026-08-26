@@ -150,11 +150,24 @@ EditorialDecisionOutcome
 ├── id
 ├── decisionVideoLinkId -> EditorialDecisionVideoLink.id (ON DELETE CASCADE)
 ├── snapshotId -> VideoPerformanceSnapshot.id (ON DELETE RESTRICT)
-├── learningInsightId -> ChannelInsight.id (ON DELETE SET NULL, único)
+├── learningInsightId -> ChannelInsight.id (ON DELETE SET NULL)
 ├── baseline, facts, comparison, interpretation
 ├── supportingMetrics, contradictingMetrics, missingData, hypotheses
 ├── confidence, classification, evaluatedAt, updatedAt
 └── unique(decisionVideoLinkId, snapshotId)
+
+EditorialDecisionOutcomeReview
+├── id
+├── sourceOutcomeId -> EditorialDecisionOutcome.id (ON DELETE CASCADE)
+├── resultOutcomeId -> EditorialDecisionOutcome.id (ON DELETE SET NULL)
+├── previousSnapshotId -> VideoPerformanceSnapshot.id (ON DELETE RESTRICT)
+├── currentSnapshotId -> VideoPerformanceSnapshot.id (ON DELETE RESTRICT)
+├── reviewKey (unique)
+├── status, reason, changedMetrics, errorType
+├── previousClassification, currentClassification
+├── previousConfidence, currentConfidence
+├── previousState, currentState
+└── startedAt, completedAt
 
 ## Relacionamentos
 
@@ -175,7 +188,10 @@ EditorialDecisionOutcome
 - VideoPerformanceSnapshot 1:N EditorialDecisionVideoLink
 - EditorialDecisionVideoLink 1:N EditorialDecisionOutcome
 - VideoPerformanceSnapshot 1:N EditorialDecisionOutcome
-- ChannelInsight 1:0..1 EditorialDecisionOutcome
+- ChannelInsight 1:N EditorialDecisionOutcome
+- EditorialDecisionOutcome 1:N EditorialDecisionOutcomeReview como origem
+- EditorialDecisionOutcome 1:N EditorialDecisionOutcomeReview como resultado opcional
+- VideoPerformanceSnapshot 1:N EditorialDecisionOutcomeReview
 
 ## Observações
 
@@ -188,4 +204,5 @@ EditorialDecisionOutcome
 - `PerformanceSignal.key` torna sinais derivados idempotentes e sua relação registra a evidência de origem.
 - vínculos usam snapshots reais e são únicos por decisão/vídeo; outcomes são únicos por vínculo/snapshot.
 - classificações de outcome representam comparação observada, não causalidade.
+- revisões preservam estado anterior e resultado, e `reviewKey` impede repetir a mesma evidência.
 - A modelagem preserva a arquitetura de futuro com PostgreSQL sem alterar o frontend ou as APIs.

@@ -350,3 +350,26 @@ Reavaliações são idempotentes para o mesmo vínculo e snapshot. Vínculos ava
 ### Frontend
 
 O Planner mostra `Aguardando publicação`, `Aguardando dados`, `Avaliável` ou `Avaliada`, permite associar um snapshot real e iniciar avaliação. Analytics consulta os outcomes persistidos e mostra recomendação original, classificação, confiança, interpretação e evidências favoráveis/contrárias. Todo conteúdo usa DOM textual seguro, feedback local e proteção contra respostas obsoletas.
+
+## Outcome Review & Refresh Loop — Sprint 24
+
+```text
+Novo snapshot ou baseline persistido
+  -> OutcomeRefreshService.inspect(outcomeId)
+    -> current | review_available | stale | insufficient_data
+      -> revisão manual individual ou em lote
+        -> EditorialDecisionOutcomeReview (pending)
+          -> DecisionOutcomeService.evaluate(...)
+            -> novo/atualizado EditorialDecisionOutcome
+            -> ChannelInsight revisável
+          -> review reviewed | unchanged | failed
+            -> Analytics / Planner / Supervisor
+```
+
+O estado é derivado por identidade do snapshot, métricas realmente alteradas, preenchimento de dados antes ausentes e mudança da baseline aplicável. Tempo sozinho não torna um outcome revisável e `engagedViews` continua ausente quando a fonte não o fornece.
+
+A revisão é explícita. Analytics oferece ação individual e em lote, recarrega os dados persistidos e ignora respostas tardias depois de unmount. O Planner sinaliza que uma avaliação possui revisão disponível, mas continua usando a memória atual até a revisão terminar. O Supervisor apenas consolida contagens; ele não dispara trabalho.
+
+Cada tentativa cria histórico antes da avaliação. Sucesso liga estado anterior e resultado; ausência de mudança fica como `unchanged`; falha preserva o outcome anterior e marca somente o registro da tentativa. O `reviewKey` único e o controle em processo evitam trabalho duplicado para a mesma evidência.
+
+Não existe scheduler, polling ou rede externa nova. A sincronização YouTube e a revisão permanecem comandos manuais separados.

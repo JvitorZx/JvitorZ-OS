@@ -435,8 +435,11 @@ export const createPlannerController = ({ api }) => {
       details.append(action);
 
       const links = decisionLinks.get(decision.id) ?? [];
+      const reviewAvailable = links.some((link) => link.reviewState?.state === 'review_available');
       const status = links.length === 0
         ? 'Aguardando publicação'
+        : reviewAvailable
+          ? 'Revisão disponível'
         : links.some((link) => link.status === 'evaluated')
           ? 'Avaliada'
           : links.some((link) => link.status === 'evaluable')
@@ -445,6 +448,9 @@ export const createPlannerController = ({ api }) => {
       const statusElement = document.createElement('small');
       statusElement.className = 'planner-decision-status';
       statusElement.textContent = status;
+      if (reviewAvailable) {
+        statusElement.title = 'Existem dados de performance mais novos; a avaliação anterior deve ser tratada como desatualizada.';
+      }
       details.append(statusElement);
       if (compact) return details;
 

@@ -764,3 +764,52 @@ Permitir associar uma decisão editorial persistida a um vídeo real já sincron
 - dados insuficientes produzem `INCONCLUSIVE` com lacunas explícitas;
 - Planner e Analytics ignoram respostas obsoletas e mantêm feedback local;
 - suíte, build, Prisma, migration, sintaxe frontend e `git diff --check` passam sem rede externa e sem uso do `dev.db`.
+
+## Sprint 24 — Outcome Review & Refresh Loop
+
+**Status: CONCLUÍDA**
+
+**Fase principal: FASE 7 - Primeiro Operador**, mantendo resultados editoriais atualizados quando novas evidências reais chegam.
+
+### Objetivo
+
+Detectar quando um outcome deixou de refletir os dados persistidos atuais, permitir revisão manual segura e preservar a evolução da classificação e da memória sem sobrescrever o histórico.
+
+### Entregas
+
+- estados derivados `current`, `review_available`, `stale` e `insufficient_data`;
+- detecção por snapshot novo, métricas alteradas, dado antes ausente e baseline diferente;
+- `OutcomeRefreshService` com revisão individual e lote manual;
+- histórico append-only `EditorialDecisionOutcomeReview` com estados anterior e atual;
+- deduplicação por fingerprint único e proteção concorrente no processo;
+- falhas isoladas por item, sem invalidar outcome ou memória anteriores;
+- `ChannelInsight` revisável compartilhado por outcomes sucessivos;
+- contratos HTTP para estado, elegíveis, revisão, lote, histórico e status;
+- Analytics com revisão individual/lote e dados persistidos atualizados;
+- Planner sinalizando revisão disponível sem misturar estado entre conversas;
+- Supervisor com contagens atuais, revisáveis, inconclusivos e falhas recentes;
+- migration aditiva validada em SQLite em memória;
+- regressão automatizada com 477 verificações aprovadas.
+
+### Honestidade e limites
+
+- nenhuma mudança de performance prova causalidade da decisão;
+- tempo sozinho não abre revisão;
+- `engagedViews` ausente continua `null` e nunca é estimado;
+- não existe scheduler, polling, sincronização recorrente ou nova rede externa;
+- a revisão em lote é sequencial e limitada aos outcomes atuais retornados pelo serviço;
+- vidIQ, web research, novos operadores, automações e redesign permanecem fora do escopo.
+
+### Critérios atendidos
+
+- evidência nova torna a revisão disponível de forma determinística;
+- revisão cria ou reutiliza exatamente um registro para a mesma evidência;
+- mudança e ausência de mudança ficam registradas separadamente;
+- falha preserva o estado anterior e não interrompe os demais itens do lote;
+- histórico é consultável pelo outcome anterior e pelo outcome resultante;
+- Planner, Analytics e Supervisor consomem o estado persistido sem respostas obsoletas;
+- suíte, build, Prisma, migration, sintaxe frontend e `git diff --check` passam sem rede externa e sem uso do `dev.db`.
+
+### Próxima camada recomendada
+
+Definir a próxima Sprint a partir do roadmap e dos dados operacionais acumulados. Automação recorrente deve continuar separada até existir política explícita de quota, frequência e recuperação de falhas.

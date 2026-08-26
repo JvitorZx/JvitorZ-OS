@@ -28,6 +28,7 @@ import {
 } from '../services/creator-intelligence/CreatorIntelligenceService';
 import { EditorialDecisionService } from '../services/creator-intelligence/EditorialDecisionService';
 import { DecisionOutcomeService } from '../services/creator-intelligence/DecisionOutcomeService';
+import { OutcomeRefreshService } from '../services/creator-intelligence/OutcomeRefreshService';
 import { createCreatorIntelligenceRouter } from './creatorIntelligence';
 
 const createDefaultPlannerService = (
@@ -61,12 +62,14 @@ export const createOperatorsRouter = (
   creatorIntelligenceService: CreatorIntelligenceService = new CreatorIntelligenceService(),
   editorialDecisionService?: EditorialDecisionService,
   decisionOutcomeService?: DecisionOutcomeService,
+  outcomeRefreshService?: OutcomeRefreshService,
 ): Router => {
   const router = Router();
   const planner = new PlannerModule();
   const resolvedEditorialDecisionService = editorialDecisionService
     ?? new EditorialDecisionService(creatorIntelligenceService);
   const resolvedDecisionOutcomeService = decisionOutcomeService ?? new DecisionOutcomeService();
+  const resolvedOutcomeRefreshService = outcomeRefreshService ?? new OutcomeRefreshService();
   const resolvedPlannerService = plannerService
     ?? createDefaultPlannerService(
       creatorIntelligenceService,
@@ -79,6 +82,7 @@ router.use('/creator-intelligence', createCreatorIntelligenceRouter(
   undefined,
   resolvedEditorialDecisionService,
   resolvedDecisionOutcomeService,
+  resolvedOutcomeRefreshService,
 ));
 
 router.get('/planner', async (_req, res) => {

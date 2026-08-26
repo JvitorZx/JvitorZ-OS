@@ -1574,3 +1574,24 @@ test('ignores a late outcome evaluation after switching conversations', async ()
   assert.equal(dom.feedback.textContent, '');
   assert.equal(dom.globalStatePanel.textContent, 'Estado global preservado');
 });
+
+test('marks an outdated outcome as review available without presenting it as current', async () => {
+  const decision = {
+    id: 'decision-review', recommendation: 'Continuar o teste.', confidence: 0.6,
+    evidence: [], risks: [], missingData: [], nextAction: 'Reavaliar.',
+  };
+  const link = {
+    id: 'link-review', decisionId: decision.id, videoId: 'video-review', status: 'evaluated',
+    sourceSnapshot: { id: 'snapshot-review', videoId: 'video-review', title: 'Video em revisão' },
+    reviewState: { state: 'review_available', reason: 'New performance data.' },
+  };
+  const api = createMemoryApi(
+    [conversation('A')], [], {}, { A: [decision] }, [link.sourceSnapshot], { [decision.id]: [link] },
+  );
+  const { dom } = await mount(api);
+  const details = dom.editorialDecisionList.children[0];
+  const status = details.children.find((child) => child.className === 'planner-decision-status');
+  assert.equal(status.textContent, 'Revisão disponível');
+  assert.match(status.title, /desatualizada/);
+  assert.equal(dom.globalStatePanel.textContent, 'Estado global preservado');
+});

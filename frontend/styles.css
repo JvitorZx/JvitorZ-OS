@@ -1170,6 +1170,10 @@ dd {
   padding-top: 10px;
 }
 
+.performance-outcome-review {
+  align-self: flex-start;
+}
+
 .performance-outcome-item span,
 .performance-outcome-item p,
 .performance-outcome-item small {

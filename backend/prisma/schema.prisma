@@ -182,7 +182,7 @@ model ChannelInsight {
   confidence     Float
   classification String
   evidence       Json?
-  decisionOutcome EditorialDecisionOutcome?
+  decisionOutcomes EditorialDecisionOutcome[]
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
@@ -249,6 +249,8 @@ model VideoPerformanceSnapshot {
   editorialOutcomes          EditorialDecision[]
   decisionVideoLinks         EditorialDecisionVideoLink[]
   decisionOutcomeSnapshots   EditorialDecisionOutcome[]
+  outcomeReviewPreviousSnapshots EditorialDecisionOutcomeReview[] @relation("OutcomeReviewPreviousSnapshot")
+  outcomeReviewCurrentSnapshots  EditorialDecisionOutcomeReview[] @relation("OutcomeReviewCurrentSnapshot")
   createdAt                  DateTime           @default(now())
   updatedAt                  DateTime           @updatedAt
 
@@ -315,7 +317,7 @@ model EditorialDecisionOutcome {
   decisionVideoLink    EditorialDecisionVideoLink @relation(fields: [decisionVideoLinkId], references: [id], onDelete: Cascade)
   snapshotId           String
   snapshot             VideoPerformanceSnapshot @relation(fields: [snapshotId], references: [id], onDelete: Restrict)
-  learningInsightId    String?                   @unique
+  learningInsightId    String?
   learningInsight      ChannelInsight?           @relation(fields: [learningInsightId], references: [id], onDelete: SetNull)
   windowStart          DateTime?
   windowEnd            DateTime?
@@ -329,10 +331,42 @@ model EditorialDecisionOutcome {
   contradictingMetrics Json
   missingData          Json
   hypotheses           Json
+  sourceReviews        EditorialDecisionOutcomeReview[] @relation("OutcomeReviewSource")
+  resultReviews        EditorialDecisionOutcomeReview[] @relation("OutcomeReviewResult")
   evaluatedAt          DateTime                  @default(now())
   updatedAt            DateTime                  @updatedAt
 
   @@unique([decisionVideoLinkId, snapshotId])
   @@index([snapshotId])
   @@index([classification, evaluatedAt])
+  @@index([learningInsightId])
+}
+
+model EditorialDecisionOutcomeReview {
+  id                        String                     @id @default(cuid())
+  sourceOutcomeId           String
+  sourceOutcome             EditorialDecisionOutcome @relation("OutcomeReviewSource", fields: [sourceOutcomeId], references: [id], onDelete: Cascade)
+  resultOutcomeId           String?
+  resultOutcome             EditorialDecisionOutcome? @relation("OutcomeReviewResult", fields: [resultOutcomeId], references: [id], onDelete: SetNull)
+  previousSnapshotId        String
+  previousSnapshot          VideoPerformanceSnapshot  @relation("OutcomeReviewPreviousSnapshot", fields: [previousSnapshotId], references: [id], onDelete: Restrict)
+  currentSnapshotId         String
+  currentSnapshot           VideoPerformanceSnapshot  @relation("OutcomeReviewCurrentSnapshot", fields: [currentSnapshotId], references: [id], onDelete: Restrict)
+  reviewKey                 String                     @unique
+  status                    String                     @default("pending")
+  reason                    String
+  previousClassification    String
+  currentClassification     String?
+  previousConfidence        Float
+  currentConfidence         Float?
+  changedMetrics            Json
+  previousState             Json
+  currentState              Json?
+  errorType                 String?
+  startedAt                 DateTime                   @default(now())
+  completedAt               DateTime?
+
+  @@index([sourceOutcomeId, startedAt])
+  @@index([status, startedAt])
+  @@index([currentSnapshotId])
 }

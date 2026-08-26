@@ -196,7 +196,7 @@ Associação operacional entre uma decisão e um vídeo real já observado.
 Avaliação persistida de um vínculo em um snapshot de performance.
 
 - `decisionVideoLinkId` e `snapshotId`: origem rastreável da avaliação;
-- `learningInsightId`: memória revisável opcional criada a partir do resultado;
+- `learningInsightId`: memória revisável opcional compartilhada por outcomes sucessivos do mesmo aprendizado;
 - `baseline`, `facts`, `comparison` e `interpretation`: estruturas explícitas da análise;
 - `supportingMetrics`, `contradictingMetrics` e `missingData`: sustentação e limites;
 - `hypotheses`: próximos testes editoriais, não afirmações causais;
@@ -208,7 +208,26 @@ EditorialDecision 1 -> N EditorialDecisionVideoLink
 VideoPerformanceSnapshot 1 -> N EditorialDecisionVideoLink (snapshot de origem)
 EditorialDecisionVideoLink 1 -> N EditorialDecisionOutcome
 VideoPerformanceSnapshot 1 -> N EditorialDecisionOutcome (snapshot avaliado)
-ChannelInsight 1 -> 0..1 EditorialDecisionOutcome
+ChannelInsight 1 -> N EditorialDecisionOutcome
 ```
 
 A migration `20260825233000_decision_outcome_loop` é aditiva: inclui `engagedViews` opcional, cria vínculos e outcomes e preserva snapshots e decisões existentes. O provider YouTube atual não oferece `engagedViews`, portanto grava `null` sem estimativa.
+
+### EditorialDecisionOutcomeReview
+
+Histórico append-only de uma revisão explícita de outcome.
+
+- `sourceOutcomeId` e `resultOutcomeId`: estado anterior e resultado persistido da revisão;
+- `previousSnapshotId` e `currentSnapshotId`: evidências comparadas;
+- `reviewKey`: fingerprint único do outcome e da evidência atual, usado para deduplicação;
+- `status`: `pending`, `reviewed`, `unchanged` ou `failed`;
+- classificação, confiança e estados anterior/atual preservam a evolução sem sobrescrever o histórico;
+- `changedMetrics`, `reason` e `errorType` registram somente metadados operacionais seguros.
+
+```text
+EditorialDecisionOutcome 1 -> N EditorialDecisionOutcomeReview (origem)
+EditorialDecisionOutcome 1 -> N EditorialDecisionOutcomeReview (resultado opcional)
+VideoPerformanceSnapshot 1 -> N EditorialDecisionOutcomeReview (anterior e atual)
+```
+
+A migration `20260826010000_outcome_review_refresh` remove apenas a unicidade antiga de `learningInsightId`, cria índice não exclusivo e adiciona a tabela de revisões. Outcomes, snapshots e aprendizados existentes são preservados.

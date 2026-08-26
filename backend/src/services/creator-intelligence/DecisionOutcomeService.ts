@@ -3,9 +3,11 @@ import type {
   EditorialDecisionOutcome,
   EditorialDecisionVideoLink,
   Prisma,
+  PrismaClient,
   VideoPerformanceSnapshot,
 } from '@prisma/client';
 import { DatabaseService } from '../../database/DatabaseService';
+import { ChannelInsightRepository } from '../../database/repositories/ChannelInsightRepository';
 import { EditorialDecisionRepository } from '../../database/repositories/EditorialDecisionRepository';
 import {
   EditorialDecisionOutcomeRepository,
@@ -15,6 +17,7 @@ import {
   EditorialDecisionVideoLinkRepository,
   type EditorialDecisionVideoLinkWithDetails,
 } from '../../database/repositories/EditorialDecisionVideoLinkRepository';
+import { PerformanceSignalRepository } from '../../database/repositories/PerformanceSignalRepository';
 import { VideoPerformanceSnapshotRepository } from '../../database/repositories/VideoPerformanceSnapshotRepository';
 import { ChannelMemoryService } from './ChannelMemoryService';
 
@@ -178,6 +181,8 @@ export class DecisionOutcomeService {
     outcomeRepository?: EditorialDecisionOutcomeRepository,
     snapshotRepository?: VideoPerformanceSnapshotRepository,
     private readonly memory = new ChannelMemoryService(),
+    private readonly transactionClient?: PrismaClient,
+    private readonly transactionScope = false,
   ) {
     this.decisionRepository = decisionRepository;
     this.linkRepository = linkRepository;
@@ -328,6 +333,32 @@ export class DecisionOutcomeService {
     outcome: EditorialDecisionOutcomeWithDetails;
     created: boolean;
   }> {
+    const canUseDefaultClient = !this.decisionRepository
+      && !this.linkRepository
+      && !this.outcomeRepository
+      && !this.snapshotRepository;
+    const client = this.transactionClient ?? (canUseDefaultClient ? DatabaseService.client : null);
+    if (!this.transactionScope && client) {
+      return client.$transaction(async (transaction) => {
+        const scopedClient = transaction as unknown as PrismaClient;
+        const scopedSnapshots = new VideoPerformanceSnapshotRepository(scopedClient);
+        const scopedMemory = new ChannelMemoryService(
+          new ChannelInsightRepository(scopedClient),
+          new PerformanceSignalRepository(scopedClient),
+          scopedSnapshots,
+        );
+        const scopedService = new DecisionOutcomeService(
+          new EditorialDecisionRepository(scopedClient),
+          new EditorialDecisionVideoLinkRepository(scopedClient),
+          new EditorialDecisionOutcomeRepository(scopedClient),
+          scopedSnapshots,
+          scopedMemory,
+          undefined,
+          true,
+        );
+        return scopedService.evaluate(linkId, snapshotId);
+      });
+    }
     const link = await this.requireLink(linkId);
     const snapshots = await this.snapshots.findAll({ videoId: link.videoId });
     const snapshot = snapshotId
@@ -394,12 +425,16 @@ export class DecisionOutcomeService {
       hypotheses: hypotheses as Prisma.InputJsonValue,
       evaluatedAt: new Date(),
     });
+    const memoryRevision = classification === 'MIXED'
+      ? 'weakened'
+      : classification === 'INCONCLUSIVE' ? 'insufficient_data' : 'reinforced';
+    const memoryConfidence = classification === 'MIXED' ? confidence * 0.75 : confidence;
     const learning = await this.memory.recordLearning({
       projectId: decision.projectId,
       category: 'decision_outcome',
       subject: `decision:${decision.id}:video:${link.videoId}`,
       statement: `${summary} Isso não prova causalidade de jogo, formato, título ou premissa isoladamente.`,
-      confidence,
+      confidence: memoryConfidence,
       classification: classification === 'INCONCLUSIVE' ? 'unknown' : 'inference',
       evidence: {
         outcomeId: saved.outcome.id,
@@ -407,6 +442,7 @@ export class DecisionOutcomeService {
         videoId: link.videoId,
         snapshotId: snapshot.id,
         classification,
+        revision: memoryRevision,
         supportingMetrics: supporting.map(({ metric }) => metric),
         contradictingMetrics: contradicting.map(({ metric }) => metric),
         missingData,

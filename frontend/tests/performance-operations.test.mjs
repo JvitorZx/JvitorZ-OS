@@ -47,7 +47,9 @@ class FakeElement {
     })));
   }
   closest(selector) {
-    return selector === '[data-decision-id]' && this.dataset.decisionId ? this : null;
+    if (selector === '[data-decision-id]' && this.dataset.decisionId) return this;
+    if (selector === '[data-review-outcome]' && this.dataset.reviewOutcome) return this;
+    return null;
   }
 }
 
@@ -117,6 +119,12 @@ const createApi = (overrides = {}) => {
     listChannelLearnings: async () => { calls.push('learnings'); return data.learnings; },
     getCreatorIntelligenceContext: async () => { calls.push('context'); return data.context; },
     listDecisionOutcomes: async () => { calls.push('outcomes'); return data.outcomes; },
+    listOutcomeReviewStates: async () => { calls.push('outcomes'); return data.outcomes; },
+    reviewDecisionOutcome: async (id) => { calls.push(['review', id]); return { status: 'reviewed' }; },
+    reviewAvailableOutcomes: async () => {
+      calls.push('reviewAll');
+      return { reviewed: 1, unchanged: 0, skipped: 0, failed: 0 };
+    },
     syncYouTubePerformance: async (input) => { calls.push(['sync', structuredClone(input)]); return { created: 1, updated: 0 }; },
     getDecisionEvidence: async (id) => { calls.push(['decision', id]); return data.decision; },
     ...overrides,
@@ -136,6 +144,7 @@ const createDom = () => {
     '[data-performance-collected-at]', '[data-performance-formats]', '[data-performance-signals]',
     '[data-channel-learnings]', '[data-performance-decisions]', '[data-decision-evidence]',
     '[data-decision-outcomes]',
+    '[data-review-outcomes]',
     '[data-baseline-sample]',
   ];
   for (const selector of selectors) panel.selectorMap.set(selector, new FakeElement());
@@ -193,7 +202,7 @@ test('mount loads every real data source once and renders provider state', async
 test('renders evaluated editorial outcomes from real API data as literal text', async () => {
   const unsafeRecommendation = '<img src=x onerror=alert(1)>';
   const api = createApi({
-    listDecisionOutcomes: async () => [{
+    listOutcomeReviewStates: async () => [{
       id: 'outcome-1',
       classification: 'POSITIVE',
       confidence: 0.8,
@@ -212,6 +221,35 @@ test('renders evaluated editorial outcomes from real API data as literal text', 
   assert.equal(row.children[1].textContent, unsafeRecommendation);
   assert.equal(row.children[1].children.length, 0);
   assert.match(row.children[2].textContent, /POSITIVE/);
+});
+
+test('reviews one eligible outcome and refreshes persisted state', async () => {
+  const outcome = {
+    id: 'outcome-1', classification: 'INCONCLUSIVE', confidence: 0.3,
+    interpretation: { summary: 'Dados iniciais.' }, supportingMetrics: [], contradictingMetrics: [],
+    snapshot: { title: 'Teste inicial' }, decisionVideoLink: { decision: { recommendation: 'Testar.' } },
+    evaluatedAt: '2026-08-24T12:00:00.000Z',
+  };
+  const api = createApi({
+    listOutcomeReviewStates: async () => [{ state: 'review_available', lastEvaluationAt: outcome.evaluatedAt, outcome }],
+  });
+  const dom = createDom();
+  createAnalyticsController({ api }).mount(dom.root);
+  await flush();
+  const button = dom.get('[data-decision-outcomes]').children[0].children.at(-1);
+  await dom.get('[data-decision-outcomes]').dispatch('click', { target: button });
+  assert.deepEqual(api.calls.find((call) => Array.isArray(call) && call[0] === 'review'), ['review', 'outcome-1']);
+  assert.match(dom.get('[data-performance-feedback]').textContent, /revisado/i);
+});
+
+test('reviews all available outcomes once and reports the safe summary', async () => {
+  const api = createApi();
+  const dom = createDom();
+  createAnalyticsController({ api }).mount(dom.root);
+  await flush();
+  await dom.get('[data-review-outcomes]').dispatch('click');
+  assert.equal(api.calls.filter((call) => call === 'reviewAll').length, 1);
+  assert.match(dom.get('[data-performance-feedback]').textContent, /1 alterado/);
 });
 
 test('renders the latest persisted snapshot and every supported metric', async () => {
@@ -391,6 +429,30 @@ test('a late synchronization after unmount does not report success in old UI', a
   pending.resolve({ created: 1, updated: 0 });
   await request;
   assert.doesNotMatch(dom.get('[data-performance-feedback]').textContent, /concluida/);
+});
+
+test('a late outcome review after unmount does not update detached Analytics UI', async () => {
+  const pending = deferred();
+  const outcome = {
+    id: 'late-outcome', classification: 'INCONCLUSIVE', confidence: 0.3,
+    interpretation: { summary: 'Dados iniciais.' }, supportingMetrics: [], contradictingMetrics: [],
+    snapshot: { title: 'Teste tardio' }, decisionVideoLink: { decision: { recommendation: 'Testar.' } },
+    evaluatedAt: '2026-08-24T12:00:00.000Z',
+  };
+  const api = createApi({
+    listOutcomeReviewStates: async () => [{ state: 'review_available', lastEvaluationAt: outcome.evaluatedAt, outcome }],
+    reviewDecisionOutcome: () => pending.promise,
+  });
+  const dom = createDom();
+  const controller = createAnalyticsController({ api });
+  controller.mount(dom.root);
+  await flush();
+  const button = dom.get('[data-decision-outcomes]').children[0].children.at(-1);
+  const request = dom.get('[data-decision-outcomes]').dispatch('click', { target: button });
+  controller.unmount();
+  pending.resolve({ status: 'reviewed' });
+  await request;
+  assert.doesNotMatch(dom.get('[data-performance-feedback]').textContent, /revisado/i);
 });
 
 test('mounting the same DOM twice keeps listeners unique', async () => {

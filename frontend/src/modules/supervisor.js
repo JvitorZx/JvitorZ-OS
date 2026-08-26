@@ -21,6 +21,7 @@ export const supervisorModule = {
     const risks = Array.isArray(editorial.risks) ? editorial.risks : [];
     const opportunities = Array.isArray(editorial.opportunities) ? editorial.opportunities : [];
     const actions = Array.isArray(editorial.actions) ? editorial.actions : [];
+    const outcomeReviews = data.supervisor?.outcomeReviews ?? {};
     const renderItems = (items, empty) => items.length > 0
       ? `<ul>${items.slice(0, 3).map((item) => `<li>${escapeHtml(item)}</li>`).join('')}</ul>`
       : `<p class="performance-empty">${empty}</p>`;
@@ -49,6 +50,15 @@ export const supervisorModule = {
           </div>
         </div>
         <div class="supervisor-editorial-grid">
+          <section>
+            <h3>Revisão de outcomes</h3>
+            <ul>
+              <li>Atuais: ${escapeHtml(outcomeReviews.current ?? 0)}</li>
+              <li>Revisão disponível: ${escapeHtml(outcomeReviews.reviewAvailable ?? 0)}</li>
+              <li>Inconclusivos: ${escapeHtml(outcomeReviews.insufficientData ?? 0)}</li>
+              <li>Falhas recentes: ${escapeHtml(outcomeReviews.recentFailures ?? 0)}</li>
+            </ul>
+          </section>
           <section>
             <h3>Prioridades editoriais</h3>
             ${renderItems(priorities, 'Nenhuma decisão editorial recente.')}
