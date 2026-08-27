@@ -317,6 +317,9 @@ export const createManagerController = ({ api }) => {
 
 export const managerModule = {
   id: 'manager',
+  route: '/manager',
+  pageTitle: 'Gerente',
+  pageEyebrow: 'Orquestracao controlada',
   label: 'Gerente',
   fullscreen: true,
   render: renderManager,

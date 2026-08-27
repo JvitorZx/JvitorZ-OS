@@ -3,234 +3,123 @@ import { createFullscreenWorkspace, createIcon, html } from './design-system/ind
 import { dashboardModules } from './modules/index.js';
 import { createModuleLifecycle } from './modules/lifecycle.js';
 
+const moduleRoute = (module) => module.route ?? `/${module.id}`;
+const navigationModules = (modules) => modules.filter(({ navigation = true }) => navigation);
+
 const createShell = (modules) => html`
   <aside class="sidebar" aria-label="Navegacao principal">
     <div class="brand">
       <span class="brand-mark">JZ</span>
-      <div>
-        <strong>JvitorZ OS</strong>
-        <span>Creator Ops Studio</span>
-      </div>
+      <div><strong>JvitorZ OS</strong><span>Creator Ops Studio</span></div>
     </div>
-
     <nav class="nav">
-      ${modules
-        .map(
-          (module) => html`
-            <a class="nav-link" href="#${module.id}" data-module-link="${module.id}">
-              <span class="nav-icon">${createIcon(module.id)}</span>
-              ${module.label}
-            </a>
-          `,
-        )
-        .join('')}
+      ${navigationModules(modules).map((module) => html`
+        <a class="nav-link" href="#${moduleRoute(module)}" data-module-link="${module.id}">
+          <span class="nav-icon">${createIcon(module.icon ?? module.id)}</span>${module.label}
+        </a>
+      `).join('')}
     </nav>
-
-    <div class="sidebar-footer">
-      <span>Fonte:</span>
-      <strong>/api/dashboard</strong>
-    </div>
+    <div class="sidebar-footer"><span>Workspace local</span><strong>Operacao controlada</strong></div>
   </aside>
-
   <main class="workspace">
     <header class="topbar">
-      <div>
-        <p class="eyebrow">Visao geral</p>
-        <h1>Dashboard operacional</h1>
-      </div>
-
-      <button id="refreshButton" class="icon-button" type="button" aria-label="Atualizar dashboard" title="Atualizar">
-        ${createIcon('refresh')}
-      </button>
+      <div><p class="eyebrow" data-page-eyebrow>Workspace</p><h1 data-page-title>JvitorZ OS</h1></div>
+      <button id="refreshButton" class="icon-button" type="button" aria-label="Atualizar dados" title="Atualizar">${createIcon('refresh')}</button>
     </header>
-
-    <section
-      id="statePanel"
-      class="state-panel"
-      data-state-scope="global"
-      role="status"
-      aria-live="polite"
-      aria-atomic="true"
-      hidden
-    ></section>
+    <section id="statePanel" class="state-panel" data-state-scope="global" role="status" aria-live="polite" aria-atomic="true" hidden></section>
     <section id="moduleHost" class="module-grid"></section>
   </main>
 `;
 
-export const createDashboard = ({
-  root,
-  apiBaseUrl,
-  api = createApiClient(apiBaseUrl),
-  modules = dashboardModules,
-}) => {
-  if (!root) {
-    throw new Error('Dashboard root element not found');
-  }
+export const resolveDashboardRoute = (hash, modules = dashboardModules) => {
+  const raw = String(hash ?? '').replace(/^#/, '').trim();
+  const legacy = modules.find((module) => module.id === raw || module.aliases?.includes(raw));
+  const path = legacy ? moduleRoute(legacy) : raw.startsWith('/') ? raw : raw ? `/${raw}` : '/dashboard';
+  const cleanPath = `/${path.split('?')[0].split('/').filter(Boolean).join('/')}`;
+  const exact = modules.find((module) => moduleRoute(module) === cleanPath);
+  const contextual = modules
+    .filter((module) => module.allowSubroutes && cleanPath.startsWith(`${moduleRoute(module)}/`))
+    .sort((a, b) => moduleRoute(b).length - moduleRoute(a).length)[0];
+  const module = exact ?? contextual ?? modules.find((item) => moduleRoute(item) === '/dashboard') ?? modules[0];
+  const base = moduleRoute(module);
+  const resolvedPath = exact || contextual ? cleanPath : base;
+  return {
+    module,
+    path: resolvedPath,
+    canonicalHash: `#${resolvedPath}`,
+    valid: Boolean(exact || contextual),
+    subpath: contextual ? cleanPath.slice(base.length + 1) : '',
+  };
+};
 
-  const context = { apiBaseUrl, api, modules };
+export const createDashboard = ({ root, apiBaseUrl, api = createApiClient(apiBaseUrl), modules = dashboardModules }) => {
+  if (!root) throw new Error('Dashboard root element not found');
+  const context = { apiBaseUrl, api, modules, route: null };
   let dashboardData = {};
   let activeModule = null;
-  const lifecycles = new Map(
-    modules.map((module) => [module.id, createModuleLifecycle(module, context)]),
-  );
-
+  let activePath = null;
+  const lifecycles = new Map(modules.map((module) => [module.id, createModuleLifecycle(module, context)]));
   root.innerHTML = createShell(modules);
-
   const elements = {
-    globalStatePanel: root.querySelector('#statePanel'),
-    moduleHost: root.querySelector('#moduleHost'),
-    refreshButton: root.querySelector('#refreshButton'),
-    navLinks: root.querySelectorAll('[data-module-link]'),
+    globalStatePanel: root.querySelector('#statePanel'), moduleHost: root.querySelector('#moduleHost'), refreshButton: root.querySelector('#refreshButton'),
+    navLinks: root.querySelectorAll('[data-module-link]'), pageTitle: root.querySelector('[data-page-title]'),
+    pageEyebrow: root.querySelector('[data-page-eyebrow]'), workspace: root.querySelector('.workspace'),
   };
-
-  const setGlobalState = (message, variant = 'info') => {
-    elements.globalStatePanel.hidden = !message;
-    elements.globalStatePanel.className = `state-panel ${variant}`;
-    elements.globalStatePanel.innerHTML = message || '';
+  const setGlobalState = (message = '', variant = 'info', action = null) => {
+    elements.globalStatePanel.replaceChildren(); elements.globalStatePanel.hidden = !message; elements.globalStatePanel.className = `state-panel ${variant}`;
+    if (!message) return;
+    elements.globalStatePanel.append(document.createTextNode(message));
+    if (action?.href && action?.label) { const link = document.createElement('a'); link.href = action.href; link.textContent = action.label; elements.globalStatePanel.append(document.createTextNode(' '), link); }
   };
-
-  const setLoading = (isLoading) => {
-    elements.refreshButton.disabled = isLoading;
-    elements.refreshButton.setAttribute('aria-busy', String(isLoading));
+  const setLoading = (loading) => { elements.refreshButton.disabled = loading; elements.refreshButton.setAttribute('aria-busy', String(loading)); };
+  const setActiveNavigation = (moduleId) => elements.navLinks.forEach((link) => {
+    const active = link.dataset.moduleLink === moduleId; link.classList.toggle('active', active);
+    if (active) link.setAttribute('aria-current', 'page'); else link.removeAttribute('aria-current');
+  });
+  const unmountActiveModule = () => { if (!activeModule) return; lifecycles.get(activeModule.id)?.unmount(); activeModule = null; activePath = null; };
+  const renderPage = (module) => module.fullscreen
+    ? createFullscreenWorkspace({ moduleId: module.id, content: module.render(dashboardData, context) })
+    : html`<section id="${module.id}" class="module-section page-module">${module.render(dashboardData, context)}</section>`;
+  const setActiveModule = (route, { rerender = false } = {}) => {
+    const nextModule = route.module;
+    if (activeModule?.id === nextModule.id && activePath === route.path && !rerender) return;
+    unmountActiveModule(); context.route = route; setActiveNavigation(nextModule.id);
+    elements.pageTitle.textContent = nextModule.pageTitle ?? nextModule.label; elements.pageEyebrow.textContent = nextModule.pageEyebrow ?? 'Workspace';
+    elements.workspace.classList.toggle('workspace-fullscreen', Boolean(nextModule.fullscreen)); elements.moduleHost.innerHTML = renderPage(nextModule);
+    const container = elements.moduleHost.querySelector(`#${nextModule.id}`); activeModule = nextModule; activePath = route.path;
+    lifecycles.get(nextModule.id)?.mount(container); container?.scrollIntoView?.({ behavior: 'instant', block: 'start' });
   };
-
-  const renderModules = () =>
-    modules
-      .map(
-        (module) => html`
-          <section id="${module.id}" class="module-section">
-            ${module.render(dashboardData, context)}
-          </section>
-        `,
-      )
-      .join('');
-
-  const setModuleContent = (content) => {
-    elements.moduleHost.innerHTML = content;
-  };
-
-  const setActiveNavigation = (moduleId) => {
-    elements.navLinks.forEach((link) => {
-      link.classList.toggle('active', link.dataset.moduleLink === moduleId);
-    });
-  };
-
-  const unmountActiveModule = () => {
-    if (!activeModule) return;
-
-    lifecycles.get(activeModule.id)?.unmount();
-    activeModule = null;
-  };
-
-  const setActiveModule = (moduleId, { rerender = false } = {}) => {
-    const nextModule = modules.find((module) => module.id === moduleId) ?? modules[0];
-    if (activeModule?.id === nextModule.id && !rerender) return;
-
-    unmountActiveModule();
-
-    setActiveNavigation(nextModule.id);
-
-    // If module requests fullscreen workspace view, replace main content
-    if (nextModule.fullscreen) {
-      setModuleContent(createFullscreenWorkspace({
-        moduleId: nextModule.id,
-        content: nextModule.render(dashboardData, context),
-      }));
-
-      // mark workspace mode on the main workspace element
-      const workspaceMain = root.querySelector('.workspace');
-      if (workspaceMain) workspaceMain.classList.add('workspace-fullscreen');
-
-      // ensure focus/scroll to top of module
-      const targetSection = root.querySelector(`#${nextModule.id}`);
-      activeModule = nextModule;
-      lifecycles.get(nextModule.id)?.mount(targetSection);
-      if (targetSection) targetSection.scrollIntoView({ behavior: 'instant', block: 'start' });
+  const activateFromHash = (options) => {
+    const route = resolveDashboardRoute(window.location.hash, modules);
+    if (window.location.hash !== route.canonicalHash) {
+      window.location.hash = route.canonicalHash;
       return;
     }
-
-    let targetSection = rerender ? null : root.querySelector(`#${nextModule.id}`);
-
-    if (!targetSection) {
-      setModuleContent(renderModules());
-      targetSection = root.querySelector(`#${nextModule.id}`);
-    }
-
-    if (targetSection) {
-      // ensure non-fullscreen modules remove workspace fullscreen class
-      const workspaceMain = root.querySelector('.workspace');
-      if (workspaceMain) workspaceMain.classList.remove('workspace-fullscreen');
-      activeModule = nextModule;
-      lifecycles.get(nextModule.id)?.mount(targetSection);
-      targetSection.scrollIntoView({ behavior: 'instant', block: 'start' });
-    }
+    setActiveModule(route, options);
   };
-
-  const activateModuleFromHash = (options) => {
-    const requestedModuleId = window.location.hash.replace('#', '');
-    const requestedModule = modules.find((module) => module.id === requestedModuleId);
-
-    if (!requestedModule) {
-      const defaultHash = `#${modules[0].id}`;
-      if (window.location.hash !== defaultHash) {
-        window.location.hash = defaultHash;
-        return;
-      }
-    }
-
-    setActiveModule(requestedModule?.id ?? modules[0].id, options);
-  };
-
-  const syncNavigationFromHash = () => {
-    const requestedModuleId = window.location.hash.replace('#', '');
-    const requestedModule = modules.find((module) => module.id === requestedModuleId);
-
-    setActiveNavigation(requestedModule?.id ?? modules[0].id);
-  };
-
   const loadDashboard = async () => {
-    setLoading(true);
-    setGlobalState('Carregando dados do dashboard...');
-
+    setLoading(true); setGlobalState('Carregando estado global do sistema...');
     try {
-      const data = await api.getDashboard();
-
-      if (data.unauthorized) {
-        setGlobalState(`Google OAuth ainda nao conectado. <a href="${data.authUrl}">Conectar agora</a>.`, 'warning');
-        dashboardData = {
-          status: {
-            youtubeConnected: false,
-            automationsEnabled: false,
-            aiEnabled: false,
-          },
-        };
-      } else {
-        dashboardData = data;
-        setGlobalState('');
-      }
-
-      activateModuleFromHash({
-        rerender: true,
-      });
+      const data = await api.getDashboard(); dashboardData = data;
+      if (data.unauthorized) setGlobalState('YouTube ainda não está conectado.', 'warning', { href: data.authUrl, label: 'Conectar agora' });
+      else if (data.youtubeUnavailable) setGlobalState('YouTube está temporariamente indisponível. Os serviços locais continuam ativos.', 'warning');
+      else setGlobalState();
+      if (activeModule?.refreshOnDashboardData) activateFromHash({ rerender: true });
     } catch (error) {
-      const message = error instanceof ApiRequestError
-        ? 'O dashboard nao conseguiu carregar os dados do backend.'
-        : error instanceof TypeError
-          ? 'Nao foi possivel conectar ao backend.'
-          : `Nao foi possivel carregar o dashboard: ${error.message}`;
+      const message = error instanceof ApiRequestError ? 'O estado global não pôde ser carregado pelo backend.'
+        : error instanceof TypeError ? 'Não foi possível conectar ao backend.' : 'Não foi possível carregar o estado global.';
       setGlobalState(message, 'error');
-      activateModuleFromHash();
-    } finally {
-      setLoading(false);
-    }
+    } finally { setLoading(false); }
   };
-
-  elements.refreshButton.addEventListener('click', loadDashboard);
-
-  window.addEventListener('hashchange', () => {
-    activateModuleFromHash();
-  });
-
-  syncNavigationFromHash();
-  loadDashboard();
+  const handleHashChange = () => activateFromHash();
+  const handleRefresh = () => loadDashboard();
+  const handleNavigationIntent = (event) => {
+    const moduleId = event.currentTarget?.dataset?.moduleLink;
+    if (moduleId) setActiveNavigation(moduleId);
+  };
+  elements.refreshButton.addEventListener('click', handleRefresh);
+  elements.navLinks.forEach((link) => link.addEventListener('click', handleNavigationIntent));
+  window.addEventListener('hashchange', handleHashChange);
+  activateFromHash(); loadDashboard();
+  return { destroy() { unmountActiveModule(); elements.refreshButton.removeEventListener('click', handleRefresh); elements.navLinks.forEach((link) => link.removeEventListener('click', handleNavigationIntent)); window.removeEventListener('hashchange', handleHashChange); } };
 };

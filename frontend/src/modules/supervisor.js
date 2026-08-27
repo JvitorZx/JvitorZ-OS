@@ -10,6 +10,10 @@ const youtubeAnalyticsStatus = {
 
 export const supervisorModule = {
   id: 'supervisor',
+  route: '/supervisor',
+  pageTitle: 'Supervisor',
+  pageEyebrow: 'Estado operacional',
+  refreshOnDashboardData: true,
   label: 'Supervisor',
   render(data) {
     const status = data.status ?? {};
@@ -26,6 +30,9 @@ export const supervisorModule = {
     const automations = data.supervisor?.automations ?? {};
     const automationRuntime = automations.runtime ?? {};
     const automationGovernance = automations.governance ?? {};
+    const channelOperators = Array.isArray(data.supervisor?.channelOperators)
+      ? data.supervisor.channelOperators
+      : [];
     const renderItems = (items, empty) => items.length > 0
       ? `<ul>${items.slice(0, 3).map((item) => `<li>${escapeHtml(item)}</li>`).join('')}</ul>`
       : `<p class="performance-empty">${empty}</p>`;
@@ -93,6 +100,10 @@ export const supervisorModule = {
               <li>Retries pendentes: ${escapeHtml(automationGovernance.retriesPending ?? 0)}</li>
               <li>Aprovações pendentes: ${escapeHtml(automationGovernance.approvalsPending ?? 0)}</li>
             </ul>
+          </section>
+          <section>
+            <h3>Operadores do canal</h3>
+            ${channelOperators.length > 0 ? `<ul>${channelOperators.map((operator) => `<li>${escapeHtml(operator.id)}: ${escapeHtml(operator.status)} · confiança ${escapeHtml(Math.round(Number(operator.confidence ?? 0) * 100))}%</li>`).join('')}</ul>` : '<p class="performance-empty">Sem estado dos operadores especializados.</p>'}
           </section>
           <section>
             <h3>Prioridades editoriais</h3>

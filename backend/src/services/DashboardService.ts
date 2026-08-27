@@ -14,8 +14,10 @@ export class DashboardService {
   private settingsModule = new SettingsModule();
   private automationRepository = new AutomationRepository(DatabaseService.client);
 
-  async getDashboard(): Promise<Record<string, unknown>> {
-    const channel = await this.channelModule.getChannelSummary();
+  async getDashboard({ youtubeConnected = true }: { youtubeConnected?: boolean } = {}): Promise<Record<string, unknown>> {
+    const channel = youtubeConnected ? await this.channelModule.getChannelSummary() : {
+      title: null, id: null, subscribers: null, videoCount: null, viewCount: null, country: null, publishedAt: null,
+    };
     const analytics = await this.analyticsModule.getDashboardAnalytics();
     const operators = await this.operatorsModule.getOperatorsStatus();
     const supervisor = await this.supervisorModule.getSupervisorOverview();
@@ -34,7 +36,7 @@ export class DashboardService {
         views: channel.viewCount,
       },
       status: {
-        youtubeConnected: true,
+        youtubeConnected,
         automationsEnabled: automationSummary.active > 0,
         aiEnabled: Boolean(process.env.OPENAI_API_KEY?.trim()),
       },

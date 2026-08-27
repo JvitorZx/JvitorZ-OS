@@ -992,3 +992,39 @@ Controlar quando, quantas vezes e sob quais condições cada automação pode ex
 - PlanReview pendente e `EXTERNAL_WRITE` nunca são liberados por clear/override;
 - coordenação de quota entre processos diferentes permanece fora do escopo local atual;
 - UI de edição avançada de múltiplas janelas e dashboards históricos permanece futura.
+
+## Sprint 30 — Operator Expansion + Real Navigation Foundation
+
+**Status: CONCLUÍDA**
+
+### Objetivo
+
+Transformar a navegação existente em páginas operacionais reais e tornar visíveis os primeiros quatro operadores especializados de canal sem recriar os serviços maduros.
+
+### Entregas
+
+- Application Shell com sidebar, page header, estado global e um único workspace ativo;
+- rotas canônicas para Dashboard, Canal, Analytics, Planner, Biblioteca, Gerente, Supervisor, Automações, Operadores e Configurações;
+- compatibilidade com hashes legados, refresh/back/forward e fallback para `#/dashboard`;
+- seleção imediata da sidebar e lifecycle explícito sem listeners duplicados;
+- Dashboard como home de síntese com ações para páginas responsáveis;
+- Biblioteca como página independente usando itens persistidos reais;
+- Hub com `AVAILABLE`, `LIMITED`, `NOT_CONFIGURED` e `PLANNED`;
+- contrato comum e implementações read-only de CTR, Retenção, Long-form e Shorts;
+- Analytics com subnavegação Overview, CTR, Retenção, Long-form, Shorts e Outcomes;
+- capabilities especializadas no Gerente, incluindo combinação CTR + Retenção;
+- resumos read-only dos operadores no Supervisor;
+- Dashboard degradado e reconectável quando OAuth Google está ausente ou expirado;
+- APIs, testes de integração e documentação atualizados, sem migration nova.
+
+### Limites preservados
+
+- nenhuma métrica ausente é estimada e nenhuma causalidade de thumbnail/retenção é inventada;
+- formatos Long-form/Shorts dependem de classificação explícita dos snapshots;
+- curva granular de retenção continua indisponível no provider atual;
+- sem clipping, editor, vidIQ, pesquisa web, novos side effects ou redesign amplo;
+- abrir operadores não sincroniza YouTube e não altera o banco.
+
+### Próxima camada recomendada
+
+Usar os operadores em fluxos editoriais concretos e evoluir a qualidade/observabilidade das recomendações antes de adicionar novos adapters externos.

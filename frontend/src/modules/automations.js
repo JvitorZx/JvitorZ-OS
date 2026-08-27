@@ -171,5 +171,6 @@ export const createAutomationsController = ({ api }) => {
   return { mount, unmount };
 };
 
-export const automationsModule = { id: 'automation-runner', label: 'Automações', fullscreen: true,
+export const automationsModule = { id: 'automation-runner', route: '/automations', aliases: ['automations'],
+  pageTitle: 'Automações', pageEyebrow: 'Runtime controlado', label: 'Automações', fullscreen: true,
   render: renderAutomations, createController: createAutomationsController };

@@ -362,7 +362,7 @@ Esta camada não atribui causalidade, não prevê views, não estima `engagedVie
 
 O Gerente é uma camada de coordenação separada dos especialistas. `OrchestratorService` recebe uma intenção, usa regras determinísticas para criar um `OrchestrationPlan`, resolve capabilities pelo `CapabilityRegistry`, executa passos em ordem e consolida um `OrchestrationResult`. Ele não importa implementações concretas: a composição registra adapters para serviços maduros.
 
-Capabilities disponíveis: `performance.read`, `analytics.read`, `creator-intelligence.decide`, `decision-outcomes.read`, `outcome-refresh.inspect`, `outcome-refresh.run`, `supervisor.read`, `library.read`, `youtube.sync` e `planner.respond`. Cada contrato declara inputs, outputs, dependências, disponibilidade e acesso `read`, `write` ou `external_side_effect`. Funcionalidades planejadas não entram no registro.
+Capabilities disponíveis: `performance.read`, `analytics.read`, `channel-operator.ctr`, `channel-operator.retention`, `channel-operator.long-form`, `channel-operator.shorts`, `creator-intelligence.decide`, `decision-outcomes.read`, `outcome-refresh.inspect`, `outcome-refresh.run`, `supervisor.read`, `library.read`, `youtube.sync` e `planner.respond`. Cada contrato declara inputs, outputs, dependências, disponibilidade e acesso `read`, `write` ou `external_side_effect`. Funcionalidades planejadas não entram no registro.
 
 O Planner continua dono de conversa e mensagem. Na composição real, perguntas editoriais usam o Gerente para consolidar contexto, mas o Planner persiste a resposta e o Creator Intelligence continua dono da decisão. O Supervisor somente informa estado operacional e nunca executa capabilities.
 
@@ -385,3 +385,20 @@ O Gerente cria preview sem executar, apresenta efeitos e coleta decisão. O Supe
 Execuções são sequenciais, reutilizam outputs anteriores e aplicam short-circuit antes de uma etapa desnecessária. Falhas são sanitizadas por capability; quando ainda existe evidência útil, o resultado é `partial`. Uma chave opcional deduplica chamadas sequenciais e concorrentes e fica vinculada ao request normalizado original; reutilizá-la para outro trabalho é conflito seguro.
 
 `youtube.sync` exige confirmação explícita e parâmetros limitados. A composição manual Sync → Detect → Review → Supervisor não cria scheduler, cron, polling, n8n ou processo em background.
+
+## Operator Expansion e navegação real
+
+A Sprint 30 estabelece uma shell operacional única e rotas SPA canônicas de `#/dashboard` a `#/settings`. A sidebar e o page header permanecem visíveis; somente a página ativa é montada em `moduleHost`. O lifecycle existente continua genérico e o Dashboard não importa controllers de Planner, Analytics ou operadores.
+
+`ChannelOperatorService` é a fronteira read-only sobre `VideoPerformanceSnapshotRepository`. CTR, Retenção, Long-form e Shorts compartilham `ChannelOperatorAnalysis` com status, fatos, sinais, insights, recomendações, lacunas, confiança e evidências. O serviço não consulta Google: usa exclusivamente snapshots persistidos e explicita dados ausentes.
+
+```text
+Analytics / Gerente / Supervisor
+  -> ChannelOperatorService
+    -> VideoPerformanceSnapshotRepository
+      -> Prisma -> SQLite
+```
+
+O Gerente registra `channel-operator.ctr`, `channel-operator.retention`, `channel-operator.long-form` e `channel-operator.shorts` como capabilities `READ_ONLY`. O roteador determinístico pode escolher uma capability ou combinar CTR + Retenção. O Supervisor consulta resumos e nunca dispara mutação.
+
+O Dashboard opera em modo degradado quando OAuth Google não está disponível ou retorna `invalid_grant`: dados locais continuam em HTTP 200 e a UI oferece reconexão. Falhas inesperadas permanecem sanitizadas.

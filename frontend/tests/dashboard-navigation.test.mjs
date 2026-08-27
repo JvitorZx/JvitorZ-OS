@@ -5,6 +5,7 @@ import { createDashboard } from '../src/dashboard.js';
 import { dashboardModules } from '../src/modules/index.js';
 import { operatorsModule } from '../src/modules/operators.js';
 import { supervisorModule } from '../src/modules/supervisor.js';
+import { homeModule } from '../src/modules/home.js';
 import { operatorRegistry } from '../src/operators/registry.js';
 
 class FakeClassList {
@@ -60,6 +61,7 @@ class FakeElement {
     this.disabled = false;
     this.scrollCount = 0;
     this._innerHTML = '';
+    this._textContent = '';
   }
 
   set innerHTML(value) {
@@ -70,6 +72,15 @@ class FakeElement {
     return this._innerHTML;
   }
 
+  set textContent(value) {
+    this._textContent = String(value ?? '');
+    this.children = [];
+  }
+
+  get textContent() {
+    return this._textContent + this.children.map((child) => child.textContent ?? '').join('');
+  }
+
   setAttribute(name, value) {
     this.attributes.set(name, String(value));
   }
@@ -78,10 +89,28 @@ class FakeElement {
     return this.attributes.get(name) ?? null;
   }
 
+  removeAttribute(name) {
+    this.attributes.delete(name);
+  }
+
   addEventListener(type, listener) {
     const listeners = this.listeners.get(type) ?? [];
     listeners.push(listener);
     this.listeners.set(type, listeners);
+  }
+
+  removeEventListener(type, listener) {
+    const listeners = this.listeners.get(type) ?? [];
+    this.listeners.set(type, listeners.filter((item) => item !== listener));
+  }
+
+  append(...children) {
+    this.children.push(...children);
+  }
+
+  replaceChildren(...children) {
+    this._textContent = '';
+    this.children = children;
   }
 
   dispatch(type, event = {}) {
@@ -171,6 +200,10 @@ class FakeWindow {
     this.listeners.set(type, listeners);
   }
 
+  removeEventListener(type, listener) {
+    this.listeners.set(type, (this.listeners.get(type) ?? []).filter((item) => item !== listener));
+  }
+
   setHash(value) {
     const hash = value && !String(value).startsWith('#') ? `#${value}` : String(value);
     if (hash === this.currentHash) return;
@@ -201,12 +234,16 @@ class FakeRoot extends FakeElement {
     const moduleHost = new FakeModuleHost();
     const refreshButton = new FakeElement('button');
     refreshButton.id = 'refreshButton';
+    const pageTitle = new FakeElement('h1');
+    const pageEyebrow = new FakeElement('p');
 
     this.elements = new Map([
       ['.workspace', workspace],
       ['#statePanel', statePanel],
       ['#moduleHost', moduleHost],
       ['#refreshButton', refreshButton],
+      ['[data-page-title]', pageTitle],
+      ['[data-page-eyebrow]', pageEyebrow],
     ]);
 
     this.navLinks = [...this._innerHTML.matchAll(/href="#([^"]+)" data-module-link="([^"]+)"/g)]
@@ -216,6 +253,7 @@ class FakeRoot extends FakeElement {
         link.dataset.moduleLink = match[2];
         link.href = `#${match[1]}`;
         link.click = () => {
+          link.dispatch('click', { currentTarget: link });
           this.fakeWindow.location.hash = link.href;
         };
         return link;
@@ -246,6 +284,14 @@ const flush = async () => {
 const createHarness = async ({ hash = '', modules = dashboardModules, api: apiOverride } = {}) => {
   const fakeWindow = new FakeWindow(hash);
   globalThis.window = fakeWindow;
+  globalThis.document = {
+    createElement: (tag) => new FakeElement(tag),
+    createTextNode: (value) => {
+      const node = new FakeElement('#text');
+      node.textContent = value;
+      return node;
+    },
+  };
   const root = new FakeRoot(fakeWindow);
   const api = apiOverride ?? {
     async getDashboard() {
@@ -259,7 +305,7 @@ const createHarness = async ({ hash = '', modules = dashboardModules, api: apiOv
     },
   };
 
-  createDashboard({
+  const dashboard = createDashboard({
     root,
     apiBaseUrl: 'http://localhost:3000',
     api,
@@ -270,7 +316,7 @@ const createHarness = async ({ hash = '', modules = dashboardModules, api: apiOv
   const navLink = (id) => root.navLinks.find((link) => link.dataset.moduleLink === id);
   const activeLink = () => root.navLinks.find((link) => link.classList.contains('active'));
 
-  return { fakeWindow, root, navLink, activeLink };
+  return { fakeWindow, root, navLink, activeLink, dashboard };
 };
 
 test('sidebar navigation changes hash, activates the module and keeps one hash listener', async () => {
@@ -279,16 +325,82 @@ test('sidebar navigation changes hash, activates the module and keeps one hash l
   harness.navLink('operators').click();
   harness.navLink('operators').click();
 
-  assert.equal(harness.fakeWindow.location.hash, '#operators');
+  assert.equal(harness.fakeWindow.location.hash, '#/operators');
   assert.equal(harness.activeLink().dataset.moduleLink, 'operators');
   assert.equal(harness.root.querySelector('#operators').scrollCount, 1);
   assert.equal(harness.fakeWindow.listenerCount('hashchange'), 1);
   assert.equal(harness.root.querySelector('#refreshButton').listenerCount('click'), 1);
+  assert.equal(harness.navLink('operators').listenerCount('click'), 1);
 });
 
-test('a valid initial hash opens the same module again after a dashboard reload', async () => {
+test('registered shell routes match the operational navigation contract', () => {
+  assert.deepEqual(dashboardModules.map(({ route }) => route), [
+    '/dashboard', '/channel', '/analytics', '/planner', '/library', '/manager',
+    '/supervisor', '/automations', '/operators', '/settings',
+  ]);
+});
+
+test('sidebar selection follows click intent before the hash navigation commits', async () => {
+  const harness = await createHarness({ hash: '#/dashboard' });
+  const link = harness.navLink('analytics');
+  link.dispatch('click', { currentTarget: link });
+  assert.equal(harness.activeLink().dataset.moduleLink, 'analytics');
+  assert.equal(harness.fakeWindow.location.hash, '#/dashboard');
+});
+
+test('browser-like backward and forward hash changes preserve route and lifecycle', async () => {
+  const harness = await createHarness({ hash: '#/channel' });
+  harness.fakeWindow.location.hash = '#/planner';
+  assert.equal(harness.activeLink().dataset.moduleLink, 'content-planner');
+  harness.fakeWindow.location.hash = '#/channel';
+  assert.equal(harness.activeLink().dataset.moduleLink, 'channel');
+  harness.fakeWindow.location.hash = '#/planner';
+  assert.equal(harness.activeLink().dataset.moduleLink, 'content-planner');
+  assert.equal(harness.root.querySelector('#moduleHost').children.length, 1);
+});
+
+test('destroy removes shell listeners and unmounts the active page', async () => {
+  const calls = [];
+  const module = {
+    id: 'dashboard', route: '/dashboard', label: 'Dashboard', render: () => '<p>Home</p>',
+    createController: () => ({ mount: () => calls.push('mount'), unmount: () => calls.push('unmount') }),
+  };
+  const harness = await createHarness({ modules: [module] });
+  harness.dashboard.destroy();
+  assert.deepEqual(calls, ['mount', 'unmount']);
+  assert.equal(harness.fakeWindow.listenerCount('hashchange'), 0);
+  assert.equal(harness.navLink('dashboard').listenerCount('click'), 0);
+  assert.equal(harness.root.querySelector('#refreshButton').listenerCount('click'), 0);
+});
+
+test('Dashboard home links summaries to responsible pages without rendering untrusted HTML', () => {
+  const markup = homeModule.render({
+    status: { youtubeConnected: true, aiEnabled: true },
+    supervisor: {
+      editorial: { priorities: ['Prioridade <script>alert(1)</script>'], risks: ['Amostra curta'] },
+      automations: { active: 2 },
+      channelOperators: [{ status: 'AVAILABLE' }, { status: 'LIMITED' }],
+    },
+  });
+  for (const route of ['/channel', '/planner', '/automations', '/operators', '/analytics', '/manager', '/supervisor']) {
+    assert.match(markup, new RegExp(`href="#${route}"`));
+  }
+  assert.match(markup, /Prioridade &lt;script&gt;alert\(1\)&lt;\/script&gt;/);
+  assert.doesNotMatch(markup, /<script>alert\(1\)<\/script>/);
+});
+
+test('an Analytics subroute keeps one module mounted and the sidebar synchronized', async () => {
+  const harness = await createHarness({ hash: '#/analytics/ctr' });
+  assert.equal(harness.fakeWindow.location.hash, '#/analytics/ctr');
+  assert.equal(harness.activeLink().dataset.moduleLink, 'analytics');
+  assert.equal(harness.root.querySelector('#moduleHost').children.length, 1);
+  assert.ok(harness.root.querySelector('#analytics'));
+});
+
+test('a legacy initial hash is canonicalized and survives a dashboard reload', async () => {
   const firstLoad = await createHarness({ hash: '#content-planner' });
   assert.equal(firstLoad.activeLink().dataset.moduleLink, 'content-planner');
+  assert.equal(firstLoad.fakeWindow.location.hash, '#/planner');
   assert.equal(firstLoad.root.querySelector('.workspace').classList.contains('workspace-fullscreen'), true);
 
   const reloaded = await createHarness({ hash: firstLoad.fakeWindow.location.hash });
@@ -297,13 +409,13 @@ test('a valid initial hash opens the same module again after a dashboard reload'
   assert.equal(reloaded.root.querySelector('.workspace').classList.contains('workspace-fullscreen'), true);
 });
 
-test('an invalid hash is normalized to Channel without a hashchange loop', async () => {
+test('an invalid hash is normalized to Dashboard without a hashchange loop', async () => {
   const harness = await createHarness({ hash: '#module-that-does-not-exist' });
 
-  assert.equal(harness.fakeWindow.location.hash, '#channel');
+  assert.equal(harness.fakeWindow.location.hash, '#/dashboard');
   assert.equal(harness.fakeWindow.hashChangeCount, 1);
-  assert.equal(harness.activeLink().dataset.moduleLink, 'channel');
-  assert.equal(harness.root.querySelector('#channel').scrollCount, 1);
+  assert.equal(harness.activeLink().dataset.moduleLink, 'dashboard');
+  assert.equal(harness.root.querySelector('#dashboard').scrollCount, 1);
 });
 
 test('invalid hash mounts the default module once and keeps later navigation functional', async () => {
@@ -335,7 +447,7 @@ test('invalid hash mounts the default module once and keeps later navigation fun
     'unmount:channel',
     'mount:analytics',
   ]);
-  assert.equal(harness.fakeWindow.location.hash, '#analytics');
+  assert.equal(harness.fakeWindow.location.hash, '#/analytics');
 });
 
 test('fullscreen workspace is replaced cleanly when switching modules', async () => {
@@ -404,7 +516,7 @@ test('sidebar and hash leave fullscreen workspace without a Back button', async 
   assert.equal(harness.root.querySelector('#workspaceBack'), null);
   harness.navLink('channel').click();
 
-  assert.equal(harness.fakeWindow.location.hash, '#channel');
+  assert.equal(harness.fakeWindow.location.hash, '#/channel');
   assert.equal(harness.activeLink().dataset.moduleLink, 'channel');
   assert.equal(harness.root.querySelector('.workspace').classList.contains('workspace-fullscreen'), false);
 });
@@ -452,53 +564,23 @@ test('multiple fullscreen operators share one workspace and preserve lifecycle o
   ]);
 });
 
-const renderOperatorsCatalog = () => operatorsModule.render({}, { modules: dashboardModules });
+test('Operators registry points available capabilities only to registered routes', () => {
+  const registered = (route) => dashboardModules.some((module) => module.route === route
+    || (module.allowSubroutes && route?.startsWith(`${module.route}/`)));
+  const navigable = operatorRegistry.filter(({ status }) => status !== 'PLANNED');
 
-const navigateFromCatalog = (markup, operatorId, fakeWindow) => {
-  const links = [...markup.matchAll(/<a[\s\S]*?href="#([^"]+)"[\s\S]*?data-operator="([^"]+)"[\s\S]*?<\/a>/g)];
-  const link = links.find((match) => match[2] === operatorId);
-  if (link) fakeWindow.location.hash = `#${link[1]}`;
-};
-
-test('available Operators catalog items only link to registered modules', () => {
-  const markup = renderOperatorsCatalog();
-  const linkedOperators = [...markup.matchAll(/<a\b[^>]*href="#([^"]+)"[^>]*data-operator="([^"]+)"[^>]*>/g)]
-    .map((match) => ({ href: match[1], id: match[2] }));
-  const moduleIds = new Set(dashboardModules.map((module) => module.id));
-
-  assert.deepEqual(linkedOperators, [
-    { href: 'manager', id: 'manager' },
-    { href: 'content-planner', id: 'content-planner' },
-    { href: 'automation-runner', id: 'automation-runner' },
+  assert.ok(navigable.every(({ route }) => registered(route)));
+  assert.deepEqual(operatorRegistry.filter(({ dynamic }) => dynamic).map(({ id }) => id), [
+    'ctr', 'retention', 'long-form', 'shorts',
   ]);
-  assert.ok(linkedOperators.every((operator) => moduleIds.has(operator.href)));
-  assert.match(markup, /data-operator="content-planner"[\s\S]*?data-operator-available="true"/);
 });
 
-test('unavailable Operators remain visible with non-interactive status', () => {
-  const markup = renderOperatorsCatalog();
+test('planned Operators remain non-navigable without producing an invalid hash', () => {
+  const planned = operatorRegistry.filter(({ status }) => status === 'PLANNED');
 
-  assert.match(markup, /<div[\s\S]*?data-operator="youtube-monitor"[\s\S]*?aria-disabled="true"[\s\S]*?Em breve[\s\S]*?<\/div>/);
-  assert.doesNotMatch(markup, /href="#youtube-monitor"/);
-  assert.match(markup, /href="#automation-runner"[\s\S]*?data-operator="automation-runner"[\s\S]*?Pronto/);
-  assert.deepEqual(
-    operatorRegistry.map((operator) => operator.id),
-    ['manager', 'content-planner', 'youtube-monitor', 'automation-runner'],
-  );
-});
-
-test('unavailable Operators do not change the current hash', () => {
-  const markup = renderOperatorsCatalog();
-  const fakeWindow = new FakeWindow('#operators');
-
-  navigateFromCatalog(markup, 'youtube-monitor', fakeWindow);
-  assert.equal(fakeWindow.location.hash, '#operators');
-
-  navigateFromCatalog(markup, 'automation-runner', fakeWindow);
-  assert.equal(fakeWindow.location.hash, '#automation-runner');
-
-  navigateFromCatalog(markup, 'content-planner', fakeWindow);
-  assert.equal(fakeWindow.location.hash, '#content-planner');
+  assert.ok(planned.length > 0);
+  assert.ok(planned.every(({ route }) => route === null));
+  assert.match(operatorsModule.render(), /data-operator-list/);
 });
 
 test('a global Dashboard failure is reported through statePanel', async () => {
@@ -513,11 +595,11 @@ test('a global Dashboard failure is reported through statePanel', async () => {
 
   assert.equal(statePanel.hidden, false);
   assert.equal(statePanel.className, 'state-panel error');
-  assert.match(statePanel.innerHTML, /dashboard unavailable/);
+  assert.match(statePanel.textContent, /Não foi possível carregar o estado global/);
   assert.match(harness.root.innerHTML, /data-state-scope="global"/);
   assert.match(harness.root.innerHTML, /aria-live="polite"/);
-  assert.equal(harness.activeLink().dataset.moduleLink, 'channel');
-  assert.ok(harness.root.querySelector('#channel'));
+  assert.equal(harness.activeLink().dataset.moduleLink, 'dashboard');
+  assert.ok(harness.root.querySelector('#dashboard'));
 });
 
 test('initial hash selection is visible while Dashboard data is still loading', async () => {
@@ -532,7 +614,7 @@ test('initial hash selection is visible while Dashboard data is still loading', 
   });
 
   assert.equal(harness.activeLink().dataset.moduleLink, 'supervisor');
-  assert.equal(harness.fakeWindow.location.hash, '#supervisor');
+  assert.equal(harness.fakeWindow.location.hash, '#/supervisor');
 });
 
 test('global OAuth state remains global while navigating between modules', async () => {
@@ -547,17 +629,41 @@ test('global OAuth state remains global while navigating between modules', async
     },
   });
   const statePanel = harness.root.querySelector('#statePanel');
-  const globalMessage = statePanel.innerHTML;
+  const globalMessage = statePanel.textContent;
 
   assert.equal(statePanel.className, 'state-panel warning');
-  assert.match(globalMessage, /Google OAuth/);
+  assert.match(globalMessage, /YouTube ainda não está conectado/);
 
   harness.navLink('content-planner').click();
   harness.navLink('channel').click();
 
   assert.equal(statePanel.hidden, false);
   assert.equal(statePanel.className, 'state-panel warning');
-  assert.equal(statePanel.innerHTML, globalMessage);
+  assert.equal(statePanel.textContent, globalMessage);
+});
+
+test('temporary YouTube failure keeps local modules operational and reports a global warning', async () => {
+  const harness = await createHarness({
+    api: {
+      async getDashboard() {
+        return {
+          youtubeUnavailable: true,
+          status: { youtubeConnected: false, automationsEnabled: true, aiEnabled: true },
+        };
+      },
+    },
+  });
+  const statePanel = harness.root.querySelector('#statePanel');
+
+  assert.equal(statePanel.hidden, false);
+  assert.equal(statePanel.className, 'state-panel warning');
+  assert.match(statePanel.textContent, /temporariamente indisponível/);
+
+  harness.navLink('library').click();
+  assert.equal(harness.fakeWindow.location.hash, '#/library');
+  assert.equal(harness.activeLink().dataset.moduleLink, 'library');
+  assert.ok(harness.root.querySelector('#library'));
+  assert.match(statePanel.textContent, /temporariamente indisponível/);
 });
 
 test('module context does not expose the global statePanel channel', async () => {

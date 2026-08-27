@@ -4,6 +4,11 @@ export type OrchestrationIntent =
   | 'channel_status'
   | 'series_viability'
   | 'controlled_sync_review'
+  | 'ctr_analysis'
+  | 'retention_analysis'
+  | 'long_form_analysis'
+  | 'shorts_analysis'
+  | 'channel_content_health'
   | 'general_operations';
 
 export type CapabilityAccess = 'read' | 'write' | 'external_side_effect';

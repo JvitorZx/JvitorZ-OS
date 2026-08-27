@@ -1,24 +1,43 @@
 # Operadores
 
-Este documento detalha os operadores usados pelo JvitorZ OS e como eles são configurados.
+## Contrato operacional
 
-## Objetivo
+Operadores especializados de canal expõem um contrato comum:
 
-Definir os tipos de operadores, responsabilidades e fluxo de execução de cada um.
+- `status`: `AVAILABLE`, `LIMITED` ou `NOT_CONFIGURED`;
+- `facts`: métricas observadas e sua fonte;
+- `signals`: desvios e padrões classificados;
+- `insights`: interpretações limitadas pelos dados;
+- `recommendations`: próximas ações possíveis;
+- `missingData`: lacunas explícitas;
+- `confidence`: confiança de `0` a `1`;
+- `evidence`: snapshots persistidos que sustentam a análise.
 
-## Tipos de Operadores
+O Hub também usa `PLANNED` para capacidades futuras que não possuem navegação funcional.
 
-- Operadores internos
-- Operadores externos
-- Operadores de integração
+## Operadores de canal
 
-## Configuração
+### CTR
 
-- Como registrar operadores
-- Parâmetros necessários
-- Requisitos de segurança
+Usa somente `impressions`, `ctr` e views de `VideoPerformanceSnapshot`. Compara CTR com a mediana observada e não atribui causalidade automática a thumbnail, título ou tema.
 
-## Exemplo de Uso
+### Retenção
 
-- Fluxo de trabalho básico
-- Interações entre operadores
+Usa duração média, percentual médio assistido e watch time. O provider atual não oferece curva granular; por isso a análise declara essa lacuna e não afirma onde ocorre abandono.
+
+### Long-form
+
+Considera apenas snapshots explicitamente classificados como long-form, VOD ou vídeo longo. Consolida views, watch time, retenção média e inscritos disponíveis.
+
+### Shorts
+
+Considera somente snapshots explicitamente classificados como Shorts. Não estima engaged views nem métricas ausentes e não inclui clipping.
+
+## Integrações
+
+- API: `GET /api/operators/channel` e `GET /api/operators/channel/:id`.
+- Analytics: workspaces contextuais em `#/analytics/ctr`, `#/analytics/retention`, `#/analytics/long-form` e `#/analytics/shorts`.
+- Gerente: capabilities read-only `channel-operator.*`, selecionadas por intenção natural e combináveis.
+- Supervisor: consome apenas resumo de status, confiança, amostra e dados ausentes; não executa operadores nem produz mutações.
+
+Os operadores consultam dados persistidos já sincronizados. Abrir uma análise nunca dispara uma chamada ao YouTube.

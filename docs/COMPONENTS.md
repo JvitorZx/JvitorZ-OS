@@ -9,8 +9,8 @@ Este documento descreve os componentes reutilizáveis do frontend do JvitorZ OS 
 
 ## Componentes principais
 ### `html`
-- Função de template literal que gera strings HTML seguras.
-- Utilizada em todo o frontend para montar markup dinâmico de módulos e layouts.
+- Função de template literal usada para markup estrutural confiável.
+- Não sanitiza interpolações automaticamente. Dados externos usam `textContent`, `createTextNode` ou `escapeHtml` conforme o ponto de renderização.
 
 ### `createIcon`
 - Gera ícones SVG ou spans identificando cada módulo.
@@ -39,15 +39,15 @@ Este documento descreve os componentes reutilizáveis do frontend do JvitorZ OS 
 ### Navegação e layout
 - A sidebar e os links de navegação usam o mesmo modelo para todos os módulos registrados em `frontend/src/modules/index.js`.
 - A estrutura de cada módulo é consistente: `section.module-section` contém o conteúdo principal.
-- Hash ausente ou inválido é normalizado para `#channel`, mantendo URL e módulo ativo sincronizados.
+- Hash ausente ou inválido é normalizado para `#/dashboard`, mantendo URL e módulo ativo sincronizados.
 
 ### Painéis e estados
 - O `statePanel` exibe estados globais de carregamento, autenticação e erro do Dashboard.
 - Estados e erros específicos de um operador devem ser exibidos dentro de sua própria workspace. O Planner já usa feedback local com `aria-live`.
 
 ### Renderização de módulos
-- O frontend centraliza a renderização no `dashboardModules.map(...)`.
-- Isso garante que cada módulo compartilhe o mesmo host e apenas substitua a visualização quando necessário.
+- O registro `dashboardModules` define rota, label, ícone, renderização e lifecycle.
+- O Dashboard renderiza somente o módulo da rota ativa no host compartilhado.
 
 ## Componentes de operador
 ### Planejador de Conteúdo
@@ -65,6 +65,13 @@ Este documento descreve os componentes reutilizáveis do frontend do JvitorZ OS 
 - O formulário bloqueia somente a sincronização concorrente e usa `aria-busy`; o feedback local usa `aria-live`.
 - Listas e evidências recebidas do backend são construídas com DOM seguro e `textContent`.
 - Valores ausentes usam `—`; cards não fabricam zero para métricas `null`.
+- As subrotas `ctr`, `retention`, `long-form` e `shorts` reutilizam o mesmo módulo e controller composto, com um workspace contextual por vez.
+- Cada análise usa o contrato comum de fatos, sinais, insights, recomendações, lacunas, confiança e evidências.
+
+### Dashboard Home e Biblioteca
+
+- `homeModule` oferece síntese e links para a página responsável, sem duplicar ferramentas completas.
+- `libraryModule` lista e abre artefatos persistidos como uma página independente; conteúdo é renderizado literalmente com `textContent`.
 
 ### Outras arquiteturas de workspace
 - Operadores futuros seguem o contrato estabilizado na Sprint 14:
@@ -96,9 +103,9 @@ module.createController(context) => ({
 ## Papel da página Operadores
 
 - A página Operadores é um catálogo/índice das ferramentas disponíveis e planejadas.
-- O catálogo compara cada item com os módulos recebidos do Dashboard.
-- Somente operadores com módulo registrado geram links de navegação.
-- Operadores planejados permanecem visíveis com status e `aria-disabled`, sem `href` ou hash inválido.
+- O catálogo cruza o registro declarativo com rotas reais do Dashboard e consulta o estado dos quatro operadores de canal pela API.
+- `AVAILABLE`, `LIMITED` e `NOT_CONFIGURED` podem abrir uma workspace registrada; `PLANNED` permanece sem link.
+- Respostas tardias depois do unmount são ignoradas e falhas ficam no feedback local.
 
 ## Estilo e temas
 - `frontend/styles.css` contém regras globais e temas escuros para a workspace.

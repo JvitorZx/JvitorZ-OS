@@ -8,6 +8,7 @@ import { AutomationRepository } from '../../../database/repositories/AutomationR
 import { AutomationRunRepository } from '../../../database/repositories/AutomationRunRepository';
 import { automationRuntime, type AutomationRuntimeService } from '../../../services/automation/AutomationRuntimeService';
 import { AutomationDiagnosticsService } from '../../../services/automation/AutomationDiagnosticsService';
+import { ChannelOperatorService } from '../../../services/channel-operators';
 
 export class SupervisorModule {
   constructor(
@@ -19,6 +20,7 @@ export class SupervisorModule {
     private readonly automationRunRepository = new AutomationRunRepository(DatabaseService.client),
     private readonly automationRuntimeService: Pick<AutomationRuntimeService, 'getHealth'> = automationRuntime,
     private readonly automationDiagnosticsService = new AutomationDiagnosticsService(),
+    private readonly channelOperatorService = new ChannelOperatorService(),
   ) {}
 
   async getSupervisorOverview() {
@@ -89,6 +91,12 @@ export class SupervisorModule {
     try { running = await this.automationRunRepository.countByStatuses(['PENDING', 'RUNNING']); } catch { running = 0; }
     let governance = { healthy: 0, degraded: 0, blocked: 0, failing: 0, disabled: 0, quotasReached: 0, pausedByFailure: 0, approvalsPending: 0, retriesPending: 0 };
     try { governance = await this.automationDiagnosticsService.getSummary(); } catch { /* Local diagnostics must not break Dashboard. */ }
+    let channelOperators: Array<{ id: string; status: string; confidence: number; sampleSize: number; missingData: string[] }> = [];
+    try {
+      channelOperators = (await this.channelOperatorService.list()).map(({ id, status, confidence, sampleSize, missingData }) => ({
+        id, status, confidence, sampleSize, missingData,
+      }));
+    } catch { /* Specialized read models must not break the Supervisor. */ }
     return {
       alerts: [],
       issues: [],
@@ -109,6 +117,7 @@ export class SupervisorModule {
       outcomeReviews,
       orchestrationReviews,
       automations: { ...automations, running, runtime: automationRuntimeHealth, governance },
+      channelOperators,
     };
   }
 }

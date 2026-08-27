@@ -1,24 +1,42 @@
-# Dashboard
+# Dashboard e Navegação
 
-Este documento estabelece a base para a documentação do dashboard do JvitorZ OS.
+## Application Shell
 
-## Objetivo
+O frontend usa uma shell operacional persistente:
 
-Definir o propósito do dashboard e os principais painéis de visualização do sistema.
+```text
+Sidebar -> Page Header -> Global State -> Main Workspace
+```
 
-## Estrutura do Dashboard
+A sidebar permanece disponível enquanto apenas a página selecionada ocupa `moduleHost`. O Dashboard não empilha todos os módulos como uma landing page.
 
-- Indicadores principais
-- Visão de monitoramento
-- Acesso e permissões
+## Rotas
 
-## Componentes
+O roteamento SPA continua baseado em hash e usa caminhos canônicos:
 
-- Widgets
-- Gráficos
-- Painéis de controle
+- `#/dashboard`
+- `#/channel`
+- `#/analytics`
+- `#/planner`
+- `#/library`
+- `#/manager`
+- `#/supervisor`
+- `#/automations`
+- `#/operators`
+- `#/settings`
 
-## Futuro
+Hashes legados como `#channel` e `#content-planner` são normalizados. Refresh, back/forward e acesso direto preservam a página. Hash ausente ou inválido vai para `#/dashboard`.
 
-- Evolução de relatórios
-- Integração com métricas e logs
+O clique na sidebar atualiza sua seleção imediatamente; o `hashchange` continua sendo a fonte da montagem da página.
+
+## Home operacional
+
+`Dashboard` é uma síntese do produto: conexão do YouTube, IA, automações, operadores, prioridades, riscos e ações rápidas. Ferramentas completas permanecem em suas páginas responsáveis.
+
+Sem OAuth Google válido, a rota do Dashboard retorna o estado local com uma ação de reconexão. Em indisponibilidade temporária do Google/YouTube, retorna o mesmo estado local com um aviso global discreto. Planner, Biblioteca, Gerente, Supervisor e Automações não ficam indisponíveis por esses estados.
+
+## Lifecycle
+
+Cada módulo segue `createController(context) -> { mount(container), unmount() }`. Ao mudar de rota, o módulo anterior é desmontado uma vez antes da substituição do DOM. Listeners, timers e respostas assíncronas pertencem ao controller local.
+
+`statePanel` permanece exclusivo para estado global da aplicação. Erros internos de Planner, Analytics, Biblioteca, Operadores, Gerente ou Automações usam feedback local com `aria-live`.

@@ -4,6 +4,7 @@ const test = require('node:test');
 const {
   getSafeGoogleRequestError,
   isGoogleReauthenticationRequired,
+  isGoogleTemporarilyUnavailable,
 } = require('../dist/services/GoogleService.js');
 
 test('recognizes an invalid Google grant as requiring reauthentication', () => {
@@ -53,4 +54,11 @@ test('sanitizes unexpected Google errors without exposing raw payloads', () => {
     http_status: undefined,
   });
   assert.doesNotMatch(JSON.stringify(safeError), /secret|payload|stack/);
+});
+
+test('recognizes temporary Google network and provider failures', () => {
+  assert.equal(isGoogleTemporarilyUnavailable({ code: 'ETIMEDOUT' }), true);
+  assert.equal(isGoogleTemporarilyUnavailable({ code: 'EACCES' }), true);
+  assert.equal(isGoogleTemporarilyUnavailable({ response: { status: 503 } }), true);
+  assert.equal(isGoogleTemporarilyUnavailable(new Error('ordinary failure')), false);
 });

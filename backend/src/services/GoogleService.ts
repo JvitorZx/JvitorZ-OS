@@ -22,6 +22,18 @@ const safeIdentifier = (value: unknown): string | undefined =>
 export const isGoogleReauthenticationRequired = (error: unknown): boolean =>
   (error as GoogleRequestError)?.response?.data?.error === 'invalid_grant';
 
+const transientGoogleCodes = new Set([
+  'EACCES', 'EAI_AGAIN', 'ECONNREFUSED', 'ECONNRESET', 'ENETUNREACH', 'ENOTFOUND', 'ETIMEDOUT',
+]);
+
+export const isGoogleTemporarilyUnavailable = (error: unknown): boolean => {
+  const googleError = error as GoogleRequestError;
+  const code = typeof googleError?.code === 'string' ? googleError.code : '';
+  const status = googleError?.response?.status;
+  return transientGoogleCodes.has(code)
+    || (typeof status === 'number' && (status === 429 || status >= 500));
+};
+
 export const getSafeGoogleRequestError = (error: unknown): Record<string, unknown> => {
   const googleError = error as GoogleRequestError;
   const status = googleError?.response?.status;

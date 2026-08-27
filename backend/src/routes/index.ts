@@ -5,6 +5,7 @@ import dashboardRoutes from './dashboard';
 import operatorsRoutes from './operators';
 import orchestratorRoutes from './orchestrator';
 import automationsRoutes from './automations';
+import channelOperatorsRoutes from './channelOperators';
 
 const router = Router();
 
@@ -14,6 +15,7 @@ router.use('/dashboard', dashboardRoutes);
 router.use('/operators', operatorsRoutes);
 router.use('/orchestrator', orchestratorRoutes);
 router.use('/automations', automationsRoutes);
+router.use('/operators/channel', channelOperatorsRoutes);
 
 router.get('/', (_req, res) => {
   res.json({ message: 'JvitorZ OS backend route is working' });

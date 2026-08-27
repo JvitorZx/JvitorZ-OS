@@ -2,6 +2,10 @@ import { createPanel, html, createChatMessageElement, createSidebarSection, crea
 
 export const plannerModule = {
   id: 'content-planner',
+  route: '/planner',
+  aliases: ['planner'],
+  pageTitle: 'Planejador de Conteúdo',
+  pageEyebrow: 'Operador inteligente',
   fullscreen: true,
   label: 'Planejador de Conteúdo',
   createController(context) {

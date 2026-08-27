@@ -27,6 +27,21 @@ const requireIdentifier = (value, name) => {
 };
 
 export const createApiClient = (baseUrl) => ({
+  async listChannelOperators(projectId) {
+    const query = projectId === undefined
+      ? ''
+      : `?projectId=${encodeURIComponent(requireIdentifier(projectId, 'projectId'))}`;
+    return requestJson(`${baseUrl}/api/operators/channel${query}`, undefined, 'Erro ao carregar operadores do canal');
+  },
+
+  async getChannelOperator(operatorId, projectId) {
+    const id = requireIdentifier(operatorId, 'operatorId');
+    const query = projectId === undefined
+      ? ''
+      : `?projectId=${encodeURIComponent(requireIdentifier(projectId, 'projectId'))}`;
+    return requestJson(`${baseUrl}/api/operators/channel/${encodeURIComponent(id)}${query}`, undefined, 'Erro ao executar operador do canal');
+  },
+
   async getAutomationRuntimeStatus() {
     return requestJson(`${baseUrl}/api/automations/runtime/status`, undefined, 'Erro ao consultar runtime de automacoes');
   },

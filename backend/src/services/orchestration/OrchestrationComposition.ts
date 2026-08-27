@@ -11,6 +11,8 @@ import { OutcomeRefreshService } from '../creator-intelligence/OutcomeRefreshSer
 import { YouTubePerformanceSyncService } from '../performance-intelligence/YouTubePerformanceSyncService';
 import { CapabilityRegistry } from './CapabilityRegistry';
 import { composeOrchestrationResponse, consolidateEvidence } from './EvidenceConsolidator';
+import { ChannelOperatorService } from '../channel-operators';
+import type { ChannelOperatorId } from '../../domains/channel-operators';
 
 export interface OrchestrationDependencies {
   intelligence: Pick<CreatorIntelligenceService,
@@ -21,6 +23,7 @@ export interface OrchestrationDependencies {
   supervisor: Pick<SupervisorModule, 'getSupervisorOverview'>;
   library: Pick<LibraryService, 'listItems'>;
   youtube: Pick<YouTubePerformanceSyncService, 'sync'>;
+  channelOperators: Pick<ChannelOperatorService, 'run'>;
 }
 
 const previousOutputs = (results: ReadonlyMap<string, OrchestrationStepResult>): CapabilityOutput[] =>
@@ -38,6 +41,7 @@ export const createDefaultOrchestrationDependencies = (): OrchestrationDependenc
     supervisor: new SupervisorModule(undefined, editorial, refresh),
     library: new LibraryService(),
     youtube: new YouTubePerformanceSyncService(),
+    channelOperators: new ChannelOperatorService(),
   };
 };
 
@@ -80,6 +84,31 @@ export const createDefaultCapabilityRegistry = (
       data: { snapshotCount: count },
     };
   });
+
+  const specialized = [
+    ['ctr', 'Analisar CTR real e sua distância da mediana observada.'],
+    ['retention', 'Analisar retenção média, duração e watch time reais.'],
+    ['long-form', 'Analisar snapshots explicitamente classificados como long-form.'],
+    ['shorts', 'Analisar snapshots explicitamente classificados como Shorts.'],
+  ] as const;
+  for (const [operatorId, responsibility] of specialized) {
+    registry.register({
+      id: `channel-operator.${operatorId}`, responsibility,
+      inputs: ['projectId'], outputs: ['facts', 'signals', 'recommendations', 'missingData'], availability: 'available',
+      dependencies: [], access: 'read', sideEffect: 'READ_ONLY', persistentMutation: false,
+    }, async ({ request }) => {
+      const analysis = await dependencies.channelOperators.run(operatorId as ChannelOperatorId, request.projectId);
+      return {
+        summary: `${analysis.name}: ${analysis.status} com ${analysis.sampleSize} evidências.`,
+        facts: analysis.facts.map((fact) => `${fact.label}: ${fact.value ?? 'indisponível'}.`),
+        inferences: [...analysis.insights, ...analysis.signals.filter(({ classification }) => classification === 'inference').map(({ summary }) => summary)],
+        recommendations: analysis.recommendations,
+        missingData: analysis.missingData,
+        confidence: analysis.confidence,
+        data: { operatorId: analysis.id, status: analysis.status, sampleSize: analysis.sampleSize },
+      };
+    });
+  }
 
   registry.register({
     id: 'creator-intelligence.decide', responsibility: 'Gerar decisão editorial explicável.',

@@ -6,14 +6,18 @@ import { settingsModule } from './settings.js';
 import { supervisorModule } from './supervisor.js';
 import { managerModule } from './manager.js';
 import { automationsModule } from './automations.js';
+import { homeModule } from './home.js';
+import { libraryModule } from './library.js';
 
 export const dashboardModules = [
+  homeModule,
   channelModule,
   analyticsModule,
-  operatorsModule,
   plannerModule,
+  libraryModule,
   managerModule,
-  automationsModule,
   supervisorModule,
+  automationsModule,
+  operatorsModule,
   settingsModule,
 ];

@@ -485,3 +485,33 @@ Automation / Run Now / Runtime Tick
 `DEFER` não cria run `FAILED`: registra o motivo e move `nextRunAt` para a próxima elegibilidade. `BLOCK` exige intervenção. Agenda com `manualApprovalRequired` bloqueia sem claim; depois de limpar esse bloqueio operacional, um `Run Now` explícito satisfaz a presença humana, mas ainda passa pelo PlanReview. Um PlanReview pendente nunca pode ser limpo pela governança.
 
 Runs `PENDING`, `RUNNING`, `SUCCEEDED` e `FAILED` consomem quota; `BLOCKED` e `SKIPPED` não. A trava por automação serializa avaliação e claim no processo, enquanto as constraints de ocorrência/run ativo continuam como proteção persistente.
+
+## Operator Expansion e páginas reais — Sprint 30
+
+```text
+Hash route
+  -> Application Shell
+    -> unmount página anterior
+    -> render página ativa
+    -> mount controller
+
+Analytics / Operators Hub
+  -> frontend API client
+    -> GET /api/operators/channel[/id]
+      -> ChannelOperatorService
+        -> VideoPerformanceSnapshotRepository
+          -> Prisma -> SQLite
+```
+
+Abrir um operador não sincroniza o YouTube e não chama rede externa. CTR usa impressões e CTR reais; Retenção usa duração média, percentual médio e watch time; Long-form e Shorts exigem classificação explícita de formato. Métricas ausentes permanecem `null` e aparecem em `missingData`.
+
+```text
+Natural language request
+  -> IntentRouter
+    -> channel-operator.* capability(s)
+      -> structured evidence
+        -> planner.respond
+          -> consolidated Gerente response
+```
+
+O Supervisor recebe somente `id`, status, confiança, tamanho da amostra e lacunas. O Hub recebe o contrato completo para exibir disponibilidade e encaminhar à workspace registrada.

@@ -14,6 +14,11 @@ const searchable = (value: string): string => value
 export const classifyOrchestrationIntent = (value: string): OrchestrationIntent => {
   const text = searchable(value);
   if (/sincron/.test(text) && /(youtube|outcome|revis)/.test(text)) return 'controlled_sync_review';
+  if (/(ctr|click.through)/.test(text) && /retenc|ficando|assistem/.test(text)) return 'channel_content_health';
+  if (/(ctr|click.through)/.test(text)) return 'ctr_analysis';
+  if (/retenc|pessoas.*ficando|assistem.*video|consumo.*video/.test(text)) return 'retention_analysis';
+  if (/videos? longos?|long.form|vod/.test(text)) return 'long_form_analysis';
+  if (/shorts?/.test(text)) return 'shorts_analysis';
   if (/ultimo teste|deu certo|funcionou|resultado|outcome|foi fraco/.test(text)) return 'outcome_status';
   if (/como esta.*canal|estado.*canal|status.*canal|saude.*canal/.test(text)) return 'channel_status';
   if (/serie.*vale|vale.*serie|continuar.*serie/.test(text)) return 'series_viability';
@@ -71,6 +76,42 @@ const TEMPLATES: Record<OrchestrationIntent, { objective: string; steps: StepTem
       ['refresh', 'outcome-refresh.run', ['review-state'], 'write'],
       ['supervisor', 'supervisor.read', ['refresh'], 'read', true],
       ['response', 'planner.respond', ['review-state'], 'read'],
+    ],
+  },
+  ctr_analysis: {
+    objective: 'Diagnosticar CTR com métricas persistidas sem inferir causalidade indevida.',
+    steps: [
+      ['ctr', 'channel-operator.ctr', [], 'read'],
+      ['response', 'planner.respond', ['ctr'], 'read'],
+    ],
+  },
+  retention_analysis: {
+    objective: 'Diagnosticar consumo e retenção média com os dados realmente disponíveis.',
+    steps: [
+      ['retention', 'channel-operator.retention', [], 'read'],
+      ['response', 'planner.respond', ['retention'], 'read'],
+    ],
+  },
+  long_form_analysis: {
+    objective: 'Consolidar a performance dos vídeos explicitamente classificados como long-form.',
+    steps: [
+      ['long-form', 'channel-operator.long-form', [], 'read'],
+      ['response', 'planner.respond', ['long-form'], 'read'],
+    ],
+  },
+  shorts_analysis: {
+    objective: 'Consolidar a performance dos conteúdos explicitamente classificados como Shorts.',
+    steps: [
+      ['shorts', 'channel-operator.shorts', [], 'read'],
+      ['response', 'planner.respond', ['shorts'], 'read'],
+    ],
+  },
+  channel_content_health: {
+    objective: 'Combinar CTR e retenção sem misturar fatos com hipóteses.',
+    steps: [
+      ['ctr', 'channel-operator.ctr', [], 'read'],
+      ['retention', 'channel-operator.retention', [], 'read'],
+      ['response', 'planner.respond', ['ctr', 'retention'], 'read'],
     ],
   },
   general_operations: {

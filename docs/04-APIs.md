@@ -924,3 +924,38 @@ Retornam `200`, `400`, `404`, `409` ou `500` sanitizado conforme estado e exist�
 - `POST /api/automations/runs/:runId/recover`: cria nova tentativa somente para `Interrupted`.
 
 O body de override exige `policies`, `reason` e `authorizedBy`. Valores aceitos em `policies`: `quota`, `window`, `cooldown`. Aprovação externa, validação de capability, estado de segurança e PlanReview não são ignoráveis. Payload/ID inválido retorna `400`, ausente `404`, conflito operacional `409` e erro inesperado `500` sanitizado.
+
+## Operadores especializados do canal
+
+### `GET /api/operators/channel`
+
+Lista CTR, Retenção, Long-form e Shorts na ordem oficial. Aceita somente `projectId` textual opcional. Retorna `200` com análises estruturadas ou `400` para query inválida.
+
+### `GET /api/operators/channel/:id`
+
+Abre uma análise de `ctr`, `retention`, `long-form` ou `shorts`. Aceita somente `projectId` opcional.
+
+```json
+{
+  "id": "ctr",
+  "status": "AVAILABLE",
+  "facts": [],
+  "signals": [],
+  "insights": [],
+  "recommendations": [],
+  "missingData": [],
+  "confidence": 0.8,
+  "evidence": [],
+  "source": "persisted-youtube-performance",
+  "sampleSize": 5,
+  "lastDataAt": "2026-08-25T12:00:00.000Z"
+}
+```
+
+Retorna `200`, `400`, `404` ou `500` sanitizado. A rota não chama YouTube e não retorna credenciais, queries ou stack.
+
+## Dashboard degradado
+
+`GET /api/dashboard` retorna `200` com `unauthorized: true` e `authUrl` quando o Google não está autenticado ou exige novo consentimento. O payload preserva serviços locais. Somente falha interna inesperada retorna `500` sanitizado.
+
+Quando o Google/YouTube está temporariamente inacessível por rede, quota ou indisponibilidade do provider, o Dashboard também retorna `200`, agora com `youtubeUnavailable: true`, mantendo os dados e serviços locais operacionais. A consulta direta `GET /api/youtube/channel` retorna `503` com erro sanitizado nesse estado; ausência ou expiração da autenticação continua retornando `401`.

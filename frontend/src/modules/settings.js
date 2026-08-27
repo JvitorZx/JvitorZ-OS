@@ -2,6 +2,9 @@ import { createDetailList, createPanel } from '../design-system/index.js';
 
 export const settingsModule = {
   id: 'settings',
+  route: '/settings',
+  pageTitle: 'Configurações',
+  pageEyebrow: 'Sistema local',
   label: 'Configuracoes',
   render(_, context) {
     return createPanel({

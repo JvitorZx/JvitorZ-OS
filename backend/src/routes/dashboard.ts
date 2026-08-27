@@ -4,32 +4,52 @@ import {
   getSafeGoogleRequestError,
   GoogleService,
   isGoogleReauthenticationRequired,
+  isGoogleTemporarilyUnavailable,
 } from '../services/GoogleService';
 
-const router = Router();
-const dashboardService = new DashboardService();
-const googleService = new GoogleService();
+type DashboardRouteDependencies = {
+  dashboardService: Pick<DashboardService, 'getDashboard'>;
+  googleService: Pick<GoogleService, 'isAuthenticated'>;
+};
 
-router.get('/', async (_req, res) => {
-  if (!googleService.isAuthenticated()) {
-    console.log('Google OAuth not authenticated at route /api/dashboard');
-    return res.status(401).json({ error: 'Google OAuth not authenticated' });
-  }
+export const createDashboardRouter = ({
+  dashboardService = new DashboardService(),
+  googleService = new GoogleService(),
+}: Partial<DashboardRouteDependencies> = {}): Router => {
+  const router = Router();
+  router.get('/', async (req, res) => {
+    const authenticated = googleService.isAuthenticated();
+    const authUrl = `${req.protocol}://${req.get('host')}/api/auth/google`;
+    try {
+      const dashboardData = await dashboardService.getDashboard({ youtubeConnected: authenticated });
+      return res.json({ ...dashboardData, unauthorized: !authenticated, ...(!authenticated ? { authUrl } : {}) });
+    } catch (error) {
+      const safeError = getSafeGoogleRequestError(error);
 
-  try {
-    const dashboardData = await dashboardService.getDashboard();
-    return res.json(dashboardData);
-  } catch (error) {
-    const safeError = getSafeGoogleRequestError(error);
+      const reauthenticationRequired = isGoogleReauthenticationRequired(error);
+      if (reauthenticationRequired || isGoogleTemporarilyUnavailable(error)) {
+        console.warn(reauthenticationRequired
+          ? 'Google OAuth reauthentication required at route /api/dashboard'
+          : 'Google temporarily unavailable at route /api/dashboard', safeError);
+        try {
+          const dashboardData = await dashboardService.getDashboard({ youtubeConnected: false });
+          return res.status(200).json({
+            ...dashboardData,
+            unauthorized: reauthenticationRequired,
+            youtubeUnavailable: !reauthenticationRequired,
+            ...(reauthenticationRequired ? { authUrl } : {}),
+          });
+        } catch (fallbackError) {
+          console.error('Local dashboard fallback failed', getSafeGoogleRequestError(fallbackError));
+          return res.status(500).json({ error: 'Failed to fetch dashboard data' });
+        }
+      }
 
-    if (isGoogleReauthenticationRequired(error)) {
-      console.warn('Google OAuth reauthentication required at route /api/dashboard', safeError);
-      return res.status(401).json({ error: 'Google OAuth not authenticated' });
+      console.error('Google request failed at route /api/dashboard', safeError);
+      return res.status(500).json({ error: 'Failed to fetch dashboard data' });
     }
+  });
+  return router;
+};
 
-    console.error('Google request failed at route /api/dashboard', safeError);
-    return res.status(500).json({ error: 'Failed to fetch dashboard data' });
-  }
-});
-
-export default router;
+export default createDashboardRouter();

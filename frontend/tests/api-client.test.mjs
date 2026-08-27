@@ -3,6 +3,36 @@ import { describe, test } from 'node:test';
 
 import { ApiRequestError, createApiClient } from '../src/api/client.js';
 
+test('channel operator client uses centralized encoded contracts and preserves safe status', async () => {
+  const originalFetch = globalThis.fetch;
+  const calls = [];
+  globalThis.fetch = async (...args) => {
+    calls.push(args);
+    if (String(args[0]).includes('/missing')) return { ok: false, status: 404 };
+    return { ok: true, status: 200, async json() { return { id: 'ctr', status: 'AVAILABLE' }; } };
+  };
+  try {
+    const api = createApiClient('http://localhost:4000');
+    await api.listChannelOperators('project/one');
+    await api.getChannelOperator('long-form', 'project/one');
+    assert.deepEqual(calls[0], [
+      'http://localhost:4000/api/operators/channel?projectId=project%2Fone',
+      undefined,
+    ]);
+    assert.deepEqual(calls[1], [
+      'http://localhost:4000/api/operators/channel/long-form?projectId=project%2Fone',
+      undefined,
+    ]);
+    const beforeInvalid = calls.length;
+    await assert.rejects(api.getChannelOperator(' '), TypeError);
+    await assert.rejects(api.listChannelOperators(''), TypeError);
+    assert.equal(calls.length, beforeInvalid);
+    await assert.rejects(api.getChannelOperator('missing'), (error) => error instanceof ApiRequestError && error.status === 404);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test('generatePlannerReply posts once to the encoded conversation endpoint without a body', async () => {
   const originalFetch = globalThis.fetch;
   const calls = [];

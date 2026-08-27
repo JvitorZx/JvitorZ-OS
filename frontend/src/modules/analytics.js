@@ -29,6 +29,26 @@ const BASELINES = [
   ['subscribersPerThousandViews', 'Inscritos por mil views'],
 ];
 
+const CHANNEL_OPERATOR_VIEWS = new Map([
+  ['ctr', 'CTR'],
+  ['retention', 'Retenção'],
+  ['long-form', 'Long-form'],
+  ['shorts', 'Shorts'],
+]);
+
+const renderAnalyticsNavigation = (active = 'overview') => html`
+  <nav class="analytics-subnav" aria-label="Áreas de Analytics">
+    ${[
+      ['overview', '/analytics', 'Visão geral'],
+      ['ctr', '/analytics/ctr', 'CTR'],
+      ['retention', '/analytics/retention', 'Retenção'],
+      ['long-form', '/analytics/long-form', 'Long-form'],
+      ['shorts', '/analytics/shorts', 'Shorts'],
+      ['outcomes', '/analytics/outcomes', 'Outcomes'],
+    ].map(([id, route, label]) => `<a href="#${route}"${id === active ? ' aria-current="page"' : ''}>${label}</a>`).join('')}
+  </nav>
+`;
+
 const classificationLabel = (value) => ({
   real: 'Fato observado',
   inference: 'Inferencia revisavel',
@@ -99,13 +119,14 @@ const createBaselineMarkup = () => BASELINES.map(([field, label]) => html`
   </div>
 `).join('');
 
-const renderAnalytics = () => {
+const renderAnalytics = (active = 'overview') => {
   const period = defaultPeriod();
   return createPanel({
     eyebrow: 'Analytics',
     title: 'Performance do canal',
     className: 'analytics-panel performance-operations',
     body: html`
+      ${renderAnalyticsNavigation(active)}
       <div class="performance-feedback" data-performance-feedback role="status" aria-live="polite" aria-atomic="true" hidden></div>
 
       <section class="performance-toolbar" aria-label="Sincronizacao do YouTube Analytics">
@@ -208,6 +229,97 @@ const renderAnalytics = () => {
       </section>
     `,
   });
+};
+
+const renderChannelOperator = (id) => createPanel({
+  eyebrow: 'Operador especializado',
+  title: CHANNEL_OPERATOR_VIEWS.get(id) ?? 'Analytics',
+  className: 'analytics-panel channel-operator-workspace',
+  body: html`
+    ${renderAnalyticsNavigation(id)}
+    <div class="performance-feedback" data-channel-operator-feedback role="status" aria-live="polite" aria-atomic="true">Carregando análise...</div>
+    <section class="channel-operator-summary" data-channel-operator-summary data-operator-id="${id}" aria-busy="true">
+      <div class="channel-operator-heading">
+        <div><p class="eyebrow">Responsabilidade</p><p data-channel-operator-responsibility>Consultando dados persistidos...</p></div>
+        <strong class="operator-status" data-channel-operator-status>Pendente</strong>
+      </div>
+      <dl class="channel-operator-meta" data-channel-operator-meta></dl>
+      <div class="channel-operator-columns">
+        <section><h3>Fatos</h3><div data-channel-operator-facts></div></section>
+        <section><h3>Sinais</h3><div data-channel-operator-signals></div></section>
+        <section><h3>Insights</h3><div data-channel-operator-insights></div></section>
+        <section><h3>Recomendações</h3><div data-channel-operator-recommendations></div></section>
+      </div>
+      <section class="channel-operator-evidence"><h3>Evidências</h3><div data-channel-operator-evidence></div></section>
+      <section class="channel-operator-missing"><h3>Dados ausentes</h3><div data-channel-operator-missing></div></section>
+    </section>
+  `,
+});
+
+const createChannelOperatorController = ({ api }) => {
+  let mountedPanel = null;
+  let generation = 0;
+
+  const mount = (root) => {
+    const panel = root?.querySelector?.('.channel-operator-workspace');
+    if (!panel || panel === mountedPanel) return;
+    mountedPanel = panel;
+    const token = ++generation;
+    const summary = panel.querySelector('[data-channel-operator-summary]');
+    const id = summary?.dataset.operatorId;
+    const feedback = panel.querySelector('[data-channel-operator-feedback]');
+    const isCurrent = () => panel === mountedPanel && token === generation;
+    const setList = (selector, items, formatter) => {
+      const container = panel.querySelector(selector);
+      const values = Array.isArray(items) ? items : [];
+      if (!values.length) {
+        container.replaceChildren(createTextElement('p', 'Nenhum dado disponível.', 'performance-empty'));
+        return;
+      }
+      const list = document.createElement('ul');
+      list.append(...values.map((item) => createTextElement('li', formatter(item))));
+      container.replaceChildren(list);
+    };
+    api.getChannelOperator(id).then((analysis) => {
+      if (!isCurrent()) return;
+      panel.querySelector('[data-channel-operator-responsibility]').textContent = analysis.responsibility;
+      const status = panel.querySelector('[data-channel-operator-status]');
+      status.textContent = ({ AVAILABLE: 'Disponível', LIMITED: 'Limitado', NOT_CONFIGURED: 'Não configurado' })[analysis.status] ?? analysis.status;
+      status.className = `operator-status ${String(analysis.status).toLowerCase().replace('_', '-')}`;
+      const meta = panel.querySelector('[data-channel-operator-meta]');
+      const metadata = [
+        ['Fonte', analysis.source],
+        ['Amostra', String(analysis.sampleSize ?? 0)],
+        ['Confiança', `${Math.round(Number(analysis.confidence ?? 0) * 100)}%`],
+        ['Último dado', formatDateTime(analysis.lastDataAt)],
+      ];
+      meta.replaceChildren(...metadata.map(([label, value]) => {
+        const row = document.createElement('div');
+        row.append(createTextElement('dt', label), createTextElement('dd', value));
+        return row;
+      }));
+      setList('[data-channel-operator-facts]', analysis.facts, (fact) => `${fact.label}: ${formatPerformanceValue(fact.value, fact.unit === 'seconds' ? 'duration' : fact.unit)}`);
+      setList('[data-channel-operator-signals]', analysis.signals, (signal) => `${classificationLabel(signal.classification)}: ${signal.summary}`);
+      setList('[data-channel-operator-insights]', analysis.insights, (value) => value);
+      setList('[data-channel-operator-recommendations]', analysis.recommendations, (value) => value);
+      setList('[data-channel-operator-missing]', analysis.missingData, (value) => value);
+      setList('[data-channel-operator-evidence]', analysis.evidence, (item) => `${item.title} (${item.videoId}) — ${formatDateTime(item.collectedAt)}`);
+      feedback.textContent = '';
+      feedback.hidden = true;
+      summary.setAttribute('aria-busy', 'false');
+    }).catch((error) => {
+      if (!isCurrent()) return;
+      feedback.textContent = error?.status === 404 ? 'Este operador não está disponível.' : 'Não foi possível carregar esta análise.';
+      feedback.className = 'performance-feedback error';
+      summary.setAttribute('aria-busy', 'false');
+    });
+  };
+
+  const unmount = () => {
+    mountedPanel = null;
+    generation += 1;
+  };
+  return { mount, unmount };
 };
 
 const errorMessage = (error, action = 'load') => {
@@ -628,7 +740,27 @@ export const createAnalyticsController = ({ api }) => {
 
 export const analyticsModule = {
   id: 'analytics',
+  route: '/analytics',
+  allowSubroutes: true,
+  pageTitle: 'Analytics',
+  pageEyebrow: 'Inteligencia de performance',
   label: 'Analytics',
-  render: renderAnalytics,
-  createController: createAnalyticsController,
+  render(_data, context = {}) {
+    const view = context.route?.subpath || 'overview';
+    return CHANNEL_OPERATOR_VIEWS.has(view) ? renderChannelOperator(view) : renderAnalytics(view);
+  },
+  createController(context) {
+    const overview = createAnalyticsController(context);
+    const channelOperator = createChannelOperatorController(context);
+    return {
+      mount(root) {
+        if (root?.querySelector?.('.channel-operator-workspace')) channelOperator.mount(root);
+        else overview.mount(root);
+      },
+      unmount() {
+        overview.unmount();
+        channelOperator.unmount();
+      },
+    };
+  },
 };
