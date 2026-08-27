@@ -5,6 +5,7 @@ import { plannerModule } from './planner.js';
 import { settingsModule } from './settings.js';
 import { supervisorModule } from './supervisor.js';
 import { managerModule } from './manager.js';
+import { automationsModule } from './automations.js';
 
 export const dashboardModules = [
   channelModule,
@@ -12,6 +13,7 @@ export const dashboardModules = [
   operatorsModule,
   plannerModule,
   managerModule,
+  automationsModule,
   supervisorModule,
   settingsModule,
 ];

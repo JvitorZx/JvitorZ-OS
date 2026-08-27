@@ -839,3 +839,63 @@ Abre a execução persistida. Retorna `200`, `400`, `404` ou `500` seguro.
 ### `GET /api/orchestrator/executions/:id/plan`
 
 Retorna o plano persistido da execução. Retorna `200`, `400`, `404` ou `500` seguro.
+
+## Controlled Automations
+
+Todas as rotas usam `/api/automations`. Payloads rejeitam campos extras e nunca aceitam capability, token, confirmação externa ou código executável.
+
+### `POST /api/automations`
+
+Cria uma definição e retorna `201`. Campos: `name`, `description?`, `projectId?`, `triggerType`, `schedule?`, `timezone?`, `intent`, `orchestrationInput?` e `enabled?`.
+
+```json
+{
+  "name": "Resumo diário",
+  "triggerType": "DAILY",
+  "schedule": { "time": "09:00" },
+  "timezone": "America/Sao_Paulo",
+  "intent": "Como está o estado operacional do canal?",
+  "orchestrationInput": {},
+  "enabled": true
+}
+```
+
+Retorna `400` para definição/agenda inválida e `500` sanitizado para falha inesperada.
+
+### `GET /api/automations` e `GET /api/automations/:id`
+
+Listam em ordem determinística e abrem a definição persistida. Retornam `200`; ID ausente retorna `404`.
+
+### `PATCH /api/automations/:id`
+
+Atualiza nome, descrição, trigger, schedule, timezone, intent ou input. Reavalia risco/efeito e recalcula `nextRunAt` quando ativa. Retorna `200`, `400`, `404` ou `500` seguro.
+
+### Ações de estado
+
+- `POST /api/automations/:id/enable`
+- `POST /api/automations/:id/disable`
+- `POST /api/automations/:id/pause`
+- `POST /api/automations/:id/resume`
+
+Body vazio. Retornam `200`, `400`, `404` ou `500`. Resume/enable recalculam a próxima ocorrência; pause/disable removem a agenda ativa.
+
+### `POST /api/automations/:id/run`
+
+Executa `Run Now` pelo pipeline preview → PlanReview → Orchestrator. Retorna `201` para novo run ou `200` para claim já existente. O run pode terminar `SUCCEEDED`, `FAILED` ou `BLOCKED`. `409` indica conflito operacional.
+
+### `GET /api/automations/due`
+
+Lista definições vencidas sem executá-las. Aceita `now` ISO opcional. Retorna `200` ou `400`.
+
+### `POST /api/automations/due/run`
+
+Entrada controlada para um runtime futuro. Aceita `{}` ou `{ "now": "ISO-8601" }`, captura uma lista finita de vencidas e executa cada ocorrência uma vez. Não inicia polling. Retorna `200` com `checkedAt`, contagem `due` e resultados.
+
+### Runs e auditoria
+
+- `GET /api/automations/:id/runs?limit=20`: histórico mais recente;
+- `GET /api/automations/runs/:runId`: abre um run;
+- `POST /api/automations/runs/:runId/execute`: continua um run bloqueado depois que seu plano foi aprovado;
+- `GET /api/automations/:id/audit?limit=100`: trilha operacional.
+
+Retornam `200`, `400`, `404`, `409` ou `500` sanitizado conforme estado e existência.

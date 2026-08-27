@@ -27,6 +27,66 @@ const requireIdentifier = (value, name) => {
 };
 
 export const createApiClient = (baseUrl) => ({
+  async createAutomation(input) {
+    return requestJson(`${baseUrl}/api/automations`, {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(input),
+    }, 'Erro ao criar automacao');
+  },
+
+  async listAutomations() {
+    return requestJson(`${baseUrl}/api/automations`, undefined, 'Erro ao carregar automacoes');
+  },
+
+  async getAutomation(automationId) {
+    const id = requireIdentifier(automationId, 'automationId');
+    return requestJson(`${baseUrl}/api/automations/${encodeURIComponent(id)}`, undefined, 'Erro ao abrir automacao');
+  },
+
+  async updateAutomation(automationId, input) {
+    const id = requireIdentifier(automationId, 'automationId');
+    return requestJson(`${baseUrl}/api/automations/${encodeURIComponent(id)}`, {
+      method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify(input),
+    }, 'Erro ao atualizar automacao');
+  },
+
+  async setAutomationState(automationId, action) {
+    const id = requireIdentifier(automationId, 'automationId');
+    if (!['enable', 'disable', 'pause', 'resume'].includes(action)) throw new TypeError('invalid automation action');
+    return requestJson(`${baseUrl}/api/automations/${encodeURIComponent(id)}/${action}`, {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}',
+    }, 'Erro ao alterar estado da automacao');
+  },
+
+  async runAutomationNow(automationId) {
+    const id = requireIdentifier(automationId, 'automationId');
+    return requestJson(`${baseUrl}/api/automations/${encodeURIComponent(id)}/run`, {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}',
+    }, 'Erro ao executar automacao');
+  },
+
+  async listAutomationRuns(automationId, limit = 20) {
+    const id = requireIdentifier(automationId, 'automationId');
+    return requestJson(`${baseUrl}/api/automations/${encodeURIComponent(id)}/runs?limit=${encodeURIComponent(String(limit))}`,
+      undefined, 'Erro ao carregar execucoes da automacao');
+  },
+
+  async getAutomationRun(runId) {
+    const id = requireIdentifier(runId, 'runId');
+    return requestJson(`${baseUrl}/api/automations/runs/${encodeURIComponent(id)}`, undefined, 'Erro ao abrir execucao da automacao');
+  },
+
+  async executeApprovedAutomationRun(runId) {
+    const id = requireIdentifier(runId, 'runId');
+    return requestJson(`${baseUrl}/api/automations/runs/${encodeURIComponent(id)}/execute`, {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}',
+    }, 'Erro ao executar plano aprovado da automacao');
+  },
+
+  async listDueAutomations(now) {
+    const query = now ? `?now=${encodeURIComponent(new Date(now).toISOString())}` : '';
+    return requestJson(`${baseUrl}/api/automations/due${query}`, undefined, 'Erro ao carregar automacoes vencidas');
+  },
+
   async listOrchestrationCapabilities() {
     return requestJson(
       `${baseUrl}/api/orchestrator/capabilities`,

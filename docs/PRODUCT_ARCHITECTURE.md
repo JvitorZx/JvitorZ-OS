@@ -269,7 +269,28 @@ Na montagem, consultas independentes são executadas em paralelo e cada seção 
 
 Tokens de montagem e de seleção impedem respostas tardias de substituir uma workspace desmontada ou uma evidência mais recente. Conteúdo externo é renderizado com APIs de texto do DOM. Valores `null` permanecem visualmente indisponíveis; zero só é exibido quando é um valor real.
 
-O `statePanel` continua reservado ao Dashboard. Erros de Analytics aparecem em feedback local com `aria-live`. O Supervisor consome estados reais de YouTube e configuração de IA; automações permanecem não implementadas e não são anunciadas como operacionais.
+O `statePanel` continua reservado ao Dashboard. Erros de Analytics aparecem em feedback local com `aria-live`. O Supervisor consome estados reais de YouTube, configuração de IA e automações controladas persistidas.
+
+## Controlled Automation Runner
+
+Automações são definições operacionais, não um executor alternativo. A arquitetura mantém uma única cadeia de autoridade:
+
+```text
+AutomationDefinition
+  -> AutomationSchedulerService.findDueAutomations(now)
+  -> AutomationRunnerService
+  -> OrchestratorService.preview()
+  -> PlanReview
+  -> OrchestratorService.executeApprovedPlan()
+  -> capabilities reais
+  -> AutomationRun + AutomationAuditEvent
+```
+
+`AutomationService` valida definição, agenda, timezone, intenção e input permitido. `AutomationSchedulerService` somente encontra um snapshot finito de itens vencidos; não existe loop residente. `AutomationRunnerService` cria uma ocorrência idempotente antes do preview. A constraint única por ocorrência e o índice parcial de run ativo protegem retries e concorrência no SQLite.
+
+Planos `LOW`/`MEDIUM` aceitos pela política existente podem seguir para execução. Planos `review_required` ficam `BLOCKED`, preservam o `orchestrationExecutionId` e só continuam pelo mesmo plano após aprovação. A agenda jamais define `confirmExternalSideEffect` e não contorna o guard do Orchestrator.
+
+A workspace `automation-runner` usa o lifecycle genérico do Dashboard e o API client central. Gerente e Supervisor consultam somente resumos persistidos; nenhum deles executa uma automação durante leitura.
 
 ## Editorial Decision Loop
 

@@ -427,3 +427,27 @@ confirmação do usuário
 ```
 
 Não existe execução recorrente, polling ou chamada externa implícita.
+## Controlled Automation Runner
+
+```text
+Workspace Automações / entrada controlada do scheduler
+  -> API client / GET due + POST run
+  -> AutomationService ou AutomationSchedulerService
+  -> AutomationRepository
+  -> AutomationRunnerService
+  -> AutomationRunRepository (claim idempotente)
+  -> OrchestratorService.preview
+  -> PlanReviewService
+     -> approved: executeApprovedPlan -> capabilities reais
+     -> review_required: AutomationRun BLOCKED
+  -> resultado sanitizado
+  -> AutomationRun + AutomationAuditEvent
+  -> SQLite
+```
+
+- `findDueAutomations(now)` é read-only e ordena por `nextRunAt` e ID;
+- `runDueAutomations(now)` lê uma lista finita e tenta cada ocorrência uma vez;
+- `Run Now` usa `triggerSource=MANUAL`; agendas usam `SCHEDULED` e uma chave derivada da ocorrência;
+- a sincronização recente do YouTube recalcula a janela limitada no momento da execução;
+- sucesso agenda a próxima ocorrência; erro/bloqueio não entra em retry infinito;
+- consultas de Dashboard, Gerente e Supervisor não disparam capabilities.

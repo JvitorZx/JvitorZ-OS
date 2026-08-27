@@ -248,3 +248,7 @@ O fluxo sustenta avaliação relativa de ideias e respostas explicáveis do Plan
 O Planner reconhece perguntas editoriais como escolha de pauta, comparação de ideias, diagnóstico de vídeo, continuidade de série e melhoria do próximo conteúdo. Nesses casos, consulta automaticamente a Creator Intelligence e persiste uma decisão com recomendação, alternativas, confiança, evidências, riscos, dados ausentes e próxima ação. Fatos, inferências e recomendações permanecem diferenciados, sem previsão exata de views.
 
 As decisões recentes também alimentam o Supervisor. Um vínculo opcional com snapshots de performance prepara o ciclo decisão -> vídeo publicado -> resultado -> aprendizado, mas publicação e sincronização recorrente continuam manuais.
+
+## Automações controladas
+
+O Executor de Automações agenda rotinas reais sem substituir o Gerente. Cada ocorrência cria um run persistido, passa por plano e política de risco e só então usa capabilities existentes. Sincronização do YouTube, revisão de outcomes e resumo operacional podem ser configurados como manual, diário ou semanal. Planos que exigem revisão permanecem bloqueados até decisão humana; não existe publicação automática, cron residente ou side effect externo implícito.

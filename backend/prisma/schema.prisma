@@ -96,16 +96,69 @@ model ConversationLibraryItem {
 }
 
 model Automation {
-  id          String    @id @default(cuid())
-  projectId   String?
-  project     Project?  @relation(fields: [projectId], references: [id])
-  name        String
-  description String?
-  trigger     String?
-  action      String?
-  enabled     Boolean   @default(false)
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  id                 String                 @id @default(cuid())
+  projectId          String?
+  project            Project?               @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  name               String
+  description        String?
+  trigger            String?
+  action             String?
+  triggerType        String                 @default("MANUAL_ONLY")
+  schedule           Json?
+  timezone           String                 @default("UTC")
+  intent             String?
+  orchestrationInput Json?
+  status             String                 @default("DISABLED")
+  riskLevel          String?
+  sideEffectLevel    String?
+  enabled            Boolean                @default(false)
+  nextRunAt          DateTime?
+  lastRunAt          DateTime?
+  runs               AutomationRun[]
+  auditEvents        AutomationAuditEvent[]
+  createdAt          DateTime               @default(now())
+  updatedAt          DateTime               @updatedAt
+
+  @@index([enabled, status, nextRunAt])
+  @@index([projectId, createdAt])
+}
+
+model AutomationRun {
+  id                       String     @id @default(cuid())
+  automationId             String
+  automation               Automation @relation(fields: [automationId], references: [id], onDelete: Cascade)
+  occurrenceKey            String
+  triggerSource            String
+  status                   String     @default("PENDING")
+  scheduledFor             DateTime?
+  orchestrationExecutionId String?
+  resultSummary            String?
+  failureReason            String?
+  attempt                  Int        @default(1)
+  startedAt                DateTime?
+  completedAt              DateTime?
+  createdAt                DateTime   @default(now())
+  updatedAt                DateTime   @updatedAt
+
+  @@unique([automationId, occurrenceKey])
+  @@index([automationId, createdAt])
+  @@index([status, createdAt])
+  @@index([orchestrationExecutionId])
+}
+
+model AutomationAuditEvent {
+  id           String     @id @default(cuid())
+  automationId String
+  automation   Automation @relation(fields: [automationId], references: [id], onDelete: Cascade)
+  runId        String?
+  eventType    String
+  reason       String?
+  details      Json?
+  createdAt    DateTime   @default(now())
+
+  @@index([automationId, createdAt])
+  @@index([runId, createdAt])
+  @@index([eventType, createdAt])
 }
 
 model Setting {

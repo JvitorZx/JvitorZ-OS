@@ -64,9 +64,29 @@ Automation
 ├── description
 ├── trigger
 ├── action
+├── triggerType, schedule, timezone
+├── intent, orchestrationInput
+├── status, riskLevel, sideEffectLevel
 ├── enabled
+├── nextRunAt, lastRunAt
 ├── createdAt
 └── updatedAt
+
+AutomationRun
+├── id
+├── automationId -> Automation.id (ON DELETE CASCADE)
+├── occurrenceKey (único por automação)
+├── triggerSource, status, scheduledFor
+├── orchestrationExecutionId (referência lógica)
+├── resultSummary, failureReason, attempt
+└── startedAt, completedAt, createdAt, updatedAt
+
+AutomationAuditEvent
+├── id
+├── automationId -> Automation.id (ON DELETE CASCADE)
+├── runId (referência lógica opcional)
+├── eventType, reason, details
+└── createdAt
 
 Setting
 ├── id
@@ -178,6 +198,8 @@ EditorialDecisionOutcomeReview
 - Message 1:0..1 LibraryItem
 - Conversation N:N LibraryItem, via ConversationLibraryItem
 - Project 1:N Automation
+- Automation 1:N AutomationRun
+- Automation 1:N AutomationAuditEvent
 - Project 1:N AnalyticsSnapshot
 - Project 1:N VideoPerformanceSnapshot
 - Project 1:N VideoIdea

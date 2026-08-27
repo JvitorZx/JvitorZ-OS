@@ -891,3 +891,44 @@ Transformar intenção e plano em uma operação revisável, classificando risco
 ### Próxima camada recomendada
 
 Antes de automação recorrente, formalizar políticas operacionais configuráveis de quota, orçamento, janela e recuperação de falhas, mantendo aprovação humana para `EXTERNAL_WRITE`.
+
+## Sprint 27 — Controlled Automation Runner
+
+**Status: CONCLUÍDA**
+
+**Fase principal: FASE 7 - Primeiro Operador**, adicionando recorrência controlada sobre o Gerente e o PlanReview já aprovados.
+
+### Objetivo
+
+Permitir definir, agendar, executar e auditar rotinas operacionais reais sem criar um caminho paralelo para capabilities nem autorizar side effects externos implicitamente.
+
+### Entregas
+
+- definições persistidas com agendas `MANUAL_ONLY`, `DAILY` e `WEEKLY`, timezone IANA e próxima ocorrência calculada;
+- execuções persistidas, histórico, estados operacionais e auditoria append-only;
+- detecção determinística de rotinas vencidas e entrada finita `runDueAutomations(now)`, sem loop ou processo residente;
+- idempotência por automação e ocorrência agendada, além de exclusão mútua para execuções ativas;
+- runner que cria preview no Orchestrator e executa somente planos autoaprovados ou posteriormente aprovados no PlanReview;
+- bloqueio explícito para planos que aguardam revisão, sem executar capabilities;
+- rotinas reais para resumo operacional, revisão de outcomes e sincronização controlada do YouTube;
+- workspace `#automation-runner` para criar, editar, ativar, pausar, retomar, executar e consultar histórico;
+- Gerente consultando definições recentes e Supervisor expondo contagens reais de automações;
+- migration aditiva, contratos HTTP, testes em SQLite isolado e regressão automatizada.
+
+### Limites preservados
+
+- nenhum daemon, cron externo, polling infinito ou integração n8n foi iniciado;
+- o scheduler expõe uma entrada segura que um runtime futuro poderá chamar periodicamente;
+- `EXTERNAL_WRITE` continua dependendo de aprovação humana; a agenda nunca equivale a consentimento;
+- falhas não repetem indefinidamente: a definição entra em `ERROR` e precisa ser retomada;
+- vidIQ, pesquisa web, novos operadores, publicação automática e redesign permanecem fora do escopo.
+
+### Critérios atendidos
+
+- consulta de vencimento não executa trabalho por si só;
+- uma ocorrência agendada produz no máximo um `AutomationRun`, inclusive sob concorrência;
+- toda execução guarda o `orchestrationExecutionId` e respeita risco, efeito e review do plano;
+- pausar/desativar remove a próxima execução, e retomar recalcula a agenda;
+- falhas e bloqueios são sanitizados e auditáveis sem payload externo bruto;
+- UI mantém lifecycle, feedback local, XSS seguro e listeners únicos;
+- banco local é migrado somente após backup e validação da migration.

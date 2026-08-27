@@ -469,6 +469,7 @@ test('available Operators catalog items only link to registered modules', () => 
   assert.deepEqual(linkedOperators, [
     { href: 'manager', id: 'manager' },
     { href: 'content-planner', id: 'content-planner' },
+    { href: 'automation-runner', id: 'automation-runner' },
   ]);
   assert.ok(linkedOperators.every((operator) => moduleIds.has(operator.href)));
   assert.match(markup, /data-operator="content-planner"[\s\S]*?data-operator-available="true"/);
@@ -478,9 +479,8 @@ test('unavailable Operators remain visible with non-interactive status', () => {
   const markup = renderOperatorsCatalog();
 
   assert.match(markup, /<div[\s\S]*?data-operator="youtube-monitor"[\s\S]*?aria-disabled="true"[\s\S]*?Em breve[\s\S]*?<\/div>/);
-  assert.match(markup, /<div[\s\S]*?data-operator="automation-runner"[\s\S]*?aria-disabled="true"[\s\S]*?Planejado[\s\S]*?<\/div>/);
   assert.doesNotMatch(markup, /href="#youtube-monitor"/);
-  assert.doesNotMatch(markup, /href="#automation-runner"/);
+  assert.match(markup, /href="#automation-runner"[\s\S]*?data-operator="automation-runner"[\s\S]*?Pronto/);
   assert.deepEqual(
     operatorRegistry.map((operator) => operator.id),
     ['manager', 'content-planner', 'youtube-monitor', 'automation-runner'],
@@ -495,7 +495,7 @@ test('unavailable Operators do not change the current hash', () => {
   assert.equal(fakeWindow.location.hash, '#operators');
 
   navigateFromCatalog(markup, 'automation-runner', fakeWindow);
-  assert.equal(fakeWindow.location.hash, '#operators');
+  assert.equal(fakeWindow.location.hash, '#automation-runner');
 
   navigateFromCatalog(markup, 'content-planner', fakeWindow);
   assert.equal(fakeWindow.location.hash, '#content-planner');
@@ -610,7 +610,7 @@ test('Supervisor renders the YouTube Analytics provider state without activating
   assert.match(synchronized, /YouTube Analytics[\s\S]*?Sincronizado/);
   assert.match(unauthorized, /YouTube Analytics[\s\S]*?Autorizacao necessaria/);
   assert.match(synchronized, /IA[\s\S]*?Nao configurada/);
-  assert.match(synchronized, /Automacoes[\s\S]*?Nao implementadas/);
+  assert.match(synchronized, /Automacoes[\s\S]*?Sem rotinas ativas/);
   assert.match(synchronized, /Prioridades editoriais[\s\S]*?Prioridade real/);
   assert.match(synchronized, /Oportunidades[\s\S]*?Oportunidade &lt;script&gt;alert\(1\)&lt;\/script&gt;/);
   assert.match(synchronized, /Revisão de outcomes[\s\S]*?Atuais: 3[\s\S]*?Revisão disponível: 2/);

@@ -20,7 +20,7 @@ export const operatorRegistry = [
   {
     id: 'automation-runner',
     name: 'Executor de Automacoes',
-    status: 'planned',
-    description: 'Espaco reservado para fluxos futuros.',
+    status: 'ready',
+    description: 'Agenda e executa planos operacionais sob as mesmas regras de revisao do Gerente.',
   },
 ];

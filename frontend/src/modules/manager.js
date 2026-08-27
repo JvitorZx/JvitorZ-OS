@@ -42,6 +42,10 @@ const renderManager = () => {
         <h3 id="manager-history-title">Execuções recentes</h3>
         <div data-manager-history><p class="performance-empty">Nenhuma execução carregada.</p></div>
       </section>
+      <section class="manager-history" aria-labelledby="manager-automations-title">
+        <h3 id="manager-automations-title">Automações controladas</h3>
+        <div data-manager-automations><p class="performance-empty">Nenhuma automação carregada.</p></div>
+      </section>
     `,
   });
 };
@@ -82,6 +86,7 @@ export const createManagerController = ({ api }) => {
     const executeButton = panel.querySelector('[data-manager-execute]');
     const result = panel.querySelector('[data-manager-result]');
     const history = panel.querySelector('[data-manager-history]');
+    const automationSummary = panel.querySelector('[data-manager-automations]');
     if (![form, intent, previewButton, syncConfirm, syncStart, syncEnd, feedback, planPanel,
       actions, reason, approveButton, rejectButton, executeButton, result, history].every(Boolean)) return;
 
@@ -182,6 +187,26 @@ export const createManagerController = ({ api }) => {
       }
     };
 
+    const loadAutomations = async () => {
+      if (!automationSummary || typeof api.listAutomations !== 'function') return;
+      try {
+        const automations = await api.listAutomations();
+        if (!current()) return;
+        if (!automations.length) {
+          automationSummary.replaceChildren(text('p', 'Nenhuma automação configurada.', 'performance-empty'));
+          return;
+        }
+        automationSummary.replaceChildren(...automations.slice(0, 5).map((automation) => {
+          const row = document.createElement('article'); row.className = 'manager-history-item';
+          row.append(text('strong', automation.name), text('span', automation.status),
+            text('small', automation.nextRunAt ? `Próxima: ${new Date(automation.nextRunAt).toLocaleString('pt-BR')}` : 'Sem agenda ativa'));
+          return row;
+        }));
+      } catch {
+        if (current()) automationSummary.replaceChildren(text('p', 'Automações indisponíveis.', 'performance-empty'));
+      }
+    };
+
     const requestInput = () => {
       const request = { intent: intent.value.trim() };
       if (syncConfirm.checked) {
@@ -261,6 +286,7 @@ export const createManagerController = ({ api }) => {
     rejectButton.addEventListener('click', reject);
     executeButton.addEventListener('click', execute);
     loadHistory();
+    loadAutomations();
     cleanup = () => {
       form.removeEventListener('submit', submit);
       approveButton.removeEventListener('click', approve);

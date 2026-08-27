@@ -264,3 +264,35 @@ OrchestrationExecution 1 -> N OrchestrationAuditEvent
 ```
 
 A migration `20260826150000_controlled_orchestration_foundation` é aditiva e não altera conversas, decisões, outcomes ou snapshots existentes.
+
+## Controlled Automation Runner
+
+### Automation
+
+Definição persistida de uma rotina. Mantém os campos legados `trigger` e `action` por compatibilidade e acrescenta:
+
+- `triggerType`: `MANUAL_ONLY`, `DAILY` ou `WEEKLY`;
+- `schedule`: JSON limitado a horário e, para semanal, dia de 0 a 6;
+- `timezone`: timezone IANA usado no cálculo;
+- `intent` e `orchestrationInput`: request neutro entregue ao Orchestrator, sem confirmação externa;
+- `status`: `DISABLED`, `ACTIVE`, `PAUSED`, `BLOCKED` ou `ERROR`;
+- `riskLevel` e `sideEffectLevel`: classificação do plano real;
+- `nextRunAt` e `lastRunAt`: estado operacional, sem polling embutido.
+
+### AutomationRun
+
+Uma ocorrência manual ou agendada. `occurrenceKey` é única dentro da automação, `triggerSource` distingue `MANUAL`/`SCHEDULED`, e `orchestrationExecutionId` liga logicamente o run ao plano/review. Estados: `PENDING`, `RUNNING`, `SUCCEEDED`, `FAILED` e `BLOCKED`.
+
+O índice parcial `AutomationRun_one_active_per_automation` impede mais de um run `PENDING`/`RUNNING` por automação. A unicidade `(automationId, occurrenceKey)` impede repetição da mesma agenda.
+
+### AutomationAuditEvent
+
+Evento append-only da definição/run. Registra criação, alteração, mudança de estado, vencimento, início, sucesso, falha e bloqueio. `details` contém apenas metadados operacionais seguros.
+
+```text
+Project 1 -> N Automation
+Automation 1 -> N AutomationRun
+Automation 1 -> N AutomationAuditEvent
+```
+
+A migration `20260828120000_controlled_automation_runner` é aditiva: preserva definições legadas como `MANUAL_ONLY`/`DISABLED`, cria runs/auditoria e não altera conversas, decisões ou dados de performance.

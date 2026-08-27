@@ -1287,3 +1287,30 @@ dd {
 
 .manager-review-actions[hidden] { display: none; }
 .manager-action-row { display: flex; flex-wrap: wrap; gap: 8px; }
+
+.automation-workspace {
+  display: grid;
+  grid-template-columns: minmax(260px, 0.8fr) minmax(320px, 1.2fr) minmax(280px, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.automation-form,
+.automation-item,
+.automation-run-item {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  margin-bottom: 10px;
+  border: 1px solid var(--border, #d0d5dd);
+  border-radius: 6px;
+}
+
+.automation-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.automation-feedback { margin-bottom: 12px; }
+.automation-feedback.error { color: var(--danger, #b42318); }
+.automation-feedback.success { color: var(--success, #067647); }
+
+@media (max-width: 960px) {
+  .automation-workspace { grid-template-columns: 1fr; }
+}

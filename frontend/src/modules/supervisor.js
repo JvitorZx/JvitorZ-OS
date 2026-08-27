@@ -23,6 +23,7 @@ export const supervisorModule = {
     const actions = Array.isArray(editorial.actions) ? editorial.actions : [];
     const outcomeReviews = data.supervisor?.outcomeReviews ?? {};
     const orchestrationReviews = data.supervisor?.orchestrationReviews ?? {};
+    const automations = data.supervisor?.automations ?? {};
     const renderItems = (items, empty) => items.length > 0
       ? `<ul>${items.slice(0, 3).map((item) => `<li>${escapeHtml(item)}</li>`).join('')}</ul>`
       : `<p class="performance-empty">${empty}</p>`;
@@ -47,7 +48,7 @@ export const supervisorModule = {
           </div>
           <div>
             <span>Automacoes</span>
-            ${createStatusPill(status.automationsEnabled ? 'Operacionais' : 'Nao implementadas', status.automationsEnabled ? 'connected' : 'pending')}
+            ${createStatusPill(status.automationsEnabled ? 'Operacionais' : 'Sem rotinas ativas', status.automationsEnabled ? 'connected' : 'pending')}
           </div>
         </div>
         <div class="supervisor-editorial-grid">
@@ -68,6 +69,16 @@ export const supervisorModule = {
               <li>Revisão disponível: ${escapeHtml(outcomeReviews.reviewAvailable ?? 0)}</li>
               <li>Inconclusivos: ${escapeHtml(outcomeReviews.insufficientData ?? 0)}</li>
               <li>Falhas recentes: ${escapeHtml(outcomeReviews.recentFailures ?? 0)}</li>
+            </ul>
+          </section>
+          <section>
+            <h3>Automações controladas</h3>
+            <ul>
+              <li>Ativas: ${escapeHtml(automations.active ?? 0)}</li>
+              <li>Vencidas: ${escapeHtml(automations.due ?? 0)}</li>
+              <li>Pausadas: ${escapeHtml(automations.paused ?? 0)}</li>
+              <li>Bloqueadas: ${escapeHtml(automations.blocked ?? 0)}</li>
+              <li>Com erro: ${escapeHtml(automations.error ?? 0)}</li>
             </ul>
           </section>
           <section>

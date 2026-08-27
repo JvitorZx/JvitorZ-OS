@@ -3,6 +3,8 @@ import { YouTubePerformanceSyncService } from '../../../services/performance-int
 import { EditorialDecisionService } from '../../../services/creator-intelligence/EditorialDecisionService';
 import { OutcomeRefreshService } from '../../../services/creator-intelligence/OutcomeRefreshService';
 import { PlanReviewService } from '../../../services/orchestration/PlanReviewService';
+import { DatabaseService } from '../../../database/DatabaseService';
+import { AutomationRepository } from '../../../database/repositories/AutomationRepository';
 
 export class SupervisorModule {
   constructor(
@@ -10,6 +12,7 @@ export class SupervisorModule {
     private readonly editorialDecisionService = new EditorialDecisionService(),
     private readonly outcomeRefreshService = new OutcomeRefreshService(),
     private readonly planReviewService = new PlanReviewService(),
+    private readonly automationRepository = new AutomationRepository(DatabaseService.client),
   ) {}
 
   async getSupervisorOverview() {
@@ -69,6 +72,12 @@ export class SupervisorModule {
     } catch {
       // Plan review is an operational section and must not break the Dashboard.
     }
+    let automations = { total: 0, active: 0, paused: 0, blocked: 0, error: 0, due: 0 };
+    try {
+      automations = await this.automationRepository.getOperationalSummary();
+    } catch {
+      // Automation status is local and must not break the Dashboard.
+    }
     return {
       alerts: [],
       issues: [],
@@ -88,6 +97,7 @@ export class SupervisorModule {
       },
       outcomeReviews,
       orchestrationReviews,
+      automations,
     };
   }
 }
