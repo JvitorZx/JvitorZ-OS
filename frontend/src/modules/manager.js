@@ -190,18 +190,24 @@ export const createManagerController = ({ api }) => {
     const loadAutomations = async () => {
       if (!automationSummary || typeof api.listAutomations !== 'function') return;
       try {
-        const automations = await api.listAutomations();
+        const [automations, runtime] = await Promise.all([
+          api.listAutomations(),
+          typeof api.getAutomationRuntimeStatus === 'function' ? api.getAutomationRuntimeStatus() : Promise.resolve(null),
+        ]);
         if (!current()) return;
+        const runtimeRow = runtime ? text('p', `Runtime ${runtime.status} · último tick ${runtime.lastTickAt
+          ? new Date(runtime.lastTickAt).toLocaleString('pt-BR') : '--'} · falhas ${runtime.runsFailed ?? 0}`) : null;
         if (!automations.length) {
-          automationSummary.replaceChildren(text('p', 'Nenhuma automação configurada.', 'performance-empty'));
+          automationSummary.replaceChildren(...[runtimeRow, text('p', 'Nenhuma automação configurada.', 'performance-empty')].filter(Boolean));
           return;
         }
-        automationSummary.replaceChildren(...automations.slice(0, 5).map((automation) => {
+        const rows = automations.slice(0, 5).map((automation) => {
           const row = document.createElement('article'); row.className = 'manager-history-item';
           row.append(text('strong', automation.name), text('span', automation.status),
             text('small', automation.nextRunAt ? `Próxima: ${new Date(automation.nextRunAt).toLocaleString('pt-BR')}` : 'Sem agenda ativa'));
           return row;
-        }));
+        });
+        automationSummary.replaceChildren(...[runtimeRow, ...rows].filter(Boolean));
       } catch {
         if (current()) automationSummary.replaceChildren(text('p', 'Automações indisponíveis.', 'performance-empty'));
       }

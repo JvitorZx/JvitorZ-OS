@@ -71,3 +71,15 @@ Este projeto está previsto para ser licenciado sob a **MIT License**. Adicione 
 ## Status do Projeto
 
 O projeto está em desenvolvimento inicial. A documentação foi estruturada e a base do repositório está sendo organizada para permitir progresso rápido e colaborativo.
+
+## Runtime local de automações
+
+O scheduler local é opt-in e permanece desligado por padrão. A configuração fica exclusivamente no ambiente do backend:
+
+```dotenv
+AUTOMATION_RUNTIME_ENABLED=false
+AUTOMATION_POLL_INTERVAL_MS=60000
+AUTOMATION_MAX_RETRIES=0
+```
+
+Quando habilitado, o backend inicia um único runtime, executa ticks sem sobreposição e o encerra de forma controlada em `SIGINT`/`SIGTERM`. Use a workspace Automações ou `/api/automations/runtime/*` para consultar e controlar o processo. `EXTERNAL_WRITE` continua exigindo aprovação no PlanReview.

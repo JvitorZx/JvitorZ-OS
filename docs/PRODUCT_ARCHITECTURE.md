@@ -277,20 +277,24 @@ Automações são definições operacionais, não um executor alternativo. A arq
 
 ```text
 AutomationDefinition
-  -> AutomationSchedulerService.findDueAutomations(now)
+  -> AutomationRuntimeService (quando explicitamente habilitado)
+  -> tick serializado
+  -> AutomationSchedulerService.runDueAutomations(now)
   -> AutomationRunnerService
   -> OrchestratorService.preview()
   -> PlanReview
   -> OrchestratorService.executeApprovedPlan()
   -> capabilities reais
-  -> AutomationRun + AutomationAuditEvent
+  -> AutomationRun + AutomationAuditEvent + AutomationRuntimeEvent
 ```
 
-`AutomationService` valida definição, agenda, timezone, intenção e input permitido. `AutomationSchedulerService` somente encontra um snapshot finito de itens vencidos; não existe loop residente. `AutomationRunnerService` cria uma ocorrência idempotente antes do preview. A constraint única por ocorrência e o índice parcial de run ativo protegem retries e concorrência no SQLite.
+`AutomationService` valida definição, agenda, timezone, intenção e input permitido. `AutomationRuntimeService` é o processo local controlável que chama o scheduler somente quando `AUTOMATION_RUNTIME_ENABLED=true`. O padrão é desabilitado. O polling usa `setTimeout` após a conclusão do tick anterior, portanto ticks lentos não se acumulam. `AutomationSchedulerService` lê um snapshot finito de vencidas e `AutomationRunnerService` cria uma ocorrência idempotente antes do preview. A constraint única por ocorrência e o índice parcial de run ativo protegem concorrência no SQLite.
 
 Planos `LOW`/`MEDIUM` aceitos pela política existente podem seguir para execução. Planos `review_required` ficam `BLOCKED`, preservam o `orchestrationExecutionId` e só continuam pelo mesmo plano após aprovação. A agenda jamais define `confirmExternalSideEffect` e não contorna o guard do Orchestrator.
 
-A workspace `automation-runner` usa o lifecycle genérico do Dashboard e o API client central. Gerente e Supervisor consultam somente resumos persistidos; nenhum deles executa uma automação durante leitura.
+A workspace `automation-runner` usa o lifecycle genérico do Dashboard e o API client central. Ela mostra health, último/próximo tick e controles explícitos de start, stop e tick. Gerente e Supervisor consultam somente resumos persistidos e health real; nenhum deles executa uma automação durante leitura.
+
+No restart, runs `PENDING`/`RUNNING` são marcados `FAILED` com razão sanitizada `Interrupted`, auditados e nunca reexecutados silenciosamente. Ocorrências `DAILY`/`WEEKLY` acumuladas são coalescidas na mais recente elegível. Retry automático é limitado a 0 por padrão, no máximo 2 por configuração, usa backoff linear curto de 1 segundo por tentativa e aceita somente falha técnica explicitamente classificada como transitória. Review, validação, OAuth e `EXTERNAL_WRITE` não entram em retry automático.
 
 ## Editorial Decision Loop
 

@@ -161,6 +161,17 @@ model AutomationAuditEvent {
   @@index([eventType, createdAt])
 }
 
+model AutomationRuntimeEvent {
+  id        String   @id @default(cuid())
+  eventType String
+  status    String?
+  details   Json?
+  createdAt DateTime @default(now())
+
+  @@index([eventType, createdAt])
+  @@index([createdAt])
+}
+
 model Setting {
   id          String    @id @default(cuid())
   key         String    @unique

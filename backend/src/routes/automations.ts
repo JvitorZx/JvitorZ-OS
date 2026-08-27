@@ -9,6 +9,12 @@ import {
   AutomationService,
   AutomationValidationError,
 } from '../services/automation';
+import {
+  AutomationRuntimeService,
+  AutomationRuntimeDisabledError,
+  AutomationRuntimeConflictError,
+  automationRuntime,
+} from '../services/automation/AutomationRuntimeService';
 import { AutomationScheduleValidationError } from '../domains/automation';
 
 const isObject = (value: unknown): value is Record<string, unknown> => !!value && typeof value === 'object' && !Array.isArray(value);
@@ -25,6 +31,9 @@ const mapError = (error: unknown) => {
     return { status: 404, error: error.message };
   }
   if (error instanceof AutomationConflictError) return { status: 409, error: error.message };
+  if (error instanceof AutomationRuntimeDisabledError || error instanceof AutomationRuntimeConflictError) {
+    return { status: 409, error: error.message };
+  }
   const name = error instanceof Error ? error.name : 'UnknownError';
   console.error(`Automation operation failed (${name})`);
   return { status: 500, error: 'Automation operation failed' };
@@ -49,8 +58,29 @@ export const createAutomationsRouter = (
   service = new AutomationService(),
   runner = new AutomationRunnerService(),
   scheduler = new AutomationSchedulerService(),
+  runtime: AutomationRuntimeService = automationRuntime,
 ): Router => {
   const router = Router();
+
+  router.get('/runtime/status', (_req, res) => res.status(200).json(runtime.getHealth()));
+  router.get('/runtime/health', (_req, res) => res.status(200).json(runtime.getHealth()));
+  router.get('/runtime/events', async (req, res) => {
+    if (!validLimit(req.query.limit)) return res.status(400).json({ error: 'invalid runtime events query' });
+    try { return res.status(200).json(await runtime.listEvents(req.query.limit ? Number(req.query.limit) : 100)); }
+    catch (error) { return sendError(res, error); }
+  });
+  router.post('/runtime/start', async (req, res) => {
+    if (!emptyBody(req.body)) return res.status(400).json({ error: 'runtime start body must be empty' });
+    try { return res.status(200).json(await runtime.start()); } catch (error) { return sendError(res, error); }
+  });
+  router.post('/runtime/stop', async (req, res) => {
+    if (!emptyBody(req.body)) return res.status(400).json({ error: 'runtime stop body must be empty' });
+    try { return res.status(200).json(await runtime.stop()); } catch (error) { return sendError(res, error); }
+  });
+  router.post('/runtime/tick', async (req, res) => {
+    if (!emptyBody(req.body)) return res.status(400).json({ error: 'runtime tick body must be empty' });
+    try { return res.status(200).json(await runtime.triggerTick()); } catch (error) { return sendError(res, error); }
+  });
 
   router.post('/', async (req, res) => {
     if (!validCreate(req.body)) return res.status(400).json({ error: 'invalid automation payload' });

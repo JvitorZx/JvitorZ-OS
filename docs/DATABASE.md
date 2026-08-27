@@ -158,6 +158,14 @@ A migration `20260825233000_decision_outcome_loop` apenas adiciona coluna, tabel
 
 Os testes do Planner, Biblioteca e Performance Intelligence usam SQLite `:memory:` e criam somente as tabelas necessárias para cada execução. As migrations são executadas contra SQLite em memória para validar preservação, unicidade e relações. Os testes não acessam nem modificam `backend/prisma/dev.db`.
 
+## Runtime local de automações
+
+`AutomationRuntimeEvent` persiste eventos globais do scheduler local sem tokens, prompts ou payloads externos. A tabela não substitui `AutomationAuditEvent`: a primeira descreve lifecycle/ticks/recovery do processo; a segunda acompanha uma definição ou run específica.
+
+A migration `20260829100000_safe_automation_runtime` é aditiva e cria a tabela e índices de consulta recente. Runs encontrados em `PENDING` ou `RUNNING` durante startup são preservados e classificados como `FAILED/Interrupted`; a recuperação é auditada e não repete a execução automaticamente.
+
+Para aplicar localmente, faça backup de `backend/prisma/dev.db`, execute `npx prisma migrate deploy` dentro de `backend` e valide `PRAGMA integrity_check`. Testes continuam usando SQLite em memória e nunca o banco local.
+
 ## Evolução futura
 
 O modelo continua preparado para uma migração futura para PostgreSQL por meio do Prisma. Essa migração permanece fora do escopo atual.

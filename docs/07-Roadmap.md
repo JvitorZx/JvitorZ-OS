@@ -932,3 +932,36 @@ Permitir definir, agendar, executar e auditar rotinas operacionais reais sem cri
 - falhas e bloqueios são sanitizados e auditáveis sem payload externo bruto;
 - UI mantém lifecycle, feedback local, XSS seguro e listeners únicos;
 - banco local é migrado somente após backup e validação da migration.
+
+## Sprint 28 — Safe Automation Scheduler & Runtime
+
+**Status: CONCLUÍDA**
+
+**Fase principal: FASE 7 - Primeiro Operador**, operacionalizando com segurança as definições e o runner da Sprint 27.
+
+### Objetivo
+
+Manter um runtime local explicitamente controlável que detecta automações vencidas e as conduz pelo pipeline existente de claim, Orchestrator, PlanReview, execução e auditoria, sem criar um caminho alternativo de autoridade.
+
+### Entregas
+
+- lifecycle `STOPPED`, `STARTING`, `RUNNING`, `STOPPING` e `ERROR`, com guard de uma instância por processo;
+- polling configurável baseado em `setTimeout` após o tick anterior, sem acúmulo ou busy loop;
+- configuração opt-in por `AUTOMATION_RUNTIME_ENABLED`, intervalo conservador e retry limitado;
+- recovery de runs interrompidos como `FAILED/Interrupted`, sem reexecução silenciosa;
+- coalescimento de ocorrências `DAILY`/`WEEKLY` perdidas na mais recente elegível;
+- idempotência persistente por automação/ocorrência e exclusão mútua para run ativo;
+- retry com backoff linear curto somente para falha técnica explicitamente transitória; sem retry de review, validação, OAuth ou side effect bloqueado;
+- health e eventos estruturados persistidos, sanitizados e consultáveis por API;
+- endpoints de status, health, eventos, start, stop e tick;
+- startup opt-in e shutdown que interrompe novos ticks, aguarda o atual e fecha banco/servidor;
+- workspace Automações com health e controles, além de dados reais no Gerente e Supervisor;
+- migration aditiva, testes determinísticos sem relógio/rede reais e regressão integral.
+
+### Limites preservados
+
+- sem n8n, cloud scheduler, worker distribuído, publicação automática ou processo oculto;
+- `EXTERNAL_WRITE` nunca é executado sem aprovação do PlanReview;
+- ocorrências perdidas não geram backlog ilimitado e interrupted runs exigem decisão explícita para nova execução;
+- nenhum teste inicia scheduler real ou acessa o banco local;
+- melhorias visuais amplas, backoff avançado e coordenação entre múltiplos processos permanecem futuras.

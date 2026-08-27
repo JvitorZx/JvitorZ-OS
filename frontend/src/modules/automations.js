@@ -4,6 +4,13 @@ const renderAutomations = () => createPanel({
   eyebrow: 'Operadores', title: 'Automações controladas', className: 'automations-panel',
   body: html`
     <div class="automation-feedback" data-automation-feedback role="status" aria-live="polite" hidden></div>
+    <section class="automation-runtime" aria-labelledby="automation-runtime-title">
+      <h3 id="automation-runtime-title">Runtime local</h3>
+      <div data-automation-runtime><p class="performance-empty">Carregando runtime...</p></div>
+      <div class="automation-actions"><button class="button" type="button" data-runtime-start>Iniciar runtime</button>
+        <button class="button secondary" type="button" data-runtime-stop>Parar runtime</button>
+        <button class="button secondary" type="button" data-runtime-tick>Executar tick</button></div>
+    </section>
     <div class="automation-workspace">
       <form class="automation-form" data-automation-form>
         <input type="hidden" data-automation-id>
@@ -63,7 +70,10 @@ export const createAutomationsController = ({ api }) => {
     const enabled = panel.querySelector('[data-automation-enabled]'); const save = panel.querySelector('[data-automation-save]');
     const cancel = panel.querySelector('[data-automation-cancel]'); const feedback = panel.querySelector('[data-automation-feedback]');
     const list = panel.querySelector('[data-automation-list]'); const runs = panel.querySelector('[data-automation-runs]');
-    if (![form, id, name, template, trigger, weekdayLabel, weekday, timeLabel, time, timezone, enabled, save, cancel, feedback, list, runs].every(Boolean)) return;
+    const runtime = panel.querySelector('[data-automation-runtime]'); const runtimeStart = panel.querySelector('[data-runtime-start]');
+    const runtimeStop = panel.querySelector('[data-runtime-stop]'); const runtimeTick = panel.querySelector('[data-runtime-tick]');
+    if (![form, id, name, template, trigger, weekdayLabel, weekday, timeLabel, time, timezone, enabled, save, cancel, feedback, list, runs,
+      runtime, runtimeStart, runtimeStop, runtimeTick].every(Boolean)) return;
     const setFeedback = (message = '', variant = 'info') => { feedback.textContent = message; feedback.hidden = !message; feedback.className = `automation-feedback ${variant}`; };
     const setBusy = (value) => { busy = value; save.disabled = value; save.setAttribute('aria-busy', String(value)); };
     const syncScheduleFields = () => { timeLabel.hidden = trigger.value === 'MANUAL_ONLY'; weekdayLabel.hidden = trigger.value !== 'WEEKLY'; };
@@ -71,6 +81,16 @@ export const createAutomationsController = ({ api }) => {
       cancel.hidden = true; save.textContent = 'Salvar automação'; syncScheduleFields(); };
     const getSchedule = () => trigger.value === 'MANUAL_ONLY' ? null
       : trigger.value === 'WEEKLY' ? { time: time.value, weekday: Number(weekday.value) } : { time: time.value };
+    const renderRuntime = (health) => { const article = document.createElement('article'); article.className = 'automation-runtime-status';
+      article.append(node('strong', health.status), node('span', health.enabled ? 'Habilitado por configuração' : 'Desabilitado por configuração'),
+        node('small', health.lastTickAt ? `Último tick: ${new Date(health.lastTickAt).toLocaleString('pt-BR')}` : 'Nenhum tick executado'),
+        node('small', health.nextTickAt ? `Próximo tick: ${new Date(health.nextTickAt).toLocaleString('pt-BR')}` : 'Sem próximo tick'),
+        node('small', `Due: ${health.dueCount ?? 0} · iniciadas: ${health.runsStarted ?? 0} · falhas: ${health.runsFailed ?? 0}`));
+      if (health.lastError) article.append(node('small', `Último erro: ${health.lastError}`)); runtime.replaceChildren(article);
+      runtimeStart.disabled = !health.enabled || ['RUNNING', 'STARTING'].includes(health.status); runtimeStop.disabled = health.status === 'STOPPED';
+      runtimeTick.disabled = !health.enabled; };
+    const loadRuntime = async () => { try { const health = await api.getAutomationRuntimeStatus(); if (current()) renderRuntime(health); }
+      catch { if (current()) setFeedback('Não foi possível consultar o runtime.', 'error'); } };
     const renderRuns = (items) => {
       if (!items.length) { runs.replaceChildren(node('p', 'Nenhuma execução registrada.', 'performance-empty')); return; }
       runs.replaceChildren(...items.map((item) => { const article = document.createElement('article'); article.className = 'automation-run-item';
@@ -117,9 +137,17 @@ export const createAutomationsController = ({ api }) => {
       try { if (id.value) await api.updateAutomation(id.value, payload); else await api.createAutomation({ ...payload, enabled: enabled.checked });
         if (!current()) return; clearForm(); setFeedback('Automação salva.', 'success'); await load();
       } catch { if (current()) setFeedback('Não foi possível salvar a automação.', 'error'); } finally { if (current()) setBusy(false); } };
+    const runtimeAction = async (action) => { if (busy) return; setBusy(true); setFeedback('Atualizando runtime...');
+      try { await api.controlAutomationRuntime(action); if (!current()) return; await Promise.all([loadRuntime(), load()]);
+        setFeedback(action === 'tick' ? 'Tick concluído.' : 'Runtime atualizado.', 'success');
+      } catch (error) { if (current()) setFeedback(error?.status === 409 ? 'O runtime está desabilitado ou ocupado.' : 'Não foi possível controlar o runtime.', 'error'); }
+      finally { if (current()) setBusy(false); } };
     const cancelEdit = () => clearForm(); form.addEventListener('submit', submit); trigger.addEventListener('change', syncScheduleFields);
-    cancel.addEventListener('click', cancelEdit); syncScheduleFields(); load();
-    cleanup = () => { form.removeEventListener('submit', submit); trigger.removeEventListener('change', syncScheduleFields); cancel.removeEventListener('click', cancelEdit); };
+    const startRuntime = () => runtimeAction('start'); const stopRuntime = () => runtimeAction('stop'); const tickRuntime = () => runtimeAction('tick');
+    cancel.addEventListener('click', cancelEdit); runtimeStart.addEventListener('click', startRuntime); runtimeStop.addEventListener('click', stopRuntime);
+    runtimeTick.addEventListener('click', tickRuntime); syncScheduleFields(); load(); loadRuntime();
+    cleanup = () => { form.removeEventListener('submit', submit); trigger.removeEventListener('change', syncScheduleFields); cancel.removeEventListener('click', cancelEdit);
+      runtimeStart.removeEventListener('click', startRuntime); runtimeStop.removeEventListener('click', stopRuntime); runtimeTick.removeEventListener('click', tickRuntime); };
   };
   const unmount = () => { cleanup(); cleanup = () => {}; mounted = null; busy = false; generation += 1; };
   return { mount, unmount };

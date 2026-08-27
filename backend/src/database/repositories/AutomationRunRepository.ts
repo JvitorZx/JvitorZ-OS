@@ -45,4 +45,28 @@ export class AutomationRunRepository {
       where: { automationId }, orderBy: [{ createdAt: 'desc' }, { id: 'asc' }], take: limit,
     });
   }
+
+  findInterrupted(): Promise<AutomationRun[]> {
+    return this.client.automationRun.findMany({
+      where: { status: { in: ['PENDING', 'RUNNING'] } }, orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+    });
+  }
+
+  async markInterrupted(id: string, at: Date): Promise<AutomationRun> {
+    return this.client.automationRun.update({
+      where: { id }, data: { status: 'FAILED', failureReason: 'Interrupted', completedAt: at },
+    });
+  }
+
+  async tryRetryTechnical(id: string, maxAttempts: number): Promise<boolean> {
+    const result = await this.client.automationRun.updateMany({
+      where: { id, status: 'FAILED', failureReason: 'AutomationRuntimeTransientError', attempt: { lt: maxAttempts } },
+      data: { status: 'PENDING', failureReason: null, completedAt: null, attempt: { increment: 1 } },
+    });
+    return result.count === 1;
+  }
+
+  countByStatuses(statuses: string[]): Promise<number> {
+    return this.client.automationRun.count({ where: { status: { in: statuses } } });
+  }
 }

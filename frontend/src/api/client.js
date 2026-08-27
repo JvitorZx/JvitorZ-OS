@@ -27,6 +27,22 @@ const requireIdentifier = (value, name) => {
 };
 
 export const createApiClient = (baseUrl) => ({
+  async getAutomationRuntimeStatus() {
+    return requestJson(`${baseUrl}/api/automations/runtime/status`, undefined, 'Erro ao consultar runtime de automacoes');
+  },
+
+  async listAutomationRuntimeEvents(limit = 20) {
+    return requestJson(`${baseUrl}/api/automations/runtime/events?limit=${encodeURIComponent(String(limit))}`,
+      undefined, 'Erro ao carregar eventos do runtime');
+  },
+
+  async controlAutomationRuntime(action) {
+    if (!['start', 'stop', 'tick'].includes(action)) throw new TypeError('invalid runtime action');
+    return requestJson(`${baseUrl}/api/automations/runtime/${action}`, {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}',
+    }, 'Erro ao controlar runtime de automacoes');
+  },
+
   async createAutomation(input) {
     return requestJson(`${baseUrl}/api/automations`, {
       method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(input),

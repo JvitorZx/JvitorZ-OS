@@ -1310,6 +1310,8 @@ dd {
 .automation-feedback { margin-bottom: 12px; }
 .automation-feedback.error { color: var(--danger, #b42318); }
 .automation-feedback.success { color: var(--success, #067647); }
+.automation-runtime { margin-bottom: 16px; padding-bottom: 16px; border-bottom: 1px solid var(--border, #d0d5dd); }
+.automation-runtime-status { display: flex; flex-wrap: wrap; gap: 8px 16px; margin-bottom: 10px; }
 
 @media (max-width: 960px) {
   .automation-workspace { grid-template-columns: 1fr; }

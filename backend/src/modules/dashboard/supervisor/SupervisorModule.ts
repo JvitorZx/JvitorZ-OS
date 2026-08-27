@@ -5,6 +5,8 @@ import { OutcomeRefreshService } from '../../../services/creator-intelligence/Ou
 import { PlanReviewService } from '../../../services/orchestration/PlanReviewService';
 import { DatabaseService } from '../../../database/DatabaseService';
 import { AutomationRepository } from '../../../database/repositories/AutomationRepository';
+import { AutomationRunRepository } from '../../../database/repositories/AutomationRunRepository';
+import { automationRuntime, type AutomationRuntimeService } from '../../../services/automation/AutomationRuntimeService';
 
 export class SupervisorModule {
   constructor(
@@ -13,6 +15,8 @@ export class SupervisorModule {
     private readonly outcomeRefreshService = new OutcomeRefreshService(),
     private readonly planReviewService = new PlanReviewService(),
     private readonly automationRepository = new AutomationRepository(DatabaseService.client),
+    private readonly automationRunRepository = new AutomationRunRepository(DatabaseService.client),
+    private readonly automationRuntimeService: Pick<AutomationRuntimeService, 'getHealth'> = automationRuntime,
   ) {}
 
   async getSupervisorOverview() {
@@ -78,6 +82,9 @@ export class SupervisorModule {
     } catch {
       // Automation status is local and must not break the Dashboard.
     }
+    let automationRuntimeHealth = this.automationRuntimeService.getHealth();
+    let running = 0;
+    try { running = await this.automationRunRepository.countByStatuses(['PENDING', 'RUNNING']); } catch { running = 0; }
     return {
       alerts: [],
       issues: [],
@@ -97,7 +104,7 @@ export class SupervisorModule {
       },
       outcomeReviews,
       orchestrationReviews,
-      automations,
+      automations: { ...automations, running, runtime: automationRuntimeHealth },
     };
   }
 }

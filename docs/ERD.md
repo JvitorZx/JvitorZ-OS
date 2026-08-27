@@ -88,6 +88,13 @@ AutomationAuditEvent
 ├── eventType, reason, details
 └── createdAt
 
+AutomationRuntimeEvent
+├── id
+├── eventType
+├── status
+├── details
+└── createdAt
+
 Setting
 ├── id
 ├── key
@@ -200,6 +207,7 @@ EditorialDecisionOutcomeReview
 - Project 1:N Automation
 - Automation 1:N AutomationRun
 - Automation 1:N AutomationAuditEvent
+- `AutomationRuntimeEvent` é global e não possui foreign key; IDs de automação/run em `details` são metadados operacionais.
 - Project 1:N AnalyticsSnapshot
 - Project 1:N VideoPerformanceSnapshot
 - Project 1:N VideoIdea

@@ -889,7 +889,18 @@ Lista definições vencidas sem executá-las. Aceita `now` ISO opcional. Retorna
 
 ### `POST /api/automations/due/run`
 
-Entrada controlada para um runtime futuro. Aceita `{}` ou `{ "now": "ISO-8601" }`, captura uma lista finita de vencidas e executa cada ocorrência uma vez. Não inicia polling. Retorna `200` com `checkedAt`, contagem `due` e resultados.
+Entrada manual de compatibilidade. Aceita `{}` ou `{ "now": "ISO-8601" }`, captura uma lista finita de vencidas e executa cada ocorrência elegível. Não altera o estado start/stop do runtime. Retorna `200` com `checkedAt`, contagens `due`/`missed` e resultados.
+
+### Runtime local
+
+- `GET /api/automations/runtime/status`: snapshot de estado e health;
+- `GET /api/automations/runtime/health`: alias operacional do mesmo snapshot;
+- `GET /api/automations/runtime/events?limit=100`: eventos recentes, limite de 1 a 100;
+- `POST /api/automations/runtime/start`: inicia quando habilitado por ambiente;
+- `POST /api/automations/runtime/stop`: para e aguarda o tick ativo;
+- `POST /api/automations/runtime/tick`: executa um tick explícito sem sobreposição.
+
+As ações aceitam somente body vazio ou `{}`. Start/tick retornam `409` quando o runtime está desabilitado ou outro runtime já possui o processo. Query/body inválido retorna `400`; erro inesperado retorna `500` sanitizado. Health expõe somente status, configuração não sensível, timestamps, contagens e tipo seguro do último erro.
 
 ### Runs e auditoria
 

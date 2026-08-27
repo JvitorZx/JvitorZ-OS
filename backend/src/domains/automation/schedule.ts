@@ -95,3 +95,22 @@ export const calculateNextRunAt = (
   }
   throw new AutomationScheduleValidationError('could not calculate the next schedule occurrence');
 };
+
+export const calculateLatestEligibleRunAt = (
+  triggerType: AutomationTriggerType,
+  schedule: AutomationSchedule,
+  timezone: string,
+  now: Date,
+): Date | null => {
+  if (triggerType === 'MANUAL_ONLY') return null;
+  const lookback = triggerType === 'DAILY' ? 3 : 15;
+  let cursor = new Date(now.getTime() - lookback * 24 * 60 * 60 * 1_000);
+  let latest: Date | null = null;
+  for (let count = 0; count < lookback + 3; count += 1) {
+    const candidate = calculateNextRunAt(triggerType, schedule, timezone, cursor);
+    if (!candidate || candidate.getTime() > now.getTime()) break;
+    latest = candidate;
+    cursor = candidate;
+  }
+  return latest;
+};

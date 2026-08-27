@@ -430,8 +430,10 @@ Não existe execução recorrente, polling ou chamada externa implícita.
 ## Controlled Automation Runner
 
 ```text
-Workspace Automações / entrada controlada do scheduler
-  -> API client / GET due + POST run
+Application / Workspace Automações
+  -> AutomationRuntimeService start/stop/tick
+  -> polling serializado e configurável
+  -> API client / runtime health + controles explícitos
   -> AutomationService ou AutomationSchedulerService
   -> AutomationRepository
   -> AutomationRunnerService
@@ -442,12 +444,26 @@ Workspace Automações / entrada controlada do scheduler
      -> review_required: AutomationRun BLOCKED
   -> resultado sanitizado
   -> AutomationRun + AutomationAuditEvent
+  -> AutomationRuntimeEvent
   -> SQLite
 ```
 
 - `findDueAutomations(now)` é read-only e ordena por `nextRunAt` e ID;
-- `runDueAutomations(now)` lê uma lista finita e tenta cada ocorrência uma vez;
+- `runDueAutomations(now)` lê uma lista finita e coalesce ocorrências antigas na mais recente elegível;
 - `Run Now` usa `triggerSource=MANUAL`; agendas usam `SCHEDULED` e uma chave derivada da ocorrência;
 - a sincronização recente do YouTube recalcula a janela limitada no momento da execução;
-- sucesso agenda a próxima ocorrência; erro/bloqueio não entra em retry infinito;
+- sucesso agenda a próxima ocorrência; somente falha técnica transitória pode usar retry limitado;
 - consultas de Dashboard, Gerente e Supervisor não disparam capabilities.
+
+```text
+Application startup (runtime habilitado)
+  -> recuperar PENDING/RUNNING como FAILED/Interrupted
+  -> RUNTIME_STARTED
+  -> Tick -> Due Detection -> Claim -> Runner -> Orchestrator -> PlanReview
+  -> execução permitida ou BLOCKED
+  -> Audit + próximo setTimeout após conclusão
+Application shutdown
+  -> impedir novos ticks -> aguardar tick ativo -> RUNTIME_STOPPED -> fechar banco
+```
+
+O runtime é desabilitado por padrão e não inicia nos testes. Um tick atrasado compartilha a mesma Promise e não executa em paralelo. `EXTERNAL_WRITE` continua bloqueado pelo PlanReview. Eventos persistidos contêm apenas metadados operacionais sanitizados.

@@ -1,5 +1,7 @@
 import { loadEnv } from './core/config/loadEnv';
 import app from './app';
+import { automationRuntime, readAutomationRuntimeConfig } from './services/automation/AutomationRuntimeService';
+import { DatabaseService } from './database/DatabaseService';
 
 loadEnv();
 
@@ -11,6 +13,24 @@ const server = app.listen(port, host, () => {
   const listeningPort = typeof address === 'object' && address ? address.port : port;
 
   console.log(`JvitorZ OS backend running at http://${host}:${listeningPort}`);
+  if (readAutomationRuntimeConfig().enabled) {
+    void automationRuntime.start().catch((error) => {
+      console.error(`Automation runtime startup failed (${error instanceof Error ? error.name : 'UnknownError'})`);
+    });
+  }
 });
+
+let shuttingDown = false;
+export const shutdown = async (): Promise<void> => {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  await automationRuntime.stop().catch(() => undefined);
+  await new Promise<void>((resolve) => server.close(() => resolve()));
+  await DatabaseService.disconnect();
+};
+
+for (const signal of ['SIGINT', 'SIGTERM'] as const) {
+  process.once(signal, () => { void shutdown().finally(() => process.exit(0)); });
+}
 
 export default server;

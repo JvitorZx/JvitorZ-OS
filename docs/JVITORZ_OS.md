@@ -251,4 +251,4 @@ As decisões recentes também alimentam o Supervisor. Um vínculo opcional com s
 
 ## Automações controladas
 
-O Executor de Automações agenda rotinas reais sem substituir o Gerente. Cada ocorrência cria um run persistido, passa por plano e política de risco e só então usa capabilities existentes. Sincronização do YouTube, revisão de outcomes e resumo operacional podem ser configurados como manual, diário ou semanal. Planos que exigem revisão permanecem bloqueados até decisão humana; não existe publicação automática, cron residente ou side effect externo implícito.
+O Executor de Automações agenda rotinas reais sem substituir o Gerente. Um runtime local, desabilitado por padrão e explicitamente controlável, verifica agendas sem sobrepor ticks. Cada ocorrência cria um run persistido, passa por plano e política de risco e só então usa capabilities existentes. Sincronização do YouTube, revisão de outcomes e resumo operacional podem ser configurados como manual, diário ou semanal. Planos que exigem revisão permanecem bloqueados até decisão humana; não existe publicação automática, scheduler cloud ou side effect externo implícito.

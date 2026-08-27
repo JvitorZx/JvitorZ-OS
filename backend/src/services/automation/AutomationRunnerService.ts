@@ -14,6 +14,7 @@ const json = (value: unknown): Prisma.InputJsonValue => JSON.parse(JSON.stringif
 const isUniqueError = (error: unknown) => !!error && typeof error === 'object' && 'code' in error && error.code === 'P2002';
 const safeReason = (error: unknown) => {
   const name = error instanceof Error ? error.name : 'UnknownError';
+  if (name === 'AutomationRuntimeTransientError') return name;
   return ['OrchestrationValidationError', 'PlanReviewConflictError', 'PlanReviewRequiredError', 'PlanReviewRejectedError']
     .includes(name) ? name : 'AutomationExecutionFailed';
 };
@@ -194,5 +195,15 @@ export class AutomationRunnerService {
     const run = await this.runs.findById(id.trim());
     if (!run) throw new AutomationRunNotFoundError();
     return run;
+  }
+
+  async retryTechnicalRun(runId: string, maxRetries: number) {
+    const run = await this.getRun(runId);
+    const maxAttempts = Math.max(1, maxRetries + 1);
+    if (!await this.runs.tryRetryTechnical(run.id, maxAttempts)) return { run, created: false };
+    const updated = await this.getRun(run.id);
+    const automation = await this.getAutomation(updated.automationId);
+    await this.audit(automation.id, updated.id, 'RUN_RETRIED', 'AutomationRuntimeTransientError', { attempt: updated.attempt });
+    return this.executeClaimed(automation, updated, updated.triggerSource as 'MANUAL' | 'SCHEDULED');
   }
 }
