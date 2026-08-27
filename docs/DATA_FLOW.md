@@ -452,7 +452,7 @@ Application / Workspace Automações
 - `runDueAutomations(now)` lê uma lista finita e coalesce ocorrências antigas na mais recente elegível;
 - `Run Now` usa `triggerSource=MANUAL`; agendas usam `SCHEDULED` e uma chave derivada da ocorrência;
 - a sincronização recente do YouTube recalcula a janela limitada no momento da execução;
-- sucesso agenda a próxima ocorrência; somente falha técnica transitória pode usar retry limitado;
+- sucesso agenda a próxima ocorrência; somente falha técnica transitória pode usar retry limitado pelo menor teto entre runtime e governance policy;
 - consultas de Dashboard, Gerente e Supervisor não disparam capabilities.
 
 ```text
@@ -467,3 +467,21 @@ Application shutdown
 ```
 
 O runtime é desabilitado por padrão e não inicia nos testes. Um tick atrasado compartilha a mesma Promise e não executa em paralelo. `EXTERNAL_WRITE` continua bloqueado pelo PlanReview. Eventos persistidos contêm apenas metadados operacionais sanitizados.
+
+## Automation Operational Governance
+
+```text
+Automation / Run Now / Runtime Tick
+  -> AutomationGovernanceService
+     -> estado + policy + runs relevantes
+     -> quota + window + cooldown + failure threshold
+     -> ALLOW | DEFER | BLOCK | REQUIRE_APPROVAL
+  -> ALLOW: occurrence claim -> Runner -> Orchestrator -> PlanReview -> Execution
+  -> resultado -> failure policy -> audit
+  -> AutomationDiagnosticsService
+  -> Workspace / Gerente / Supervisor
+```
+
+`DEFER` não cria run `FAILED`: registra o motivo e move `nextRunAt` para a próxima elegibilidade. `BLOCK` exige intervenção. Agenda com `manualApprovalRequired` bloqueia sem claim; depois de limpar esse bloqueio operacional, um `Run Now` explícito satisfaz a presença humana, mas ainda passa pelo PlanReview. Um PlanReview pendente nunca pode ser limpo pela governança.
+
+Runs `PENDING`, `RUNNING`, `SUCCEEDED` e `FAILED` consomem quota; `BLOCKED` e `SKIPPED` não. A trava por automação serializa avaliação e claim no processo, enquanto as constraints de ocorrência/run ativo continuam como proteção persistente.

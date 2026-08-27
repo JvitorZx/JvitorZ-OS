@@ -166,6 +166,12 @@ A migration `20260829100000_safe_automation_runtime` é aditiva e cria a tabela 
 
 Para aplicar localmente, faça backup de `backend/prisma/dev.db`, execute `npx prisma migrate deploy` dentro de `backend` e valide `PRAGMA integrity_check`. Testes continuam usando SQLite em memória e nunca o banco local.
 
+## Governança operacional
+
+`AutomationGovernancePolicy` é opcional e 1:1 com `Automation`; exclusão da automação remove sua policy em cascata. `AutomationRun.sourceRunId` é uma referência lógica indexada ao run que originou retry/recovery. Ela não usa foreign key para preservar trilhas mesmo se retenção futura remover a origem.
+
+Quota é derivada de runs persistidos no início do dia/semana do timezone da automação. A avaliação e o claim são serializados por automação no processo; unicidade da ocorrência e índice parcial de run ativo continuam garantindo a camada persistente. A migration `20260830100000_automation_operational_governance` é aditiva e testada em SQLite isolado.
+
 ## Evolução futura
 
 O modelo continua preparado para uma migração futura para PostgreSQL por meio do Prisma. Essa migração permanece fora do escopo atual.

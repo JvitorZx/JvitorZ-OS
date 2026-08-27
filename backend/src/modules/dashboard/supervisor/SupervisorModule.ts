@@ -7,6 +7,7 @@ import { DatabaseService } from '../../../database/DatabaseService';
 import { AutomationRepository } from '../../../database/repositories/AutomationRepository';
 import { AutomationRunRepository } from '../../../database/repositories/AutomationRunRepository';
 import { automationRuntime, type AutomationRuntimeService } from '../../../services/automation/AutomationRuntimeService';
+import { AutomationDiagnosticsService } from '../../../services/automation/AutomationDiagnosticsService';
 
 export class SupervisorModule {
   constructor(
@@ -17,6 +18,7 @@ export class SupervisorModule {
     private readonly automationRepository = new AutomationRepository(DatabaseService.client),
     private readonly automationRunRepository = new AutomationRunRepository(DatabaseService.client),
     private readonly automationRuntimeService: Pick<AutomationRuntimeService, 'getHealth'> = automationRuntime,
+    private readonly automationDiagnosticsService = new AutomationDiagnosticsService(),
   ) {}
 
   async getSupervisorOverview() {
@@ -85,6 +87,8 @@ export class SupervisorModule {
     let automationRuntimeHealth = this.automationRuntimeService.getHealth();
     let running = 0;
     try { running = await this.automationRunRepository.countByStatuses(['PENDING', 'RUNNING']); } catch { running = 0; }
+    let governance = { healthy: 0, degraded: 0, blocked: 0, failing: 0, disabled: 0, quotasReached: 0, pausedByFailure: 0, approvalsPending: 0, retriesPending: 0 };
+    try { governance = await this.automationDiagnosticsService.getSummary(); } catch { /* Local diagnostics must not break Dashboard. */ }
     return {
       alerts: [],
       issues: [],
@@ -104,7 +108,7 @@ export class SupervisorModule {
       },
       outcomeReviews,
       orchestrationReviews,
-      automations: { ...automations, running, runtime: automationRuntimeHealth },
+      automations: { ...automations, running, runtime: automationRuntimeHealth, governance },
     };
   }
 }

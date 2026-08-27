@@ -294,7 +294,13 @@ Planos `LOW`/`MEDIUM` aceitos pela política existente podem seguir para execuç
 
 A workspace `automation-runner` usa o lifecycle genérico do Dashboard e o API client central. Ela mostra health, último/próximo tick e controles explícitos de start, stop e tick. Gerente e Supervisor consultam somente resumos persistidos e health real; nenhum deles executa uma automação durante leitura.
 
-No restart, runs `PENDING`/`RUNNING` são marcados `FAILED` com razão sanitizada `Interrupted`, auditados e nunca reexecutados silenciosamente. Ocorrências `DAILY`/`WEEKLY` acumuladas são coalescidas na mais recente elegível. Retry automático é limitado a 0 por padrão, no máximo 2 por configuração, usa backoff linear curto de 1 segundo por tentativa e aceita somente falha técnica explicitamente classificada como transitória. Review, validação, OAuth e `EXTERNAL_WRITE` não entram em retry automático.
+No restart, runs `PENDING`/`RUNNING` são marcados `FAILED` com razão sanitizada `Interrupted`, auditados e nunca reexecutados silenciosamente. Ocorrências `DAILY`/`WEEKLY` acumuladas são coalescidas na mais recente elegível. Retry automático é limitado a 0 por padrão, no máximo 2 por configuração, e usa o menor teto entre a configuração global do runtime e `AutomationGovernancePolicy.retryPolicy`. O backoff é linear e curto, de 1 segundo por tentativa, e somente falha técnica explicitamente classificada como transitória é elegível. Review, validação, OAuth e `EXTERNAL_WRITE` não entram em retry automático.
+
+## Automation Operational Governance
+
+Toda nova execução passa por `AutomationGovernanceService` antes do claim. A decisão neutra é `ALLOW`, `DEFER`, `BLOCK` ou `REQUIRE_APPROVAL` e inclui motivos, políticas envolvidas, fatos de uso e próxima elegibilidade. A avaliação combina estado, policy habilitada, quotas diária/semanal, janela no timezone da automação, cooldown, falhas consecutivas e aprovação manual para agenda.
+
+`AutomationDiagnosticsService` usa a mesma policy e os mesmos repositories para classificar `HEALTHY`, `DEGRADED`, `BLOCKED`, `FAILING` ou `DISABLED`. Gerente, Supervisor e workspace não inferem causas. Overrides são explícitos, one-shot e limitados a quota, janela e cooldown; eles não ignoram capability validation, PlanReview ou `EXTERNAL_WRITE`. Retry/recovery criam um novo run ligado por `sourceRunId`; skip persiste `SKIPPED`; nenhum histórico é reescrito.
 
 ## Editorial Decision Loop
 

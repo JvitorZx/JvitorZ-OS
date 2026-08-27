@@ -105,6 +105,13 @@ export const createAutomationsController = ({ api }) => {
       button.addEventListener('click', async () => { if (busy) return; setBusy(true); setFeedback('Atualizando automação...');
         try {
           if (action === 'run') await api.runAutomationNow(automation.id);
+          else if (action === 'retry' || action === 'recover') await api.controlAutomationRun(automation.diagnostic.lastResult.id, action);
+          else if (action === 'clear-block' || action === 'skip') await api.controlAutomationGovernance(automation.id, action);
+          else if (action === 'override') {
+            const policies = automation.diagnostic?.block?.policies?.map((policy) => policy.includes('Quota') ? 'quota' : policy === 'executionWindow' ? 'window' : policy).filter((policy) => ['quota', 'window', 'cooldown'].includes(policy)) ?? [];
+            if (!policies.length || !(globalThis.confirm?.('Confirmar override operacional desta execução?') ?? false)) return;
+            await api.controlAutomationGovernance(automation.id, 'override', { policies: [...new Set(policies)], reason: 'Confirmação explícita na workspace de Automações', authorizedBy: 'local-workspace' });
+          }
           else if (action === 'history') { await loadRuns(automation.id); return; }
           else if (action === 'edit') { id.value = automation.id; name.value = automation.name; trigger.value = automation.triggerType;
             timezone.value = automation.timezone; enabled.checked = automation.enabled;
@@ -112,25 +119,36 @@ export const createAutomationsController = ({ api }) => {
             if (automation.schedule?.weekday !== undefined) weekday.value = String(automation.schedule.weekday);
             cancel.hidden = false; save.textContent = 'Atualizar automação'; syncScheduleFields(); return;
           } else await api.setAutomationState(automation.id, action);
-          if (current()) { setFeedback(action === 'run' ? 'Execução solicitada com segurança.' : 'Estado atualizado.', 'success'); await load(); }
+          if (current()) { setFeedback(['run', 'retry', 'recover', 'override'].includes(action) ? 'Execução solicitada com segurança.' : 'Estado atualizado.', 'success'); await load(); }
         } catch (error) { if (current()) setFeedback(error?.status === 409 ? 'A automação já está em execução ou aguarda revisão.' : 'Não foi possível concluir a ação.', 'error'); }
         finally { if (current()) setBusy(false); }
       }); return button;
     };
-    const renderList = (items) => {
+    const renderList = (items, diagnostics = []) => {
       if (!items.length) { list.replaceChildren(node('p', 'Nenhuma automação configurada.', 'performance-empty')); return; }
-      list.replaceChildren(...items.map((automation) => { const article = document.createElement('article'); article.className = 'automation-item';
+      list.replaceChildren(...items.map((automation) => { const diagnostic = diagnostics.find((item) => item.automationId === automation.id); automation = { ...automation, diagnostic };
+        const article = document.createElement('article'); article.className = 'automation-item';
         article.append(node('strong', automation.name), node('span', automation.status, `operator-status ${automation.enabled ? 'ready' : 'planned'}`),
           node('small', `${automation.triggerType} · ${automation.timezone}`), node('small', `Risco ${automation.riskLevel ?? '--'} · efeito ${automation.sideEffectLevel ?? '--'}`),
           node('small', automation.nextRunAt ? `Próxima: ${new Date(automation.nextRunAt).toLocaleString('pt-BR')}` : 'Sem próxima execução agendada'));
+        if (diagnostic) article.append(node('small', `Health ${diagnostic.health} · quota hoje ${diagnostic.quota.daily.remaining}/${diagnostic.quota.daily.limit} · falhas ${diagnostic.consecutiveFailures}`),
+          node('small', diagnostic.nextEligibleAt ? `Elegível: ${new Date(diagnostic.nextEligibleAt).toLocaleString('pt-BR')}` : `Cooldown: ${diagnostic.cooldownMinutes} min`),
+          node('p', diagnostic.recommendation));
         const actions = document.createElement('div'); actions.className = 'automation-actions';
         actions.append(actionButton('Executar agora', 'run', automation), actionButton('Histórico', 'history', automation), actionButton('Editar', 'edit', automation));
         if (!automation.enabled) actions.append(actionButton('Ativar', 'enable', automation));
         else if (automation.status === 'PAUSED' || ['BLOCKED', 'ERROR'].includes(automation.status)) actions.append(actionButton('Retomar', 'resume', automation));
         else actions.append(actionButton('Pausar', 'pause', automation));
-        if (automation.enabled) actions.append(actionButton('Desativar', 'disable', automation)); article.append(actions); return article; }));
+        if (automation.enabled) actions.append(actionButton('Desativar', 'disable', automation));
+        if (diagnostic?.lastResult?.status === 'FAILED') actions.append(actionButton('Retry', 'retry', automation));
+        if (diagnostic?.lastResult?.failureReason === 'Interrupted') actions.append(actionButton('Recover', 'recover', automation));
+        if (['BLOCKED', 'PAUSED', 'ERROR'].includes(automation.status)) actions.append(actionButton('Limpar bloqueio', 'clear-block', automation));
+        if (automation.nextRunAt) actions.append(actionButton('Pular ocorrência', 'skip', automation));
+        if (diagnostic?.block?.policies?.some((policy) => ['dailyQuota', 'weeklyQuota', 'executionWindow', 'cooldown'].includes(policy))) actions.append(actionButton('Override', 'override', automation));
+        article.append(actions); return article; }));
     };
-    async function load() { try { const items = await api.listAutomations(); if (current()) renderList(items); }
+    async function load() { try { const [items, diagnostics] = await Promise.all([api.listAutomations(),
+        typeof api.listAutomationDiagnostics === 'function' ? api.listAutomationDiagnostics() : Promise.resolve([])]); if (current()) renderList(items, diagnostics); }
       catch { if (current()) { list.replaceChildren(); setFeedback('Não foi possível carregar as automações.', 'error'); } } }
     const submit = async (event) => { event.preventDefault(); if (busy || !name.value.trim()) return; setBusy(true); setFeedback('Salvando automação...');
       const payload = { name: name.value.trim(), triggerType: trigger.value, schedule: getSchedule(), timezone: timezone.value.trim(), ...templateData(template.value) };

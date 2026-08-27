@@ -95,6 +95,15 @@ AutomationRuntimeEvent
 ├── details
 └── createdAt
 
+AutomationGovernancePolicy
+├── automationId -> Automation.id (PK, ON DELETE CASCADE)
+├── enabled
+├── maxRunsPerDay, maxRunsPerWeek
+├── cooldownMinutes, allowedExecutionWindows
+├── maxConsecutiveFailures, pauseOnRepeatedFailure
+├── manualApprovalRequired, retryPolicy
+└── createdAt, updatedAt
+
 Setting
 ├── id
 ├── key
@@ -208,6 +217,8 @@ EditorialDecisionOutcomeReview
 - Automation 1:N AutomationRun
 - Automation 1:N AutomationAuditEvent
 - `AutomationRuntimeEvent` é global e não possui foreign key; IDs de automação/run em `details` são metadados operacionais.
+- Automation 1:0..1 AutomationGovernancePolicy
+- `AutomationRun.sourceRunId` registra origem lógica de retry/recovery e possui índice próprio.
 - Project 1:N AnalyticsSnapshot
 - Project 1:N VideoPerformanceSnapshot
 - Project 1:N VideoIdea

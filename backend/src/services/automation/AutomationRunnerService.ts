@@ -8,8 +8,11 @@ import { calculateNextRunAt, type AutomationSchedule, type AutomationTriggerType
 import type { OrchestrationRequest, OrchestrationResult, PlanPreview } from '../../domains/orchestration';
 import { OrchestratorService } from '../orchestration/OrchestratorService';
 import { AutomationConflictError, AutomationNotFoundError, AutomationValidationError } from './AutomationService';
+import { AutomationGovernanceService } from './AutomationGovernanceService';
+import type { GovernanceOverride } from '../../domains/automation';
 
 type AutomationOrchestrator = Pick<OrchestratorService, 'preview' | 'executeApprovedPlan'>;
+type AutomationTriggerSource = 'MANUAL' | 'SCHEDULED' | 'MANUAL_RETRY' | 'MANUAL_RECOVERY' | 'MANUAL_OVERRIDE';
 const json = (value: unknown): Prisma.InputJsonValue => JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
 const isUniqueError = (error: unknown) => !!error && typeof error === 'object' && 'code' in error && error.code === 'P2002';
 const safeReason = (error: unknown) => {
@@ -31,6 +34,7 @@ export class AutomationRunnerService {
     private readonly audits = new AutomationAuditRepository(DatabaseService.client),
     private readonly orchestrator: AutomationOrchestrator = new OrchestratorService(),
     private readonly now: () => Date = () => new Date(),
+    private readonly governance = new AutomationGovernanceService(),
   ) {}
 
   private async getAutomation(id: string) {
@@ -62,12 +66,12 @@ export class AutomationRunnerService {
     );
   }
 
-  private async claim(automation: Automation, triggerSource: 'MANUAL' | 'SCHEDULED', scheduledFor: Date | null) {
+  private async claim(automation: Automation, triggerSource: AutomationTriggerSource, scheduledFor: Date | null, sourceRunId?: string) {
     const occurrenceKey = triggerSource === 'SCHEDULED'
       ? `SCHEDULED:${scheduledFor?.toISOString()}`
-      : `MANUAL:${this.now().toISOString()}:${randomUUID()}`;
+      : `${triggerSource}:${this.now().toISOString()}:${randomUUID()}`;
     try {
-      const run = await this.runs.create({ automationId: automation.id, occurrenceKey, triggerSource, scheduledFor });
+      const run = await this.runs.create({ automationId: automation.id, occurrenceKey, triggerSource, scheduledFor, sourceRunId, createdAt: this.now() });
       return { run, created: true };
     } catch (error) {
       if (!isUniqueError(error)) throw error;
@@ -87,7 +91,7 @@ export class AutomationRunnerService {
     automation: Automation,
     run: AutomationRun,
     result: OrchestrationResult,
-    triggerSource: 'MANUAL' | 'SCHEDULED',
+    triggerSource: AutomationTriggerSource,
   ) {
     const at = this.now();
     const succeeded = result.status !== 'failed';
@@ -103,10 +107,11 @@ export class AutomationRunnerService {
     });
     await this.audit(automation.id, run.id, succeeded ? 'RUN_SUCCEEDED' : 'RUN_FAILED',
       succeeded ? undefined : 'OrchestrationFailed', { orchestrationStatus: result.status });
+    if (!succeeded) await this.governance.applyFailurePolicy(automation.id);
     return completed;
   }
 
-  private async executeClaimed(automation: Automation, run: AutomationRun, triggerSource: 'MANUAL' | 'SCHEDULED') {
+  private async executeClaimed(automation: Automation, run: AutomationRun, triggerSource: AutomationTriggerSource) {
     await this.runs.update(run.id, { status: 'RUNNING', startedAt: this.now() });
     await this.audit(automation.id, run.id, 'RUN_STARTED', undefined, { triggerSource });
     try {
@@ -142,30 +147,67 @@ export class AutomationRunnerService {
         ...(triggerSource === 'SCHEDULED' ? { nextRunAt: this.next(automation, run.scheduledFor ?? at) } : {}),
       });
       await this.audit(automation.id, run.id, 'RUN_FAILED', reason);
+      await this.governance.applyFailurePolicy(automation.id);
       return { run: failed, created: true };
     }
   }
 
   async runNow(automationId: string) {
-    const automation = await this.getAutomation(automationId);
-    if (automation.status === 'BLOCKED') {
-      const blocked = await this.runs.findAwaitingReview(automation.id);
-      if (blocked) return { run: blocked, created: false };
-    }
-    const claim = await this.claim(automation, 'MANUAL', null);
-    if (!claim.created) return { ...claim };
-    return this.executeClaimed(automation, claim.run, 'MANUAL');
+    return this.governance.withAutomationLock(automationId, async () => {
+      const automation = await this.getAutomation(automationId);
+      if (automation.status === 'BLOCKED') { const blocked = await this.runs.findAwaitingReview(automation.id); if (blocked) return { run: blocked, created: false }; }
+      const governance = await this.governance.evaluate(automation.id, 'MANUAL', this.now());
+      if (governance.decision !== 'ALLOW') return { created: false, governance };
+      const claim = await this.claim(automation, 'MANUAL', null); if (!claim.created) return { ...claim };
+      return this.executeClaimed(automation, claim.run, 'MANUAL');
+    });
   }
 
   async runScheduled(automationId: string, scheduledFor: Date) {
-    const automation = await this.getAutomation(automationId);
-    if (!automation.enabled || automation.status !== 'ACTIVE') {
-      throw new AutomationConflictError('Automation is not active');
-    }
-    const claim = await this.claim(automation, 'SCHEDULED', scheduledFor);
-    if (!claim.created) return { ...claim };
-    await this.audit(automation.id, claim.run.id, 'RUN_DUE', undefined, { scheduledFor: scheduledFor.toISOString() });
-    return this.executeClaimed(automation, claim.run, 'SCHEDULED');
+    return this.governance.withAutomationLock(automationId, async () => {
+      const automation = await this.getAutomation(automationId);
+      if (!automation.enabled || automation.status !== 'ACTIVE') throw new AutomationConflictError('Automation is not active');
+      const governance = await this.governance.evaluate(automation.id, 'SCHEDULED', this.now());
+      if (governance.decision !== 'ALLOW') return { created: false, governance };
+      const claim = await this.claim(automation, 'SCHEDULED', scheduledFor); if (!claim.created) return { ...claim };
+      await this.audit(automation.id, claim.run.id, 'RUN_DUE', undefined, { scheduledFor: scheduledFor.toISOString() });
+      return this.executeClaimed(automation, claim.run, 'SCHEDULED');
+    });
+  }
+
+  private async manualAttempt(runId: string, recovery: boolean) {
+    const source = await this.getRun(runId); if (source.status !== 'FAILED') throw new AutomationConflictError('Only failed runs can be retried');
+    if (recovery && source.failureReason !== 'Interrupted') throw new AutomationConflictError('Only interrupted runs can be recovered');
+    return this.governance.withAutomationLock(source.automationId, async () => {
+      const automation = await this.getAutomation(source.automationId); const decision = await this.governance.evaluate(automation.id, 'RECOVERY', this.now());
+      if (decision.decision !== 'ALLOW') return { created: false, governance: decision };
+      const triggerSource = recovery ? 'MANUAL_RECOVERY' : 'MANUAL_RETRY'; const claim = await this.claim(automation, triggerSource, null, source.id);
+      await this.audit(automation.id, claim.run.id, recovery ? 'MANUAL_RECOVERY' : 'MANUAL_RETRY', undefined, { sourceRunId: source.id });
+      return this.executeClaimed(automation, claim.run, triggerSource);
+    });
+  }
+
+  retryRun(runId: string) { return this.manualAttempt(runId, false); }
+  recoverRun(runId: string) { return this.manualAttempt(runId, true); }
+
+  async skipOccurrence(automationId: string) {
+    return this.governance.withAutomationLock(automationId, async () => { const automation = await this.getAutomation(automationId);
+      if (!automation.nextRunAt) throw new AutomationConflictError('Automation has no occurrence to skip');
+      const scheduledFor = automation.nextRunAt; const occurrenceKey = `SCHEDULED:${scheduledFor.toISOString()}`;
+      let run = await this.runs.findByOccurrence(automation.id, occurrenceKey);
+      if (!run) run = await this.runs.create({ automationId, occurrenceKey, triggerSource: 'MANUAL_SKIP', status: 'SKIPPED', scheduledFor, completedAt: this.now(), createdAt: this.now(), failureReason: 'ManuallySkipped' });
+      await this.automations.update(automation.id, { nextRunAt: this.next(automation, scheduledFor) });
+      await this.audit(automation.id, run.id, 'MANUAL_SKIP', 'ManuallySkipped', { scheduledFor: scheduledFor.toISOString() }); return { run, created: true };
+    });
+  }
+
+  async runOverride(automationId: string, override: GovernanceOverride) {
+    return this.governance.withAutomationLock(automationId, async () => {
+      await this.governance.recordOverride(automationId, override); const automation = await this.getAutomation(automationId);
+      const decision = await this.governance.evaluate(automation.id, 'MANUAL', this.now(), override);
+      if (decision.decision !== 'ALLOW') return { created: false, governance: decision };
+      const claim = await this.claim(automation, 'MANUAL_OVERRIDE', null); return this.executeClaimed(automation, claim.run, 'MANUAL_OVERRIDE');
+    });
   }
 
   async executeApprovedRun(runId: string) {
@@ -182,7 +224,7 @@ export class AutomationRunnerService {
     const automation = await this.getAutomation(run.automationId);
     try {
       const execution = await this.orchestrator.executeApprovedPlan(run.orchestrationExecutionId);
-      return { run: await this.finish(automation, run, execution.result, run.triggerSource as 'MANUAL' | 'SCHEDULED'), result: execution.result };
+      return { run: await this.finish(automation, run, execution.result, run.triggerSource as AutomationTriggerSource), result: execution.result };
     } catch (error) {
       await this.runs.update(run.id, { status: 'BLOCKED', completedAt: this.now() });
       if (safeReason(error) === 'AutomationExecutionFailed') throw error;
@@ -204,6 +246,6 @@ export class AutomationRunnerService {
     const updated = await this.getRun(run.id);
     const automation = await this.getAutomation(updated.automationId);
     await this.audit(automation.id, updated.id, 'RUN_RETRIED', 'AutomationRuntimeTransientError', { attempt: updated.attempt });
-    return this.executeClaimed(automation, updated, updated.triggerSource as 'MANUAL' | 'SCHEDULED');
+    return this.executeClaimed(automation, updated, updated.triggerSource as AutomationTriggerSource);
   }
 }

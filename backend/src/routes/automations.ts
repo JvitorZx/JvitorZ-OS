@@ -15,6 +15,8 @@ import {
   AutomationRuntimeConflictError,
   automationRuntime,
 } from '../services/automation/AutomationRuntimeService';
+import { AutomationGovernanceService } from '../services/automation/AutomationGovernanceService';
+import { AutomationDiagnosticsService } from '../services/automation/AutomationDiagnosticsService';
 import { AutomationScheduleValidationError } from '../domains/automation';
 
 const isObject = (value: unknown): value is Record<string, unknown> => !!value && typeof value === 'object' && !Array.isArray(value);
@@ -59,6 +61,8 @@ export const createAutomationsRouter = (
   runner = new AutomationRunnerService(),
   scheduler = new AutomationSchedulerService(),
   runtime: AutomationRuntimeService = automationRuntime,
+  governance = new AutomationGovernanceService(),
+  diagnostics = new AutomationDiagnosticsService(governance),
 ): Router => {
   const router = Router();
 
@@ -80,6 +84,47 @@ export const createAutomationsRouter = (
   router.post('/runtime/tick', async (req, res) => {
     if (!emptyBody(req.body)) return res.status(400).json({ error: 'runtime tick body must be empty' });
     try { return res.status(200).json(await runtime.triggerTick()); } catch (error) { return sendError(res, error); }
+  });
+
+  router.get('/diagnostics', async (_req, res) => {
+    try { return res.status(200).json(await diagnostics.listDiagnostics()); } catch (error) { return sendError(res, error); }
+  });
+
+  router.get('/:id/governance', async (req, res) => {
+    if (!validId(req.params.id)) return res.status(400).json({ error: 'invalid automationId' });
+    try { return res.status(200).json(await governance.getPolicy(req.params.id)); } catch (error) { return sendError(res, error); }
+  });
+  router.put('/:id/governance', async (req, res) => {
+    if (!validId(req.params.id) || !isObject(req.body)) return res.status(400).json({ error: 'invalid governance payload' });
+    try { return res.status(200).json(await governance.updatePolicy(req.params.id, req.body)); } catch (error) { return sendError(res, error); }
+  });
+  router.get('/:id/diagnostics', async (req, res) => {
+    if (!validId(req.params.id)) return res.status(400).json({ error: 'invalid automationId' });
+    try { return res.status(200).json(await diagnostics.diagnose(req.params.id)); } catch (error) { return sendError(res, error); }
+  });
+  router.post('/:id/clear-block', async (req, res) => {
+    if (!validId(req.params.id) || !emptyBody(req.body)) return res.status(400).json({ error: 'invalid clear-block request' });
+    try { return res.status(200).json(await governance.clearBlock(req.params.id)); } catch (error) { return sendError(res, error); }
+  });
+  router.post('/:id/skip', async (req, res) => {
+    if (!validId(req.params.id) || !emptyBody(req.body)) return res.status(400).json({ error: 'invalid skip request' });
+    try { return res.status(201).json(await runner.skipOccurrence(req.params.id)); } catch (error) { return sendError(res, error); }
+  });
+  router.post('/:id/override', async (req, res) => {
+    if (!validId(req.params.id) || !isObject(req.body) || !hasOnly(req.body, ['policies', 'reason', 'authorizedBy'])) return res.status(400).json({ error: 'invalid override request' });
+    try { const result = await runner.runOverride(req.params.id, req.body as never); return res.status(result.created ? 201 : 200).json(result); }
+    catch (error) { return sendError(res, error); }
+  });
+
+  router.post('/runs/:runId/retry', async (req, res) => {
+    if (!validId(req.params.runId) || !emptyBody(req.body)) return res.status(400).json({ error: 'invalid retry request' });
+    try { const result = await runner.retryRun(req.params.runId); return res.status(result.created ? 201 : 200).json(result); }
+    catch (error) { return sendError(res, error); }
+  });
+  router.post('/runs/:runId/recover', async (req, res) => {
+    if (!validId(req.params.runId) || !emptyBody(req.body)) return res.status(400).json({ error: 'invalid recovery request' });
+    try { const result = await runner.recoverRun(req.params.runId); return res.status(result.created ? 201 : 200).json(result); }
+    catch (error) { return sendError(res, error); }
   });
 
   router.post('/', async (req, res) => {

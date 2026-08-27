@@ -302,3 +302,9 @@ A migration `20260828120000_controlled_automation_runner` é aditiva: preserva d
 Evento operacional global e append-only do runtime local. Mantém `eventType`, `status`, `details` JSON sanitizado e `createdAt`. Os tipos atuais são `RUNTIME_STARTED`, `RUNTIME_STOPPED`, `RUNTIME_TICK_STARTED`, `RUNTIME_TICK_COMPLETED`, `RUNTIME_TICK_FAILED`, `MISSED_OCCURRENCE`, `RUN_INTERRUPTED` e `RUN_RECOVERED`.
 
 Os índices `(eventType, createdAt)` e `createdAt` suportam diagnóstico recente sem carregar histórico de runs. A migration `20260829100000_safe_automation_runtime` cria apenas essa tabela e seus índices, preservando todas as definições, runs e auditorias anteriores.
+
+### AutomationGovernancePolicy
+
+Relação opcional 1:1 com `Automation`. Guarda `enabled`, quotas diária/semanal, cooldown, janelas JSON, threshold de falhas, auto-pause, aprovação manual e retry policy. Ausência de registro usa defaults conservadores: 10 runs/dia, 50/semana, zero cooldown, janela livre, threshold 3 e zero retry.
+
+`AutomationRun.sourceRunId` liga logicamente retry/recovery ao run anterior sem sobrescrevê-lo. O status textual também admite `SKIPPED`, que não consome quota. A migration `20260830100000_automation_operational_governance` adiciona somente a coluna, índice e tabela de policy, preservando automações e runs anteriores.

@@ -116,6 +116,7 @@ model Automation {
   lastRunAt          DateTime?
   runs               AutomationRun[]
   auditEvents        AutomationAuditEvent[]
+  governancePolicy   AutomationGovernancePolicy?
   createdAt          DateTime               @default(now())
   updatedAt          DateTime               @updatedAt
 
@@ -135,6 +136,7 @@ model AutomationRun {
   resultSummary            String?
   failureReason            String?
   attempt                  Int        @default(1)
+  sourceRunId              String?
   startedAt                DateTime?
   completedAt              DateTime?
   createdAt                DateTime   @default(now())
@@ -144,6 +146,25 @@ model AutomationRun {
   @@index([automationId, createdAt])
   @@index([status, createdAt])
   @@index([orchestrationExecutionId])
+  @@index([sourceRunId])
+}
+
+model AutomationGovernancePolicy {
+  automationId              String     @id
+  automation                Automation @relation(fields: [automationId], references: [id], onDelete: Cascade)
+  enabled                   Boolean    @default(true)
+  maxRunsPerDay             Int?
+  maxRunsPerWeek            Int?
+  cooldownMinutes           Int?
+  allowedExecutionWindows   Json?
+  maxConsecutiveFailures    Int?
+  pauseOnRepeatedFailure    Boolean    @default(true)
+  manualApprovalRequired    Boolean    @default(false)
+  retryPolicy               Json?
+  createdAt                 DateTime   @default(now())
+  updatedAt                 DateTime   @updatedAt
+
+  @@index([enabled, updatedAt])
 }
 
 model AutomationAuditEvent {

@@ -910,3 +910,17 @@ As ações aceitam somente body vazio ou `{}`. Start/tick retornam `409` quando 
 - `GET /api/automations/:id/audit?limit=100`: trilha operacional.
 
 Retornam `200`, `400`, `404`, `409` ou `500` sanitizado conforme estado e existência.
+
+### Governança e diagnósticos
+
+- `GET /api/automations/diagnostics`: diagnósticos reais de todas as definições;
+- `GET /api/automations/:id/diagnostics`: health, quotas, cooldown, janela, falhas, bloqueio, fatos e recomendação;
+- `GET /api/automations/:id/governance`: policy efetiva, incluindo defaults;
+- `PUT /api/automations/:id/governance`: atualiza somente campos permitidos da policy;
+- `POST /api/automations/:id/clear-block`: limpa bloqueio operacional, nunca PlanReview pendente;
+- `POST /api/automations/:id/skip`: persiste a ocorrência como `SKIPPED` e avança a agenda;
+- `POST /api/automations/:id/override`: executa override one-shot de quota/janela/cooldown;
+- `POST /api/automations/runs/:runId/retry`: cria nova tentativa ligada ao run falho;
+- `POST /api/automations/runs/:runId/recover`: cria nova tentativa somente para `Interrupted`.
+
+O body de override exige `policies`, `reason` e `authorizedBy`. Valores aceitos em `policies`: `quota`, `window`, `cooldown`. Aprovação externa, validação de capability, estado de segurança e PlanReview não são ignoráveis. Payload/ID inválido retorna `400`, ausente `404`, conflito operacional `409` e erro inesperado `500` sanitizado.

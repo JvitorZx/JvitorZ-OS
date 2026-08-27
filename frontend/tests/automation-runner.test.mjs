@@ -36,10 +36,10 @@ const item = { id: 'auto-1', name: '<img src=x onerror=alert(1)>', triggerType: 
 const runtimeHealth = { status: 'STOPPED', enabled: false, lastTickAt: null, nextTickAt: null, dueCount: 0, runsStarted: 0, runsFailed: 0 };
 const withRuntime = (api) => ({ getAutomationRuntimeStatus: async () => runtimeHealth, ...api });
 
-const originalDocument = globalThis.document; const originalFetch = globalThis.fetch;
+const originalDocument = globalThis.document; const originalFetch = globalThis.fetch; const originalConfirm = globalThis.confirm;
 globalThis.document = { createElement: (tag) => new FakeElement(tag) };
-afterEach(() => { globalThis.document = { createElement: (tag) => new FakeElement(tag) }; globalThis.fetch = originalFetch; });
-process.on('exit', () => { globalThis.document = originalDocument; globalThis.fetch = originalFetch; });
+afterEach(() => { globalThis.document = { createElement: (tag) => new FakeElement(tag) }; globalThis.fetch = originalFetch; globalThis.confirm = originalConfirm; });
+process.on('exit', () => { globalThis.document = originalDocument; globalThis.fetch = originalFetch; globalThis.confirm = originalConfirm; });
 
 test('automation module exposes a fullscreen lifecycle workspace with local feedback', () => {
   const markup = automationsModule.render(); assert.equal(automationsModule.fullscreen, true);
@@ -113,4 +113,37 @@ test('central API client uses exact runtime contracts without request payloads',
     ['http://localhost:3000/api/automations/runtime/tick', 'POST', '{}'],
   ]);
   await assert.rejects(() => api.controlAutomationRuntime('restart'), TypeError);
+});
+
+test('central API client exposes exact governance and recovery contracts', async () => {
+  const calls = []; globalThis.fetch = async (url, options = {}) => { calls.push([String(url), options.method ?? 'GET', options.body]);
+    return { ok: true, status: 200, async json() { return {}; } }; };
+  const api = createApiClient('http://localhost:3000'); await api.listAutomationDiagnostics(); await api.getAutomationDiagnostics('auto 1');
+  await api.getAutomationGovernance('auto 1'); await api.updateAutomationGovernance('auto 1', { maxRunsPerDay: 2 });
+  await api.controlAutomationGovernance('auto 1', 'skip'); await api.controlAutomationGovernance('auto 1', 'override', { policies: ['quota'], reason: 'x', authorizedBy: 'local' });
+  await api.controlAutomationRun('run 1', 'retry'); await api.controlAutomationRun('run 1', 'recover');
+  assert.deepEqual(calls, [
+    ['http://localhost:3000/api/automations/diagnostics', 'GET', undefined],
+    ['http://localhost:3000/api/automations/auto%201/diagnostics', 'GET', undefined],
+    ['http://localhost:3000/api/automations/auto%201/governance', 'GET', undefined],
+    ['http://localhost:3000/api/automations/auto%201/governance', 'PUT', '{"maxRunsPerDay":2}'],
+    ['http://localhost:3000/api/automations/auto%201/skip', 'POST', '{}'],
+    ['http://localhost:3000/api/automations/auto%201/override', 'POST', '{"policies":["quota"],"reason":"x","authorizedBy":"local"}'],
+    ['http://localhost:3000/api/automations/runs/run%201/retry', 'POST', '{}'],
+    ['http://localhost:3000/api/automations/runs/run%201/recover', 'POST', '{}'],
+  ]);
+  await assert.rejects(() => api.controlAutomationGovernance('a', 'delete'), TypeError);
+  await assert.rejects(() => api.controlAutomationRun('', 'retry'), TypeError);
+});
+
+test('workspace renders diagnostics and confirms an operational override explicitly', async () => {
+  let override; globalThis.confirm = () => true; const diagnostic = { automationId: item.id, health: 'DEGRADED', consecutiveFailures: 1,
+    cooldownMinutes: 0, nextEligibleAt: null, recommendation: 'Revisar quota.', quota: { daily: { remaining: 0, limit: 1 } },
+    block: { policies: ['dailyQuota'] }, lastResult: null };
+  const api = withRuntime({ listAutomations: async () => [item], listAutomationDiagnostics: async () => [diagnostic],
+    controlAutomationGovernance: async (id, action, input) => { override = { id, action, input }; return {}; } });
+  const dom = createDom(); createAutomationsController({ api }).mount(dom.root); await flush();
+  const article = dom.get('[data-automation-list]').children[0]; assert.equal(article.children.some((child) => String(child.textContent).includes('Health DEGRADED')), true);
+  const button = article.children.at(-1).children.find((child) => child.textContent === 'Override'); await button.dispatch('click');
+  assert.equal(override.id, item.id); assert.equal(override.action, 'override'); assert.deepEqual(override.input.policies, ['quota']);
 });

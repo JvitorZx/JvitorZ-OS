@@ -25,6 +25,7 @@ export const supervisorModule = {
     const orchestrationReviews = data.supervisor?.orchestrationReviews ?? {};
     const automations = data.supervisor?.automations ?? {};
     const automationRuntime = automations.runtime ?? {};
+    const automationGovernance = automations.governance ?? {};
     const renderItems = (items, empty) => items.length > 0
       ? `<ul>${items.slice(0, 3).map((item) => `<li>${escapeHtml(item)}</li>`).join('')}</ul>`
       : `<p class="performance-empty">${empty}</p>`;
@@ -83,6 +84,14 @@ export const supervisorModule = {
               <li>Em execução: ${escapeHtml(automations.running ?? 0)}</li>
               <li>Runtime: ${escapeHtml(automationRuntime.status ?? 'STOPPED')}</li>
               <li>Último tick: ${escapeHtml(automationRuntime.lastTickAt ?? '--')}</li>
+              <li>Saudáveis: ${escapeHtml(automationGovernance.healthy ?? 0)}</li>
+              <li>Degradadas: ${escapeHtml(automationGovernance.degraded ?? 0)}</li>
+              <li>Bloqueadas: ${escapeHtml(automationGovernance.blocked ?? 0)}</li>
+              <li>Falhando: ${escapeHtml(automationGovernance.failing ?? 0)}</li>
+              <li>Quotas atingidas: ${escapeHtml(automationGovernance.quotasReached ?? 0)}</li>
+              <li>Pausadas por falha: ${escapeHtml(automationGovernance.pausedByFailure ?? 0)}</li>
+              <li>Retries pendentes: ${escapeHtml(automationGovernance.retriesPending ?? 0)}</li>
+              <li>Aprovações pendentes: ${escapeHtml(automationGovernance.approvalsPending ?? 0)}</li>
             </ul>
           </section>
           <section>

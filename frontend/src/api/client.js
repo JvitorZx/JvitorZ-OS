@@ -43,6 +43,42 @@ export const createApiClient = (baseUrl) => ({
     }, 'Erro ao controlar runtime de automacoes');
   },
 
+  async listAutomationDiagnostics() {
+    return requestJson(`${baseUrl}/api/automations/diagnostics`, undefined, 'Erro ao carregar diagnosticos de automacoes');
+  },
+
+  async getAutomationDiagnostics(automationId) {
+    const id = requireIdentifier(automationId, 'automationId');
+    return requestJson(`${baseUrl}/api/automations/${encodeURIComponent(id)}/diagnostics`, undefined, 'Erro ao diagnosticar automacao');
+  },
+
+  async getAutomationGovernance(automationId) {
+    const id = requireIdentifier(automationId, 'automationId');
+    return requestJson(`${baseUrl}/api/automations/${encodeURIComponent(id)}/governance`, undefined, 'Erro ao carregar governanca');
+  },
+
+  async updateAutomationGovernance(automationId, input) {
+    const id = requireIdentifier(automationId, 'automationId');
+    return requestJson(`${baseUrl}/api/automations/${encodeURIComponent(id)}/governance`, {
+      method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify(input),
+    }, 'Erro ao atualizar governanca');
+  },
+
+  async controlAutomationGovernance(automationId, action, input = {}) {
+    const id = requireIdentifier(automationId, 'automationId');
+    if (!['clear-block', 'skip', 'override'].includes(action)) throw new TypeError('invalid governance action');
+    return requestJson(`${baseUrl}/api/automations/${encodeURIComponent(id)}/${action}`, {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(input),
+    }, 'Erro ao controlar governanca');
+  },
+
+  async controlAutomationRun(runId, action) {
+    const id = requireIdentifier(runId, 'runId'); if (!['retry', 'recover'].includes(action)) throw new TypeError('invalid run recovery action');
+    return requestJson(`${baseUrl}/api/automations/runs/${encodeURIComponent(id)}/${action}`, {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}',
+    }, 'Erro ao recuperar execucao');
+  },
+
   async createAutomation(input) {
     return requestJson(`${baseUrl}/api/automations`, {
       method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(input),

@@ -46,6 +46,30 @@ export class AutomationRunRepository {
     });
   }
 
+  countRelevantSince(automationId: string, since: Date): Promise<number> {
+    return this.client.automationRun.count({ where: {
+      automationId, createdAt: { gte: since }, status: { in: ['PENDING', 'RUNNING', 'SUCCEEDED', 'FAILED'] },
+    } });
+  }
+
+  findLatestRelevant(automationId: string): Promise<AutomationRun | null> {
+    return this.client.automationRun.findFirst({
+      where: { automationId, status: { in: ['SUCCEEDED', 'FAILED'] } },
+      orderBy: [{ completedAt: 'desc' }, { updatedAt: 'desc' }, { createdAt: 'desc' }, { id: 'desc' }],
+    });
+  }
+
+  async countConsecutiveFailures(automationId: string): Promise<number> {
+    const runs = await this.client.automationRun.findMany({
+      where: { automationId, status: { in: ['SUCCEEDED', 'FAILED'] } },
+      orderBy: [{ completedAt: 'desc' }, { updatedAt: 'desc' }, { createdAt: 'desc' }, { id: 'desc' }], take: 100,
+      select: { status: true },
+    });
+    let failures = 0;
+    for (const run of runs) { if (run.status === 'SUCCEEDED') break; failures += 1; }
+    return failures;
+  }
+
   findInterrupted(): Promise<AutomationRun[]> {
     return this.client.automationRun.findMany({
       where: { status: { in: ['PENDING', 'RUNNING'] } }, orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
@@ -68,5 +92,9 @@ export class AutomationRunRepository {
 
   countByStatuses(statuses: string[]): Promise<number> {
     return this.client.automationRun.count({ where: { status: { in: statuses } } });
+  }
+
+  countPendingRetries(): Promise<number> {
+    return this.client.automationRun.count({ where: { status: 'PENDING', sourceRunId: { not: null } } });
   }
 }

@@ -965,3 +965,30 @@ Manter um runtime local explicitamente controlável que detecta automações ven
 - ocorrências perdidas não geram backlog ilimitado e interrupted runs exigem decisão explícita para nova execução;
 - nenhum teste inicia scheduler real ou acessa o banco local;
 - melhorias visuais amplas, backoff avançado e coordenação entre múltiplos processos permanecem futuras.
+
+## Sprint 29 — Automation Operational Governance
+
+**Status: CONCLUÍDA**
+
+### Objetivo
+
+Controlar quando, quantas vezes e sob quais condições cada automação pode executar, além de oferecer recuperação manual e diagnóstico baseado em dados persistidos.
+
+### Entregas
+
+- policy persistente opcional com defaults conservadores;
+- quotas diária/semanal, janelas por timezone e cooldown;
+- decisões `ALLOW`, `DEFER`, `BLOCK` e `REQUIRE_APPROVAL` antes do claim;
+- threshold de falhas com pausa automática e reset derivado por sucesso;
+- retry/recovery rastreáveis, skip persistido e limpeza segura de bloqueio operacional;
+- override explícito somente para quota, janela e cooldown, sem bypass estrutural;
+- diagnósticos com fatos, causa, recomendação e health operacional;
+- endpoints estritos, workspace compacta, Gerente e Supervisor com dados reais;
+- auditoria sanitizada, proteção concorrente, migration aditiva e regressão automatizada.
+
+### Limites preservados
+
+- sem n8n, cloud scheduler, publicação automática ou worker distribuído;
+- PlanReview pendente e `EXTERNAL_WRITE` nunca são liberados por clear/override;
+- coordenação de quota entre processos diferentes permanece fora do escopo local atual;
+- UI de edição avançada de múltiplas janelas e dashboards históricos permanece futura.

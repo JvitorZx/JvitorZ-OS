@@ -135,12 +135,12 @@ export class AutomationRuntimeService {
       const scheduler = this.scheduler ??= new AutomationSchedulerService();
       const result = await scheduler.runDueAutomations(at, config.maxRetries);
       this.dueCount = result.due; this.runsStarted += result.results.filter(({ created }) => created).length;
-      this.runsFailed += result.results.filter(({ run }) => run.status === 'FAILED').length;
+      this.runsFailed += result.results.filter((item) => 'run' in item && item.run.status === 'FAILED').length;
       this.lastSuccessfulTickAt = this.now(); this.lastError = null;
       if (result.missed > 0) await this.event('MISSED_OCCURRENCE', { count: result.missed });
       await this.event('RUNTIME_TICK_COMPLETED', { due: result.due, missed: result.missed,
         runsStarted: result.results.filter(({ created }) => created).length,
-        runsFailed: result.results.filter(({ run }) => run.status === 'FAILED').length });
+        runsFailed: result.results.filter((item) => 'run' in item && item.run.status === 'FAILED').length });
       return result;
     } catch (error) {
       this.status = 'ERROR'; this.lastError = safeName(error);

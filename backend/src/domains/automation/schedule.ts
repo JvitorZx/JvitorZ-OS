@@ -9,7 +9,7 @@ export class AutomationScheduleValidationError extends Error {
   }
 }
 
-const dateParts = (date: Date, timezone: string) => {
+export const getZonedDateParts = (date: Date, timezone: string) => {
   const parts = new Intl.DateTimeFormat('en-CA', {
     timeZone: timezone,
     year: 'numeric', month: '2-digit', day: '2-digit',
@@ -19,11 +19,11 @@ const dateParts = (date: Date, timezone: string) => {
   return { year: value('year'), month: value('month'), day: value('day'), hour: value('hour'), minute: value('minute'), second: value('second') };
 };
 
-const zonedLocalToUtc = (local: { year: number; month: number; day: number; hour: number; minute: number }, timezone: string) => {
+export const zonedLocalToUtc = (local: { year: number; month: number; day: number; hour: number; minute: number }, timezone: string) => {
   const nominal = Date.UTC(local.year, local.month - 1, local.day, local.hour, local.minute, 0, 0);
   let candidate = nominal;
   for (let attempt = 0; attempt < 3; attempt += 1) {
-    const actual = dateParts(new Date(candidate), timezone);
+    const actual = getZonedDateParts(new Date(candidate), timezone);
     const represented = Date.UTC(actual.year, actual.month - 1, actual.day, actual.hour, actual.minute, actual.second);
     const adjustment = nominal - represented;
     if (adjustment === 0) break;
@@ -82,7 +82,7 @@ export const calculateNextRunAt = (
   const normalizedSchedule = normalizeAutomationSchedule(triggerType, schedule);
   if (!normalizedSchedule) return null;
   const [hour, minute] = normalizedSchedule.time.split(':').map(Number);
-  const localAfter = dateParts(after, normalizedZone);
+  const localAfter = getZonedDateParts(after, normalizedZone);
   const base = new Date(Date.UTC(localAfter.year, localAfter.month - 1, localAfter.day));
   for (let offset = 0; offset <= 14; offset += 1) {
     const date = new Date(base);

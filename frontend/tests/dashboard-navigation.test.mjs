@@ -600,6 +600,12 @@ test('Supervisor renders the YouTube Analytics provider state without activating
         insufficientData: 1,
         recentFailures: 0,
       },
+      automations: {
+        governance: {
+          healthy: 2, degraded: 1, blocked: 3, failing: 1,
+          quotasReached: 1, pausedByFailure: 1, retriesPending: 2, approvalsPending: 4,
+        },
+      },
     },
   });
   const unauthorized = supervisorModule.render({
@@ -614,5 +620,6 @@ test('Supervisor renders the YouTube Analytics provider state without activating
   assert.match(synchronized, /Prioridades editoriais[\s\S]*?Prioridade real/);
   assert.match(synchronized, /Oportunidades[\s\S]*?Oportunidade &lt;script&gt;alert\(1\)&lt;\/script&gt;/);
   assert.match(synchronized, /Revisão de outcomes[\s\S]*?Atuais: 3[\s\S]*?Revisão disponível: 2/);
+  assert.match(synchronized, /Saudáveis: 2[\s\S]*?Bloqueadas: 3[\s\S]*?Aprovações pendentes: 4/);
   assert.doesNotMatch(synchronized, /<script>alert\(1\)<\/script>/);
 });

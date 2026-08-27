@@ -4,6 +4,7 @@ import { AutomationRepository } from '../../database/repositories/AutomationRepo
 import { AutomationRunnerService } from './AutomationRunnerService';
 import { AutomationAuditRepository } from '../../database/repositories/AutomationAuditRepository';
 import { calculateLatestEligibleRunAt, type AutomationSchedule, type AutomationTriggerType } from '../../domains/automation';
+import { AutomationGovernanceService } from './AutomationGovernanceService';
 
 export const AUTOMATION_RETRY_BACKOFF_MS = 1_000;
 
@@ -13,6 +14,7 @@ export class AutomationSchedulerService {
     private readonly runner = new AutomationRunnerService(),
     private readonly audits = new AutomationAuditRepository(DatabaseService.client),
     private readonly delay: (milliseconds: number) => Promise<void> = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)),
+    private readonly governance = new AutomationGovernanceService(),
   ) {}
 
   findDueAutomations(now: Date): Promise<Automation[]> {
@@ -35,11 +37,13 @@ export class AutomationSchedulerService {
         await this.audits.append({ automationId: automation.id, eventType: 'MISSED_OCCURRENCE',
           details: { previousDueAt: automation.nextRunAt.toISOString(), selectedOccurrenceAt: latest.toISOString() } });
       }
+      const policy = await this.governance.getPolicy(automation.id);
+      const retryLimit = Math.min(maxRetries, policy.retryPolicy.maxRetries);
       let output = await this.runner.runScheduled(automation.id, latest);
-      while (output.run.status === 'FAILED' && output.run.failureReason === 'AutomationRuntimeTransientError'
-        && output.run.attempt <= maxRetries) {
+      while ('run' in output && output.run.status === 'FAILED' && output.run.failureReason === 'AutomationRuntimeTransientError'
+        && output.run.attempt <= retryLimit) {
         await this.delay(AUTOMATION_RETRY_BACKOFF_MS * output.run.attempt);
-        output = await this.runner.retryTechnicalRun(output.run.id, maxRetries);
+        output = await this.runner.retryTechnicalRun(output.run.id, retryLimit);
         if (!output.created) break;
       }
       results.push(output);
