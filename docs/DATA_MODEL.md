@@ -328,3 +328,24 @@ Os índices `(eventType, createdAt)` e `createdAt` suportam diagnóstico recente
 Relação opcional 1:1 com `Automation`. Guarda `enabled`, quotas diária/semanal, cooldown, janelas JSON, threshold de falhas, auto-pause, aprovação manual e retry policy. Ausência de registro usa defaults conservadores: 10 runs/dia, 50/semana, zero cooldown, janela livre, threshold 3 e zero retry.
 
 `AutomationRun.sourceRunId` liga logicamente retry/recovery ao run anterior sem sobrescrevê-lo. O status textual também admite `SKIPPED`, que não consome quota. A migration `20260830100000_automation_operational_governance` adiciona somente a coluna, índice e tabela de policy, preservando automações e runs anteriores.
+
+## AudienceSnapshot e AudienceSyncState
+
+`AudienceSnapshot` representa uma observação agregada oficial de audiência:
+
+- escopo opcional `projectId`;
+- `ingestionKey` única;
+- `dimension`, `segment` e `format`;
+- `periodStart`/`periodEnd`;
+- views, engaged views, watch time e médias somente quando compatíveis;
+- `source = youtube-analytics-audience` e `collectedAt`;
+- freshness, qualidade, razões e metadados técnicos mínimos.
+
+`AudienceSyncState` mantém por fonte o estado, última sincronização, tipo seguro do último erro e dimensões ausentes. Ele não contém token, query privada ou credencial.
+
+```text
+Project 1 -> N AudienceSnapshot
+AudienceSyncState (global por source)
+```
+
+A identidade não mistura projetos e evita duplicar a mesma dimensão/segmento/formato/período. Valores ausentes permanecem `null`; supressão de termos de busca não produz linhas artificiais.

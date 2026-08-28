@@ -2,6 +2,7 @@ import { DatabaseService } from '../../../database/DatabaseService';
 import { VideoPerformanceSnapshotRepository } from '../../../database/repositories/VideoPerformanceSnapshotRepository';
 import { VideoReachSnapshotRepository } from '../../../database/repositories/VideoReachSnapshotRepository';
 import { DataQualityService } from '../../../domains/data-quality/DataQualityService';
+import { AudienceIntelligenceService } from '../../../services/audience/AudienceIntelligenceService';
 
 const average = (values: Array<number | null>): number | null => {
   const known = values.filter((value): value is number => typeof value === 'number' && Number.isFinite(value));
@@ -20,6 +21,7 @@ export class AnalyticsModule {
     private readonly snapshots = new VideoPerformanceSnapshotRepository(DatabaseService.client),
     private readonly reachSnapshots = new VideoReachSnapshotRepository(DatabaseService.client),
     private readonly qualityService = new DataQualityService(),
+    private readonly audienceIntelligence = new AudienceIntelligenceService(),
   ) {}
 
   async getDashboardAnalytics() {
@@ -35,6 +37,8 @@ export class AnalyticsModule {
       (sum, record) => sum + (record[field] ?? 0),
       0,
     );
+    let audience = null;
+    try { audience = await this.audienceIntelligence.summary(); } catch { audience = null; }
     return {
       performance: {
         views: records.length ? total('views') : null,
@@ -45,6 +49,7 @@ export class AnalyticsModule {
         percentage: average(records.map(({ averageViewPercentage }) => averageViewPercentage)),
       },
       trafficSources: [],
+      audience,
       sampleSize: records.length,
       lastDataAt: records[0]?.collectedAt ?? null,
       reach: {

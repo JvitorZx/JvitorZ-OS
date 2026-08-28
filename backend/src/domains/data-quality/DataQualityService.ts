@@ -1,4 +1,4 @@
-import type { VideoReachSnapshot } from '@prisma/client';
+import type { AudienceSnapshot, VideoReachSnapshot } from '@prisma/client';
 import { classifyFreshness, type DataFreshness } from './FreshnessPolicy';
 
 export const DATA_QUALITY_STATES = [
@@ -29,6 +29,32 @@ const validNumber = (value: number): boolean => Number.isFinite(value);
 const rounded = (value: number): number => Math.round(Math.max(0, Math.min(1, value)) * 100) / 100;
 
 export class DataQualityService {
+  evaluateAudience(records: readonly AudienceSnapshot[], expectedDimensions: readonly string[], now = new Date()): DataQualityReport {
+    if (!records.length) return {
+      state: 'MISSING', availability: 0, freshness: 'MISSING', completeness: 0, consistency: 1,
+      sampleSize: 0, sourceReliability: 1, latestCollectedAt: null, latestPeriodEnd: null,
+      reasons: [{ code: 'NO_AUDIENCE_DATA', message: 'Nenhum dado de audiência foi coletado.', severity: 'info' }],
+    };
+    const reasons: DataQualityReason[] = [];
+    const dimensions = new Set(records.map(({ dimension }) => dimension));
+    const missing = expectedDimensions.filter((dimension) => !dimensions.has(dimension));
+    if (missing.length) reasons.push({ code: 'MISSING_DIMENSIONS', message: `Dimensões ausentes: ${missing.join(', ')}.`, severity: 'warning' });
+    let invalid = 0;
+    for (const record of records) {
+      const metrics = [record.views, record.engagedViews, record.watchTimeMinutes, record.averageViewDurationSeconds, record.averageViewPercentage];
+      if (!record.segment.trim() || record.periodStart >= record.periodEnd || metrics.some((value) => value !== null && (!Number.isFinite(value) || value < 0)) || (record.averageViewPercentage !== null && record.averageViewPercentage > 100)) invalid += 1;
+    }
+    if (invalid) reasons.push({ code: 'INCONSISTENT_AUDIENCE_ROWS', message: `${invalid} linha(s) possuem período, segmento ou métrica inválida.`, severity: 'error' });
+    const latestCollectedAt = records.reduce<Date | null>((latest, row) => !latest || row.collectedAt > latest ? row.collectedAt : latest, null);
+    const latestPeriodEnd = records.reduce<Date | null>((latest, row) => !latest || row.periodEnd > latest ? row.periodEnd : latest, null);
+    const freshness = classifyFreshness(latestPeriodEnd, now).state;
+    if (freshness !== 'RECENT') reasons.push({ code: 'AUDIENCE_NOT_RECENT', message: 'Os dados de audiência não são recentes.', severity: 'warning' });
+    const completeness = rounded(dimensions.size / Math.max(1, expectedDimensions.length));
+    const consistency = rounded(1 - invalid / records.length);
+    const state: DataQualityState = invalid ? 'INCONSISTENT' : freshness !== 'RECENT' ? 'STALE' : missing.length || records.length < expectedDimensions.length ? 'PARTIAL' : 'GOOD';
+    return { state, availability: 1, freshness, completeness, consistency, sampleSize: records.length, sourceReliability: 1, latestCollectedAt, latestPeriodEnd, reasons };
+  }
+
   evaluateReach(
     records: readonly VideoReachSnapshot[],
     options: { knownVideoIds?: ReadonlySet<string>; now?: Date } = {},

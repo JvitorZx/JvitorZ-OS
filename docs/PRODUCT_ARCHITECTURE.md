@@ -430,3 +430,23 @@ A Sprint 32 adiciona `GoogleYouTubeReachProvider`, uma integração separada com
 Fontes oficiais: [YouTube Reporting API](https://developers.google.com/youtube/reporting/v1/reference/rest), [Channel Reach reports](https://developers.google.com/youtube/reporting/v1/reports/channel_reports) e [Reach metrics](https://developers.google.com/youtube/reporting/v1/reports/metrics).
 
 O `PlannerModule` reflete a configuração real de OpenAI. Supervisor fornece estado técnico e resumo humano dos operadores. Configurações mostra apenas estado e ações seguras; nenhuma tela recebe secrets.
+
+## Audience & Traffic Source Intelligence
+
+A Sprint 33 mantém uma terceira fronteira YouTube separada: `GoogleYouTubeAudienceProvider` usa relatórios direcionados da YouTube Analytics API para `insightTrafficSourceType`, detalhe de `YT_SEARCH` quando disponível, `country`, `deviceType` e `subscribedStatus`. Essa fonte não substitui Performance por vídeo nem Reach bulk.
+
+```text
+GoogleYouTubeAudienceProvider
+  -> YouTubeAudienceSyncService
+    -> AudienceSnapshotRepository + AudienceSyncStateRepository
+      -> DataQualityService
+        -> AudienceIntelligenceService
+          -> Long-form / Shorts / CTR / Retention
+          -> Gerente / Supervisor / Dashboard / Analytics UI
+```
+
+`AudienceSnapshot` preserva dimensão, segmento oficial, formato oficial, período, métricas compatíveis, coleta, freshness e qualidade. A chave de ingestão torna a mesma fonte/projeto/dimensão/segmento/formato/período idempotente. Sync parcial registra dimensões ausentes e falhas posteriores preservam o last-known-good.
+
+Fatos, sinais, hipóteses e recomendações são canais separados. País não é convertido em idioma; subscribed status não prova fidelidade; origem de tráfego não prova causa de CTR ou retenção. Duração média e percentual médio permanecem `null` nos relatórios em que a API não os aceita. Termos de busca nunca são gerados localmente.
+
+Fontes oficiais: [Channel reports](https://developers.google.com/youtube/analytics/channel_reports), [Dimensions](https://developers.google.com/youtube/analytics/dimensions) e [Metrics](https://developers.google.com/youtube/analytics/metrics).

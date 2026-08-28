@@ -7,6 +7,7 @@ process.env.DATABASE_URL = ':memory:';
 const { DatabaseService } = require('../dist/database/DatabaseService');
 const { VideoPerformanceSnapshotRepository } = require('../dist/database/repositories/VideoPerformanceSnapshotRepository');
 const { VideoReachSnapshotRepository } = require('../dist/database/repositories/VideoReachSnapshotRepository');
+const { AudienceSnapshotRepository } = require('../dist/database/repositories/AudienceSnapshotRepository');
 const { ChannelOperatorService } = require('../dist/services/channel-operators/ChannelOperatorService');
 const { createChannelOperatorsRouter } = require('../dist/routes/channelOperators');
 const { classifyOrchestrationIntent, createOrchestrationPlan } = require('../dist/services/orchestration/IntentRouter');
@@ -61,7 +62,23 @@ before(async () => {
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, "updatedAt" DATETIME NOT NULL,
     FOREIGN KEY ("projectId") REFERENCES "Project"("id") ON DELETE SET NULL
   )`);
-  service = new ChannelOperatorService(new VideoPerformanceSnapshotRepository(client), new VideoReachSnapshotRepository(client));
+  await client.$executeRawUnsafe(`CREATE TABLE "AudienceSnapshot" (
+    "id" TEXT NOT NULL PRIMARY KEY, "projectId" TEXT, "ingestionKey" TEXT NOT NULL UNIQUE,
+    "dimension" TEXT NOT NULL, "segment" TEXT NOT NULL, "format" TEXT,
+    "periodStart" DATETIME NOT NULL, "periodEnd" DATETIME NOT NULL, "views" REAL,
+    "engagedViews" REAL, "watchTimeMinutes" REAL, "averageViewDurationSeconds" REAL,
+    "averageViewPercentage" REAL, "source" TEXT NOT NULL, "collectedAt" DATETIME NOT NULL,
+    "freshnessAtCollection" TEXT NOT NULL, "qualityAtCollection" TEXT NOT NULL,
+    "qualityReasons" JSONB NOT NULL, "providerMetadata" JSONB,
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, "updatedAt" DATETIME NOT NULL,
+    FOREIGN KEY ("projectId") REFERENCES "Project"("id") ON DELETE SET NULL
+  )`);
+  service = new ChannelOperatorService(
+    new VideoPerformanceSnapshotRepository(client),
+    new VideoReachSnapshotRepository(client),
+    undefined,
+    new AudienceSnapshotRepository(client),
+  );
   const app = express();
   app.use(express.json());
   app.use(createChannelOperatorsRouter(service));
@@ -74,6 +91,7 @@ before(async () => {
 });
 
 beforeEach(async () => {
+  await client.audienceSnapshot.deleteMany();
   await client.videoReachSnapshot.deleteMany();
   await client.videoPerformanceSnapshot.deleteMany();
   await client.project.deleteMany();
@@ -140,13 +158,41 @@ describe('specialized channel operators', { concurrency: false }, () => {
     assert.equal(shorts.evidence[0].videoId, 'video-b');
   });
 
+  test('enriches Long-form and Shorts with only their matching audience format', async () => {
+    await client.videoPerformanceSnapshot.createMany({ data: [snapshot('a', { format: 'long-form' }), snapshot('b', { format: 'Shorts' })] });
+    const common = {
+      periodStart: new Date('2026-08-20T00:00:00Z'), periodEnd: new Date('2026-08-27T00:00:00Z'),
+      engagedViews: 80, watchTimeMinutes: 300, averageViewDurationSeconds: null,
+      averageViewPercentage: null, source: 'youtube-analytics-audience',
+      collectedAt: new Date('2026-08-27T01:00:00Z'), freshnessAtCollection: 'RECENT',
+      qualityAtCollection: 'GOOD', qualityReasons: [], providerMetadata: {},
+    };
+    await client.audienceSnapshot.createMany({ data: [
+      { id: 'audience-long-source', ingestionKey: 'audience-long-source', dimension: 'traffic_source', segment: 'BROWSE', format: 'LONG_FORM', views: 100, ...common },
+      { id: 'audience-long-country', ingestionKey: 'audience-long-country', dimension: 'country', segment: 'BR', format: 'LONG_FORM', views: 90, ...common },
+      { id: 'audience-long-device', ingestionKey: 'audience-long-device', dimension: 'device_type', segment: 'COMPUTER', format: 'LONG_FORM', views: 70, ...common },
+      { id: 'audience-long-subscribed', ingestionKey: 'audience-long-subscribed', dimension: 'subscribed_status', segment: 'SUBSCRIBED', format: 'LONG_FORM', views: 60, ...common },
+      { id: 'audience-short-source', ingestionKey: 'audience-short-source', dimension: 'traffic_source', segment: 'SHORTS', format: 'SHORTS', views: 200, ...common },
+      { id: 'audience-short-country', ingestionKey: 'audience-short-country', dimension: 'country', segment: 'US', format: 'SHORTS', views: 180, ...common },
+      { id: 'audience-short-device', ingestionKey: 'audience-short-device', dimension: 'device_type', segment: 'MOBILE', format: 'SHORTS', views: 160, ...common },
+      { id: 'audience-short-subscribed', ingestionKey: 'audience-short-subscribed', dimension: 'subscribed_status', segment: 'UNSUBSCRIBED', format: 'SHORTS', views: 150, ...common },
+    ] });
+    const longForm = await service.run('long-form'); const shorts = await service.run('shorts');
+    assert.equal(longForm.facts.find(({ label }) => label === 'Principal fonte').value, 'BROWSE');
+    assert.equal(longForm.facts.find(({ label }) => label === 'Principal país').value, 'BR');
+    assert.equal(shorts.facts.find(({ label }) => label === 'Principal fonte').value, 'SHORTS');
+    assert.equal(shorts.facts.find(({ label }) => label === 'Principal dispositivo').value, 'MOBILE');
+    assert.equal(longForm.facts.some(({ value }) => ['US', 'MOBILE', 'UNSUBSCRIBED'].includes(value)), false);
+    assert.equal(shorts.facts.some(({ value }) => ['BROWSE', 'COMPUTER', 'SUBSCRIBED'].includes(value)), false);
+  });
+
   test('keeps a classified format limited when its usable metrics are absent', async () => {
     await client.videoPerformanceSnapshot.create({ data: snapshot('a', {
       views: null, watchTimeMinutes: null, averageViewPercentage: null, subscribersGained: null,
     }) });
     const analysis = await service.run('long-form');
     assert.equal(analysis.status, 'LIMITED');
-    assert.deepEqual(analysis.missingData, ['views', 'watchTime', 'averageViewPercentage', 'subscribersGained']);
+    assert.deepEqual(analysis.missingData, ['views', 'watchTime', 'averageViewPercentage', 'subscribersGained', 'audience / traffic source by format']);
     assert.equal(analysis.facts.find(({ label }) => label === 'Watch time observado').value, null);
   });
 
@@ -192,6 +238,9 @@ test('natural language routes to one or combined channel operators', () => {
   assert.equal(classifyOrchestrationIntent('Como está a retenção?'), 'retention_analysis');
   assert.equal(classifyOrchestrationIntent('Compare meus vídeos longos'), 'long_form_analysis');
   assert.equal(classifyOrchestrationIntent('Como foram meus Shorts?'), 'shorts_analysis');
+  assert.equal(classifyOrchestrationIntent('De onde vêm minhas views?'), 'audience_analysis');
+  assert.equal(classifyOrchestrationIntent('As pessoas assistem mais pelo celular ou computador?'), 'audience_analysis');
+  assert.deepEqual(createOrchestrationPlan({ intent: 'Qual país mais assiste?' }).capabilities, ['channel-operator.long-form', 'channel-operator.shorts', 'planner.respond']);
   const combined = createOrchestrationPlan({ intent: 'Analise CTR e retenção do canal' });
   assert.deepEqual(combined.capabilities, ['channel-operator.ctr', 'channel-operator.retention', 'planner.respond']);
 });

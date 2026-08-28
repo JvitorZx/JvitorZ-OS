@@ -19,7 +19,7 @@ O Hub também usa `PLANNED` para capacidades futuras que não possuem navegaçã
 
 ### CTR
 
-Usa somente `impressions`, `ctr` e views de `VideoPerformanceSnapshot`. Compara CTR com a mediana observada e não atribui causalidade automática a thumbnail, título ou tema.
+Usa `impressions` e `ctr` oficiais de `VideoReachSnapshot`, com metadados de `VideoPerformanceSnapshot`. Fontes de audiência podem aparecer apenas como contexto, sem atribuir causalidade automática a thumbnail, título, tema ou origem.
 
 ### Retenção
 
@@ -27,11 +27,11 @@ Usa duração média, percentual médio assistido e watch time. O provider atual
 
 ### Long-form
 
-Considera apenas snapshots explicitamente classificados como long-form, VOD ou vídeo longo. Consolida views, watch time, retenção média e inscritos disponíveis.
+Considera apenas snapshots explicitamente classificados como long-form, VOD ou vídeo longo. Consolida views, watch time, retenção média e inscritos disponíveis e, quando sincronizados, principal fonte, país, dispositivo e status de inscrição do mesmo formato.
 
 ### Shorts
 
-Considera somente snapshots explicitamente classificados como Shorts. Não estima engaged views nem métricas ausentes e não inclui clipping.
+Considera somente snapshots explicitamente classificados como Shorts. Contexto de audiência usa apenas linhas `SHORTS`, incluindo Shorts feed quando fornecido oficialmente. Não estima engaged views nem compara percentuais de universos incompatíveis.
 
 ## Integrações
 
@@ -55,3 +55,7 @@ Os operadores consultam dados persistidos já sincronizados. Abrir uma análise 
 O operador CTR usa somente `VideoReachSnapshot` do YouTube Reporting. Ele mostra impressões, CTR mediano, baselines compatíveis, amostra, freshness, qualidade e evidências. Sinais de embalagem são associações: o sistema não afirma que uma thumbnail causou o resultado e não prevê views.
 
 Quando o relatório não existe, o operador permanece `LIMITED`/`NOT_CONFIGURED` e recomenda configurar o provider. Quando existe dado real, fica `AVAILABLE`, ainda que sinalize stale ou inconsistência na qualidade.
+
+## Audience Intelligence
+
+O `AudienceIntelligenceService` é read-only e consolida fontes, países, dispositivos, subscribed status e termos de busca realmente disponíveis. O Gerente reconhece perguntas sobre origem de views, recomendação, país, dispositivo e inscritos e combina os operadores Long-form e Shorts. Ausência permanece em `missingData`; Supervisor mostra qualidade e fatos sem disparar sync.

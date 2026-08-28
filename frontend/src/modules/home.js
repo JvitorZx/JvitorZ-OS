@@ -27,6 +27,8 @@ export const homeModule = {
     const qualityAlerts = (Array.isArray(data.dataQuality) ? data.dataQuality : [])
       .filter(({ state }) => state !== 'GOOD')
       .map(({ area, state, summary }) => `${area}: ${state}. ${summary ?? ''}`);
+    const audience = data.analytics?.audience;
+    const audienceSummary = [audience?.trafficSources?.[0] ? `Fonte principal: ${audience.trafficSources[0].segment}` : null, audience?.countries?.[0] ? `País principal: ${audience.countries[0].segment}` : null, audience?.signals?.[0] ?? null].filter(Boolean);
 
     return html`
       <section class="home-status-grid" aria-label="Estado operacional">
@@ -44,6 +46,7 @@ export const homeModule = {
           className: 'home-summary-panel',
           body: safeList(editorial.priorities, 'Nenhuma prioridade editorial registrada.'),
         })}
+        ${createPanel({ eyebrow: 'Audiência', title: 'Distribuição observada', className: 'home-summary-panel', body: safeList(audienceSummary, 'Audiência ainda sem dados sincronizados.') })}
         ${createPanel({
           eyebrow: 'Riscos',
           title: 'Pontos que pedem atenção',

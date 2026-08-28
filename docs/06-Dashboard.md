@@ -39,6 +39,8 @@ O Dashboard e Configurações usam o contrato consolidado de `/api/integrations/
 
 Canal e Analytics mostram dados persistidos reais. Uma coleta externa bem-sucedida atualiza `lastSuccessAt`; uma falha temporária preserva o último canal conhecido, marca o estado como degradado e evita substituir valores reais por `--`. O resumo inicial mostra saúde de alcance/CTR e alertas de qualidade sem duplicar a análise detalhada disponível em Analytics.
 
+Analytics possui as subrotas `#/analytics/audience` e `#/analytics/traffic`. Elas exibem fontes, países, dispositivos, status de inscrição, termos disponíveis, qualidade e freshness usando listas operacionais. O Dashboard mostra apenas principal fonte e país; o Supervisor mostra qualidade e lacunas. Erros e sync permanecem locais, sem usar `statePanel`.
+
 ## Lifecycle
 
 Cada módulo segue `createController(context) -> { mount(container), unmount() }`. Ao mudar de rota, o módulo anterior é desmontado uma vez antes da substituição do DOM. Listeners, timers e respostas assíncronas pertencem ao controller local.

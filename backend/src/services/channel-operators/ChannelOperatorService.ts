@@ -1,4 +1,5 @@
-import type { VideoPerformanceSnapshot, VideoReachSnapshot } from '@prisma/client';
+import type { AudienceSnapshot, VideoPerformanceSnapshot, VideoReachSnapshot } from '@prisma/client';
+import { AudienceSnapshotRepository } from '../../database/repositories/AudienceSnapshotRepository';
 import { DatabaseService } from '../../database/DatabaseService';
 import { VideoPerformanceSnapshotRepository } from '../../database/repositories/VideoPerformanceSnapshotRepository';
 import { VideoReachSnapshotRepository } from '../../database/repositories/VideoReachSnapshotRepository';
@@ -67,21 +68,26 @@ export class ChannelOperatorService {
     private readonly snapshots = new VideoPerformanceSnapshotRepository(DatabaseService.client),
     private readonly reach = new VideoReachSnapshotRepository(DatabaseService.client),
     private readonly qualityService = new DataQualityService(),
+    private readonly audience = new AudienceSnapshotRepository(DatabaseService.client),
   ) {}
+
+  private async audienceRows(filters: { projectId?: string | null }): Promise<AudienceSnapshot[]> {
+    try { return await this.audience.findAll(filters); } catch { return []; }
+  }
 
   async list(projectId?: string | null): Promise<ChannelOperatorAnalysis[]> {
     const filters = projectId === undefined ? {} : { projectId };
-    const [records, reach] = await Promise.all([this.snapshots.findAll(filters), this.reach.findAll(filters)]);
+    const [records, reach, audience] = await Promise.all([this.snapshots.findAll(filters), this.reach.findAll(filters), this.audienceRows(filters)]);
     const quality = this.qualityService.evaluateReach(reach, { knownVideoIds: new Set(records.map(({ videoId }) => videoId)) });
-    return CHANNEL_OPERATOR_IDS.map((id) => this.analyze(id, records, reach, quality));
+    return CHANNEL_OPERATOR_IDS.map((id) => this.analyze(id, records, reach, quality, audience));
   }
 
   async run(id: string, projectId?: string | null): Promise<ChannelOperatorAnalysis> {
     if (!CHANNEL_OPERATOR_IDS.includes(id as ChannelOperatorId)) throw new ChannelOperatorNotFoundError();
     const filters = projectId === undefined ? {} : { projectId };
-    const [records, reach] = await Promise.all([this.snapshots.findAll(filters), this.reach.findAll(filters)]);
+    const [records, reach, audience] = await Promise.all([this.snapshots.findAll(filters), this.reach.findAll(filters), this.audienceRows(filters)]);
     const quality = this.qualityService.evaluateReach(reach, { knownVideoIds: new Set(records.map(({ videoId }) => videoId)) });
-    return this.analyze(id as ChannelOperatorId, records, reach, quality);
+    return this.analyze(id as ChannelOperatorId, records, reach, quality, audience);
   }
 
   private base(id: ChannelOperatorId, records: VideoPerformanceSnapshot[], sample: VideoPerformanceSnapshot[], missingData: string[], availableFields: number, expectedFields: number) {
@@ -94,13 +100,13 @@ export class ChannelOperatorService {
     };
   }
 
-  private analyze(id: ChannelOperatorId, records: VideoPerformanceSnapshot[], reach: VideoReachSnapshot[], quality: DataQualityReport): ChannelOperatorAnalysis {
-    if (id === 'ctr') return this.ctr(records, reach, quality);
-    if (id === 'retention') return this.retention(records);
-    return this.format(id, records);
+  private analyze(id: ChannelOperatorId, records: VideoPerformanceSnapshot[], reach: VideoReachSnapshot[], quality: DataQualityReport, audience: AudienceSnapshot[]): ChannelOperatorAnalysis {
+    if (id === 'ctr') return this.ctr(records, reach, quality, audience);
+    if (id === 'retention') return this.retention(records, audience);
+    return this.format(id, records, audience);
   }
 
-  private ctr(records: VideoPerformanceSnapshot[], reach: VideoReachSnapshot[], quality: DataQualityReport): ChannelOperatorAnalysis {
+  private ctr(records: VideoPerformanceSnapshot[], reach: VideoReachSnapshot[], quality: DataQualityReport, audience: AudienceSnapshot[]): ChannelOperatorAnalysis {
     const sample = reach.filter(({ ctr, impressions }) => numeric(ctr) && numeric(impressions));
     const ctrMedian = median(sample.map(({ ctr }) => ctr));
     const impressionsMedian = median(sample.map(({ impressions }) => impressions));
@@ -144,7 +150,7 @@ export class ChannelOperatorService {
         { label: 'Impressões observadas', value: total(sample.map(({ impressions }) => impressions)), unit: 'count', source: 'youtube-reporting-reach' },
       ],
       signals: signals.slice(0, 12),
-      insights: sample.length ? ['Fato: o CTR mede cliques sobre impressões. Hipótese: título, thumbnail, tema e origem da distribuição podem contribuir, mas o relatório não prova causalidade.'] : [],
+      insights: sample.length ? ['Fato: o CTR mede cliques sobre impressões. Hipótese: título, thumbnail, tema e origem da distribuição podem contribuir, mas o relatório não prova causalidade.', ...this.trafficContext(audience)] : [],
       recommendations: sample.length ? ['Compare itens dentro do mesmo formato e janela antes de testar uma mudança de embalagem.'] : ['Configure e sincronize o relatório oficial de alcance do YouTube.'],
       evidence: sample.slice(0, 20).map((item) => ({ snapshotId: item.id, videoId: item.videoId, title: metadata.get(item.videoId)?.title ?? item.videoId, collectedAt: item.collectedAt, source: 'youtube-reporting-reach', periodStart: item.periodStart, periodEnd: item.periodEnd, metrics: { impressions: item.impressions, ctr: item.ctr, views: metadata.get(item.videoId)?.views ?? null } })),
       quality: { state: quality.state, freshness: quality.freshness, completeness: quality.completeness, consistency: quality.consistency, sourceReliability: quality.sourceReliability, reasons: quality.reasons },
@@ -152,7 +158,7 @@ export class ChannelOperatorService {
     };
   }
 
-  private retention(records: VideoPerformanceSnapshot[]): ChannelOperatorAnalysis {
+  private retention(records: VideoPerformanceSnapshot[], audience: AudienceSnapshot[]): ChannelOperatorAnalysis {
     const sample = records.filter(({ averageViewDurationSeconds, averageViewPercentage, watchTimeMinutes }) =>
       numeric(averageViewDurationSeconds) || numeric(averageViewPercentage) || numeric(watchTimeMinutes));
     const percentageMedian = median(sample.map(({ averageViewPercentage }) => averageViewPercentage));
@@ -170,13 +176,21 @@ export class ChannelOperatorService {
         { label: 'Watch time observado', value: totalOrNull(sample.map(({ watchTimeMinutes }) => watchTimeMinutes)), unit: 'minutes', source: 'persisted-youtube-performance' },
       ],
       signals: rankedSignals(sample, 'averageViewPercentage', percentageMedian, 'retenção média'),
-      insights: sample.length ? ['Os dados disponíveis descrevem retenção média; não existe granularidade suficiente para afirmar onde ocorre abandono.'] : [],
+      insights: sample.length ? ['Os dados disponíveis descrevem retenção média; não existe granularidade suficiente para afirmar onde ocorre abandono.', ...this.trafficContext(audience)] : [],
       recommendations: sample.length ? ['Compare retenção média junto de duração e watch time; obtenha curva granular antes de diagnosticar a abertura.'] : ['Sincronize métricas de duração média e watch time.'],
       evidence: sample.slice(0, 20).map((item) => evidence(item, ['durationSeconds', 'averageViewDurationSeconds', 'averageViewPercentage', 'watchTimeMinutes'])),
     };
   }
 
-  private format(id: 'long-form' | 'shorts', records: VideoPerformanceSnapshot[]): ChannelOperatorAnalysis {
+  private trafficContext(audience: AudienceSnapshot[]): string[] {
+    const rows = audience.filter(({ dimension }) => dimension === 'traffic_source');
+    if (!rows.length) return [];
+    const totals = new Map<string, number>(); for (const row of rows) totals.set(row.segment, (totals.get(row.segment) ?? 0) + (row.views ?? 0));
+    const top = [...totals.entries()].sort((a, b) => b[1] - a[1])[0];
+    return top ? [`Contexto de origem: ${top[0]} lidera as views observadas; isso não prova a causa do CTR ou da retenção.`] : [];
+  }
+
+  private format(id: 'long-form' | 'shorts', records: VideoPerformanceSnapshot[], audience: AudienceSnapshot[]): ChannelOperatorAnalysis {
     const sample = records.filter(id === 'shorts' ? isShort : isLongForm);
     const fields = [
       ['views', sample.some(({ views }) => numeric(views))],
@@ -184,11 +198,18 @@ export class ChannelOperatorService {
       ['averageViewPercentage', sample.some(({ averageViewPercentage }) => numeric(averageViewPercentage))],
       ['subscribersGained', sample.some(({ subscribersGained }) => numeric(subscribersGained))],
     ] as const;
+    const audienceRows = audience.filter(({ format }) => format === (id === 'shorts' ? 'SHORTS' : 'LONG_FORM'));
+    const audienceQuality = this.qualityService.evaluateAudience(audienceRows, ['traffic_source', 'country', 'device_type', 'subscribed_status']);
+    const topBy = (dimension: string) => {
+      const totals = new Map<string, number>(); for (const row of audienceRows.filter((item) => item.dimension === dimension)) totals.set(row.segment, (totals.get(row.segment) ?? 0) + (row.views ?? 0));
+      return [...totals.entries()].sort((a, b) => b[1] - a[1])[0] ?? null;
+    };
+    const topTraffic = topBy('traffic_source'); const topCountry = topBy('country'); const topDevice = topBy('device_type'); const topSubscribed = topBy('subscribed_status');
     const missingData = records.length === 0
       ? ['performance snapshots']
       : sample.length === 0
         ? [`explicit ${id} format classification`]
-        : fields.filter(([, available]) => !available).map(([field]) => field);
+        : [...fields.filter(([, available]) => !available).map(([field]) => field), ...(!audienceRows.length ? ['audience / traffic source by format'] : [])];
     const availableFields = fields.filter(([, available]) => available).length;
     const viewsMedian = median(sample.map(({ views }) => views));
     const best = [...sample].filter(({ views }) => numeric(views)).sort((a, b) => (b.views ?? 0) - (a.views ?? 0))[0];
@@ -204,11 +225,16 @@ export class ChannelOperatorService {
         { label: 'Views medianas', value: viewsMedian, unit: 'count', source: 'persisted-youtube-performance' },
         { label: 'Watch time observado', value: totalOrNull(sample.map(({ watchTimeMinutes }) => watchTimeMinutes)), unit: 'minutes', source: 'persisted-youtube-performance' },
         { label: 'Inscritos ganhos', value: totalOrNull(sample.map(({ subscribersGained }) => subscribersGained)), unit: 'count', source: 'persisted-youtube-performance' },
+        ...(topTraffic ? [{ label: 'Principal fonte', value: topTraffic[0], source: 'youtube-analytics-audience' as const }] : []),
+        ...(topCountry ? [{ label: 'Principal país', value: topCountry[0], source: 'youtube-analytics-audience' as const }] : []),
+        ...(topDevice ? [{ label: 'Principal dispositivo', value: topDevice[0], source: 'youtube-analytics-audience' as const }] : []),
+        ...(topSubscribed ? [{ label: 'Principal status de inscrição', value: topSubscribed[0], source: 'youtube-analytics-audience' as const }] : []),
       ],
       signals,
       insights: sample.length ? [`A comparação usa somente snapshots explicitamente classificados como ${id}; associação não implica causalidade editorial.`] : [],
       recommendations: sample.length ? ['Compare tema, jogo, formato e retenção dos extremos antes do próximo teste editorial.'] : [`Classifique o formato dos snapshots para habilitar a análise ${id}.`],
       evidence: sample.slice(0, 20).map((item) => evidence(item, ['views', 'watchTimeMinutes', 'averageViewDurationSeconds', 'averageViewPercentage', 'subscribersGained'])),
+      quality: { state: audienceQuality.state, freshness: audienceQuality.freshness, completeness: audienceQuality.completeness, consistency: audienceQuality.consistency, sourceReliability: audienceQuality.sourceReliability, reasons: audienceQuality.reasons },
     };
   }
 }

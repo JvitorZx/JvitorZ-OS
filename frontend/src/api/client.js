@@ -478,6 +478,33 @@ export const createApiClient = (baseUrl) => ({
     return requestJson(`${baseUrl}/api/operators/creator-intelligence/reach/quality${query}`, undefined, 'Erro ao carregar qualidade dos dados');
   },
 
+  async getAudienceStatus() {
+    return requestJson(`${baseUrl}/api/operators/creator-intelligence/audience/status`, undefined, 'Erro ao consultar status de audiência');
+  },
+
+  async syncYouTubeAudience(input) {
+    if (!input || typeof input !== 'object' || Array.isArray(input)) throw new TypeError('audience sync input must be an object');
+    return requestJson(`${baseUrl}/api/operators/creator-intelligence/audience/sync`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(input) }, 'Erro ao sincronizar audiência');
+  },
+
+  async getAudienceSummary(projectId) {
+    const query = projectId ? `?projectId=${encodeURIComponent(requireIdentifier(projectId, 'projectId'))}` : '';
+    return requestJson(`${baseUrl}/api/operators/creator-intelligence/audience/summary${query}`, undefined, 'Erro ao carregar audiência');
+  },
+
+  async getTrafficSourceAnalysis(projectId) {
+    const query = projectId ? `?projectId=${encodeURIComponent(requireIdentifier(projectId, 'projectId'))}` : '';
+    return requestJson(`${baseUrl}/api/operators/creator-intelligence/audience/traffic${query}`, undefined, 'Erro ao carregar fontes de tráfego');
+  },
+
+  async compareAudiencePeriods(input) {
+    if (!input || typeof input !== 'object') throw new TypeError('audience comparison input must be an object');
+    const query = new URLSearchParams();
+    for (const field of ['currentStart', 'currentEnd', 'previousStart', 'previousEnd']) query.set(field, requireIdentifier(input[field], field));
+    if (input.projectId) query.set('projectId', requireIdentifier(input.projectId, 'projectId'));
+    return requestJson(`${baseUrl}/api/operators/creator-intelligence/audience/comparison?${query}`, undefined, 'Erro ao comparar audiência');
+  },
+
   async syncYouTubePerformance(input) {
     if (!input || typeof input !== 'object' || Array.isArray(input)) {
       throw new TypeError('sync input must be an object');

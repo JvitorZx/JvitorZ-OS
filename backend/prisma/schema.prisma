@@ -31,6 +31,7 @@ model Project {
   performanceSignals PerformanceSignal[]
   videoPerformanceSnapshots VideoPerformanceSnapshot[]
   videoReachSnapshots VideoReachSnapshot[]
+  audienceSnapshots   AudienceSnapshot[]
   editorialDecisions EditorialDecision[]
   orchestrationExecutions OrchestrationExecution[]
   createdAt        DateTime           @default(now())
@@ -399,6 +400,44 @@ model ReachSyncState {
   lastReportAt  DateTime?
   lastSyncAt    DateTime?
   lastErrorType String?
+  updatedAt     DateTime @updatedAt
+}
+
+model AudienceSnapshot {
+  id                         String   @id @default(cuid())
+  projectId                  String?
+  project                    Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  ingestionKey               String   @unique
+  dimension                  String
+  segment                    String
+  format                     String?
+  periodStart                DateTime
+  periodEnd                  DateTime
+  views                      Float?
+  engagedViews               Float?
+  watchTimeMinutes           Float?
+  averageViewDurationSeconds Float?
+  averageViewPercentage      Float?
+  source                     String
+  collectedAt                DateTime
+  freshnessAtCollection      String
+  qualityAtCollection        String
+  qualityReasons             Json
+  providerMetadata           Json?
+  createdAt                  DateTime @default(now())
+  updatedAt                  DateTime @updatedAt
+
+  @@index([projectId, dimension, periodStart, periodEnd])
+  @@index([dimension, segment, format])
+  @@index([source, collectedAt])
+}
+
+model AudienceSyncState {
+  source        String   @id
+  state         String
+  lastSyncAt    DateTime?
+  lastErrorType String?
+  missingData   Json
   updatedAt     DateTime @updatedAt
 }
 

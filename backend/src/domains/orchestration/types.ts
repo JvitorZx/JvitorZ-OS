@@ -9,6 +9,7 @@ export type OrchestrationIntent =
   | 'long_form_analysis'
   | 'shorts_analysis'
   | 'channel_content_health'
+  | 'audience_analysis'
   | 'general_operations';
 
 export type CapabilityAccess = 'read' | 'write' | 'external_side_effect';

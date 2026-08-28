@@ -555,3 +555,23 @@ Google OAuth (yt-analytics.readonly)
 A Data API fornece canal e metadados; a Analytics API de consultas direcionadas fornece consumo/performance; a Reporting API fornece o relatório bulk de alcance. O sistema não soma universos incompatíveis nem calcula CTR a partir de views. O job é assíncrono e o primeiro relatório pode levar até 24 horas; esse intervalo é `waiting_for_report` + `MISSING`, não erro.
 
 Freshness é centralizada: até 72 horas é `RECENT`, até 14 dias é `STALE` e acima disso é `HISTORICAL`. Falha de Reach não remove Analytics nem alcance anterior. O operador CTR compara somente observações reais, com baseline geral e por formato quando existe classificação local, separando fato, hipótese e recomendação.
+
+## Audience e fontes de tráfego — Sprint 33
+
+```text
+Analytics UI / sync manual
+  -> POST audience/sync
+    -> YouTubeAudienceSyncService
+      -> GoogleYouTubeAudienceProvider -> YouTube Analytics reports.query
+      -> AudienceSnapshotRepository -> Prisma -> SQLite
+      -> AudienceSyncStateRepository
+      -> DataQualityService
+        -> AudienceIntelligenceService
+          -> summary / traffic / comparison
+          -> Long-form / Shorts / CTR / Retention
+          -> Gerente / Supervisor / Dashboard
+```
+
+Cada dataset é consultado de forma independente. Um relatório vazio ou oficialmente indisponível entra em `missingDimensions`; linhas válidas das outras dimensões ainda são persistidas. Falha de uma sincronização não remove snapshots anteriores nem invalida Performance, Channel ou Reach.
+
+O frontend carrega status e leitura persistida ao montar `#/analytics/audience` ou `#/analytics/traffic`. Uma sincronização por vez usa período explícito, feedback local e lifecycle; resposta tardia após unmount não altera a tela. O Dashboard recebe apenas principal fonte e país, enquanto Analytics mantém o detalhamento.

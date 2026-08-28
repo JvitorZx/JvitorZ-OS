@@ -1084,3 +1084,29 @@ Entregas:
 Validação externa local em 27/08/2026: backend, migration e endpoints iniciaram corretamente. Uma única tentativa de sincronização retornou `401 AUTH_REQUIRED`; nenhum job foi criado e nenhum snapshot de alcance foi persistido. É necessário confirmar a YouTube Reporting API habilitada no projeto Google e reconectar o OAuth para renovar a autorização. Essa pendência afeta apenas Reach; Analytics e dados persistidos permanecem operacionais.
 
 Backlog não bloqueador: granularidade por fonte de tráfego/dispositivo (`channel_reach_combined_a1`), tendências com janelas maiores, curva granular de retenção e smoke com o primeiro relatório real após a autorização.
+
+## Sprint 33 — Audience & Traffic Source Intelligence — CONCLUÍDA
+
+**Objetivo:** explicar de onde vem a audiência, como ela consome o canal e quais lacunas ainda impedem uma leitura confiável, usando somente dados oficiais disponíveis.
+
+Entregas:
+
+- provider dedicado da YouTube Analytics API para traffic source, detalhe de busca disponível, país, dispositivo e subscribed status;
+- `AudienceSnapshot` e `AudienceSyncState` com ingestão idempotente, sync parcial e last-known-good;
+- Data Quality para disponibilidade, freshness, completude, consistência e amostra;
+- `AudienceIntelligenceService` com fatos, sinais, hipóteses, recomendações, confiança e comparação de períodos;
+- contexto de origem para CTR/Retenção e enriquecimento isolado por formato em Long-form/Shorts;
+- roteamento natural do Gerente e consolidação no Supervisor;
+- subrotas operacionais Audience/Traffic Sources, resumo no Dashboard e API centralizada;
+- migration aditiva, backup local prévio, testes SQLite em memória e regressão sem rede externa.
+
+Smoke local em 27/08/2026: uma única sincronização real de sete dias retornou HTTP `200` e persistiu 31 linhas. Traffic source, país, dispositivo e subscribed status ficaram disponíveis; detalhe de termos de busca não foi retornado e permaneceu em `missingData`. A qualidade resultante foi `PARTIAL`/`RECENT`, sem dados inventados.
+
+Limites preservados:
+
+- search terms podem ser suprimidos e nunca são inferidos;
+- país não determina idioma, subscribed status não prova fidelidade e origem não prova causalidade;
+- médias permanecem `null` nos relatórios que não suportam essas métricas;
+- sem pesquisa web, vidIQ, redesign amplo ou novos operadores.
+
+Próxima camada recomendada: usar Audience Intelligence no ciclo editorial e de experimentos, vinculando mudanças de mix de distribuição a hipóteses testáveis sem transformar associação em causa.

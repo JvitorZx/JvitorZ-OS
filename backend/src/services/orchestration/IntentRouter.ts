@@ -16,6 +16,7 @@ export const classifyOrchestrationIntent = (value: string): OrchestrationIntent 
   if (/sincron/.test(text) && /(youtube|outcome|revis)/.test(text)) return 'controlled_sync_review';
   if (/(ctr|click.through)/.test(text) && /retenc|ficando|assistem/.test(text)) return 'channel_content_health';
   if (/(ctr|click.through)/.test(text)) return 'ctr_analysis';
+  if (/de onde.*(views|visualiz)|recomendando|fonte.*trafego|pais.*assist|inscritos?.*nao inscritos?|celular|mobile|computador|dispositivo|audiencia/.test(text)) return 'audience_analysis';
   if (/retenc|pessoas.*ficando|assistem.*video|consumo.*video/.test(text)) return 'retention_analysis';
   if (/videos? longos?|long.form|vod/.test(text)) return 'long_form_analysis';
   if (/shorts?/.test(text)) return 'shorts_analysis';
@@ -112,6 +113,14 @@ const TEMPLATES: Record<OrchestrationIntent, { objective: string; steps: StepTem
       ['ctr', 'channel-operator.ctr', [], 'read'],
       ['retention', 'channel-operator.retention', [], 'read'],
       ['response', 'planner.respond', ['ctr', 'retention'], 'read'],
+    ],
+  },
+  audience_analysis: {
+    objective: 'Consolidar origem de tráfego e audiência real sem inferir causalidade.',
+    steps: [
+      ['long-form', 'channel-operator.long-form', [], 'read'],
+      ['shorts', 'channel-operator.shorts', [], 'read'],
+      ['response', 'planner.respond', ['long-form', 'shorts'], 'read'],
     ],
   },
   general_operations: {

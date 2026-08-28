@@ -201,3 +201,11 @@ O modelo continua preparado para uma migração futura para PostgreSQL por meio 
 O repository oferece criação, consulta por ID/chave idempotente, transição para `running`, conclusão e histórico recente. `idempotencyKey` possui constraint única; o serviço também compartilha a Promise ativa no processo para chamadas concorrentes iguais. A chave fica vinculada ao hash do request normalizado, impedindo que outro request receba ou execute o plano original.
 
 A migration `20260826150000_controlled_orchestration_foundation` cria tabela e índices de forma aditiva. Os testes validam a migration e o repository em SQLite `:memory:`; `backend/prisma/dev.db` não é usado.
+
+## Audience e Traffic Source
+
+A migration aditiva `20260827223500_audience_traffic_intelligence` cria `AudienceSnapshot`, `AudienceSyncState`, índices de consulta e a relação opcional `Project 1:N AudienceSnapshot`. Ela não reescreve conversas, artefatos, decisões, performance, reach ou automações.
+
+`AudienceSnapshot.ingestionKey` impede duplicação por fonte, projeto, dimensão, segmento, formato e período. Recoleta atualiza a linha. `AudienceSyncState` registra sync parcial/ausente/temporariamente indisponível sem apagar o last-known-good. Termos de busca suprimidos não são persistidos como dados inventados.
+
+Antes da aplicação local foi criado backup fora do repositório e conferido por hash. A migration passou em SQLite real e em teste isolado com `foreign_key_check` e `integrity_check`.

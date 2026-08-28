@@ -18,6 +18,7 @@ import {
   youtubeReachSyncService,
   type YouTubeReachStatus,
 } from '../../../services/performance-intelligence/YouTubeReachSyncService';
+import { AudienceIntelligenceService } from '../../../services/audience/AudienceIntelligenceService';
 
 const operatorSummary = (operator: { id: string; status: string; missingData: string[]; sampleSize: number }): string => {
   if (operator.status === 'AVAILABLE') {
@@ -41,6 +42,7 @@ export class SupervisorModule {
     private readonly automationDiagnosticsService = new AutomationDiagnosticsService(),
     private readonly channelOperatorService = new ChannelOperatorService(),
     private readonly youtubeReachService: Pick<YouTubeReachSyncService, 'getStatus'> = youtubeReachSyncService,
+    private readonly audienceIntelligence: Pick<AudienceIntelligenceService, 'summary'> = new AudienceIntelligenceService(),
   ) {}
 
   async getSupervisorOverview() {
@@ -55,6 +57,8 @@ export class SupervisorModule {
       };
     }
     let recentDecisions: EditorialDecision[] = [];
+    let audience: Awaited<ReturnType<AudienceIntelligenceService['summary']>> | null = null;
+    try { audience = await this.audienceIntelligence.summary(); } catch { audience = null; }
     let youtubeReach: YouTubeReachStatus;
     try { youtubeReach = await this.youtubeReachService.getStatus(); }
     catch {
@@ -135,6 +139,7 @@ export class SupervisorModule {
       { area: 'Alcance', state: youtubeReach.quality.state, summary: youtubeReach.quality.reasons[0]?.message ?? 'Impressões e CTR com qualidade adequada.' },
       { area: 'Retenção', state: byId.get('retention')?.status === 'AVAILABLE' ? 'GOOD' : byId.get('retention')?.status === 'LIMITED' ? 'PARTIAL' : 'MISSING', summary: byId.get('retention')?.summary ?? 'Retenção sem dados.' },
       { area: 'Tipo de conteúdo', state: byId.get('long-form')?.sampleSize || byId.get('shorts')?.sampleSize ? 'GOOD' : 'MISSING', summary: 'Classificação real de long-form e Shorts.' },
+      { area: 'Audiência', state: audience?.quality.state ?? 'MISSING', summary: audience?.facts[0] ?? 'Audiência e fontes de tráfego ainda sem dados.' },
     ];
     return {
       alerts: dataQuality.filter(({ state }) => ['STALE', 'INCONSISTENT', 'ERROR'].includes(state)).map(({ area, summary }) => `${area}: ${summary}`),
@@ -159,6 +164,7 @@ export class SupervisorModule {
       orchestrationReviews,
       automations: { ...automations, running, runtime: automationRuntimeHealth, governance },
       channelOperators,
+      audience,
     };
   }
 }

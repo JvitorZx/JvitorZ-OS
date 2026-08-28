@@ -292,3 +292,24 @@ OrchestrationExecution
 
 `PlanReview.executionId` é único. Review e auditoria usam `ON DELETE CASCADE` para não deixar estado operacional órfão quando uma execução for removida.
 - A execução referencia capabilities por ID de contrato, sem foreign key para módulos ou classes concretas.
+
+## Audience Intelligence
+
+```text
+Project 1 ─── N AudienceSnapshot
+
+AudienceSnapshot
+  ingestionKey UNIQUE
+  dimension / segment / format
+  periodStart / periodEnd
+  views / engagedViews / watchTimeMinutes
+  averageViewDurationSeconds / averageViewPercentage
+  source / collectedAt
+  freshnessAtCollection / qualityAtCollection / qualityReasons
+
+AudienceSyncState
+  source PK
+  state / lastSyncAt / lastErrorType / missingData
+```
+
+`AudienceSyncState` é global por provider e não possui FK. `AudienceSnapshot.projectId` usa `ON DELETE SET NULL`, preservando a evidência agregada. A análise cruza formatos apenas em leitura e nunca transforma país em idioma ou origem em causalidade.

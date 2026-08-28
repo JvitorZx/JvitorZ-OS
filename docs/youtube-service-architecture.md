@@ -181,3 +181,7 @@ O smoke test controlado da Sprint 31 confirmou OAuth com refresh, Channel Data, 
   - Dashboard analítico.
   - Operadores que precisam de relatórios detalhados.
   - IA para gerar insights e recomendações estratégicas.
+
+### Audience/Traffic reports
+
+`GoogleYouTubeAudienceProvider` usa a YouTube Analytics API em consultas direcionadas e separadas para fontes de tráfego, detalhe de busca `YT_SEARCH`, país, dispositivo e subscribed status. Search detail é limitado a 25 linhas e pode ser suprimido pela API. Métricas incompatíveis com determinado relatório permanecem ausentes; o sistema não as calcula. Configuração e autenticação continuam lazy.

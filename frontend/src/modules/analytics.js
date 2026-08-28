@@ -45,6 +45,8 @@ const renderAnalyticsNavigation = (active = 'overview') => html`
       ['retention', '/analytics/retention', 'Retenção'],
       ['long-form', '/analytics/long-form', 'Long-form'],
       ['shorts', '/analytics/shorts', 'Shorts'],
+      ['audience', '/analytics/audience', 'Audience'],
+      ['traffic', '/analytics/traffic', 'Traffic Sources'],
       ['outcomes', '/analytics/outcomes', 'Outcomes'],
     ].map(([id, route, label]) => `<a href="#${route}"${id === active ? ' aria-current="page"' : ''}>${label}</a>`).join('')}
   </nav>
@@ -264,6 +266,59 @@ const renderChannelOperator = (id) => createPanel({
     </section>
   `,
 });
+
+const renderAudience = (active) => {
+  const period = defaultPeriod();
+  return createPanel({ eyebrow: 'Analytics', title: active === 'traffic' ? 'Fontes de tráfego' : 'Audiência do canal', className: 'analytics-panel audience-workspace', body: html`
+    <span data-audience-view="${active}" hidden></span>
+    ${renderAnalyticsNavigation(active)}
+    <div class="performance-feedback" data-audience-feedback role="status" aria-live="polite" hidden></div>
+    <section class="performance-toolbar" aria-label="Sincronização de audiência">
+      <div class="performance-provider-state"><span>YouTube Analytics / Audience</span><strong class="status-pill pending" data-audience-status>Pendente</strong><small data-audience-quality>Qualidade não avaliada</small></div>
+      <form class="performance-sync-form" data-audience-sync-form>
+        <label><span>Início</span><input type="date" value="${period.startDate}" data-audience-start required></label>
+        <label><span>Fim</span><input type="date" value="${period.endDate}" data-audience-end required></label>
+        <button class="button" type="submit" data-audience-sync>Sincronizar audiência</button>
+      </form>
+    </section>
+    <div class="performance-columns">
+      <section class="performance-section"><h3>Principais fontes</h3><div data-audience-traffic></div></section>
+      <section class="performance-section"><h3>Países</h3><div data-audience-countries></div></section>
+      <section class="performance-section"><h3>Dispositivos</h3><div data-audience-devices></div></section>
+      <section class="performance-section"><h3>Inscritos e não inscritos</h3><div data-audience-subscribed></div></section>
+    </div>
+    <section class="performance-section"><h3>Termos de busca disponíveis</h3><div data-audience-search></div></section>
+    <section class="performance-section"><h3>Leitura operacional</h3><div data-audience-insights></div></section>
+  ` });
+};
+
+export const createAudienceController = ({ api }) => {
+  let panel = null; let generation = 0; let syncing = false;
+  const mount = (root) => {
+    const next = root?.querySelector?.('.audience-workspace'); if (!next || next === panel) return; panel = next; const token = ++generation;
+    const isCurrent = () => panel === next && generation === token;
+    const feedback = next.querySelector('[data-audience-feedback]'); const form = next.querySelector('[data-audience-sync-form]'); const button = next.querySelector('[data-audience-sync]');
+    const list = (selector, values, formatter) => { const target = next.querySelector(selector); if (!values?.length) return replaceWithEmpty(target, 'Dados ainda não disponíveis.'); const ul = document.createElement('ul'); ul.append(...values.map((value) => createTextElement('li', formatter(value)))); target.replaceChildren(ul); };
+    const show = (message = '', kind = '') => { feedback.textContent = message; feedback.hidden = !message; feedback.className = `performance-feedback ${kind}`.trim(); };
+    const render = (summary, status) => {
+      if (!isCurrent()) return;
+      const state = next.querySelector('[data-audience-status]'); const [label, variant] = STATUS[status?.state] ?? [status?.state === 'partial' ? 'Parcial' : status?.state === 'not_synchronized' ? 'Sem sincronização' : 'Sincronizado', status?.state === 'synchronized' ? 'connected' : 'pending']; state.textContent = label; state.className = `status-pill ${variant}`;
+      const quality = summary?.quality ?? status?.quality; next.querySelector('[data-audience-quality]').textContent = quality ? `Qualidade ${quality.state} · ${quality.freshness} · amostra ${quality.sampleSize}` : 'Qualidade não avaliada';
+      list('[data-audience-traffic]', summary?.trafficSources ?? summary?.sources, (item) => `${item.segment}: ${formatPerformanceValue(item.views)} views · ${Math.round(Number(item.viewShare ?? 0) * 100)}% · ${formatPerformanceValue(item.watchTimeMinutes, 'minutes')}`);
+      list('[data-audience-countries]', summary?.countries, (item) => `${item.segment}: ${Math.round(Number(item.viewShare ?? 0) * 100)}% · ${formatPerformanceValue(item.views)} views${item.averageViewDurationSeconds == null ? '' : ` · ${formatPerformanceValue(item.averageViewDurationSeconds, 'duration')} de duração média`}`);
+      list('[data-audience-devices]', summary?.devices, (item) => `${item.segment}: ${Math.round(Number(item.viewShare ?? 0) * 100)}% · ${formatPerformanceValue(item.views)} views`);
+      list('[data-audience-subscribed]', summary?.subscribedStatus, (item) => `${item.segment}: ${Math.round(Number(item.viewShare ?? 0) * 100)}% · ${formatPerformanceValue(item.views)} views${item.averageViewPercentage == null ? '' : ` · ${formatPerformanceValue(item.averageViewPercentage, 'percent')} médio`}`);
+      list('[data-audience-search]', summary?.searchTerms, (item) => `${item.segment}: ${formatPerformanceValue(item.views)} views`);
+      list('[data-audience-insights]', [...(summary?.facts ?? []), ...(summary?.signals ?? []), ...(summary?.hypotheses ?? []), ...(summary?.recommendations ?? []), ...((summary?.missingData ?? []).map((value) => `Dado ausente: ${value}`))], (value) => value);
+    };
+    const load = async () => { const view = next.querySelector('[data-audience-view]')?.dataset.audienceView; const [summary, status] = await Promise.all([view === 'traffic' ? api.getTrafficSourceAnalysis() : api.getAudienceSummary(), api.getAudienceStatus()]); if (isCurrent()) render(summary, status); };
+    const submit = async (event) => { event.preventDefault(); if (syncing) return; syncing = true; button.disabled = true; button.setAttribute('aria-busy', 'true'); show('Sincronizando audiência...'); try { const result = await api.syncYouTubeAudience({ startDate: next.querySelector('[data-audience-start]').value, endDate: next.querySelector('[data-audience-end]').value }); if (!isCurrent()) return; await load(); if (isCurrent()) show(`Sincronização concluída: ${Number(result.created ?? 0) + Number(result.updated ?? 0)} linha(s).`, 'success'); } catch (error) { if (isCurrent()) show(errorMessage(error, 'sync'), 'error'); } finally { syncing = false; if (isCurrent()) { button.disabled = false; button.setAttribute('aria-busy', 'false'); } } };
+    form.addEventListener('submit', submit); load().catch(() => { if (isCurrent()) show('Não foi possível carregar os dados de audiência.', 'error'); });
+    next._audienceCleanup = () => form.removeEventListener('submit', submit);
+  };
+  const unmount = () => { panel?._audienceCleanup?.(); panel = null; generation += 1; syncing = false; };
+  return { mount, unmount };
+};
 
 const createChannelOperatorController = ({ api }) => {
   let mountedPanel = null;
@@ -806,19 +861,22 @@ export const analyticsModule = {
   label: 'Analytics',
   render(_data, context = {}) {
     const view = context.route?.subpath || 'overview';
-    return CHANNEL_OPERATOR_VIEWS.has(view) ? renderChannelOperator(view) : renderAnalytics(view);
+    return CHANNEL_OPERATOR_VIEWS.has(view) ? renderChannelOperator(view) : ['audience', 'traffic'].includes(view) ? renderAudience(view) : renderAnalytics(view);
   },
   createController(context) {
     const overview = createAnalyticsController(context);
     const channelOperator = createChannelOperatorController(context);
+    const audience = createAudienceController(context);
     return {
       mount(root) {
         if (root?.querySelector?.('.channel-operator-workspace')) channelOperator.mount(root);
+        else if (root?.querySelector?.('.audience-workspace')) audience.mount(root);
         else overview.mount(root);
       },
       unmount() {
         overview.unmount();
         channelOperator.unmount();
+        audience.unmount();
       },
     };
   },

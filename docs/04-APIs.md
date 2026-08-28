@@ -1005,3 +1005,17 @@ O endpoint nunca retorna client secret, token, chave, caminho local ou payload b
 ### `GET /api/youtube/channel`
 
 Coleta o canal autenticado e persiste o último resultado válido. Retorna `200` com ID, título, contagens públicas, país, publicação e o estado operacional da coleta. Quando a rede externa falha e existe cache, retorna o dado conhecido com estado `DEGRADED`; configuração ausente retorna `503` com `CONFIG_MISSING`, autenticação ausente retorna `401` com `AUTH_REQUIRED` e indisponibilidade sem cache retorna `503` com `PROVIDER_UNAVAILABLE`.
+
+## Audience e fontes de tráfego
+
+Base: `/api/operators/creator-intelligence/audience`.
+
+- `GET /status`: estado do provider, última sincronização, dimensões ausentes e qualidade;
+- `POST /sync`: sincroniza no máximo 31 dias. Body estrito: `startDate`, `endDate` e `projectId` opcional;
+- `GET /summary?projectId=`: fontes, países, dispositivos, status de inscrição, termos disponíveis, fatos, sinais, hipóteses, recomendações, confiança e `missingData`;
+- `GET /traffic?projectId=`: leitura específica de fontes e termos de busca disponíveis;
+- `GET /comparison?currentStart=&currentEnd=&previousStart=&previousEnd=&projectId=`: compara dois intervalos explícitos.
+
+`POST /sync` retorna `200`; payload inválido retorna `400`, autorização ausente `401`, quota `429`, configuração ou provider temporariamente indisponível `503` e falha inesperada `500` sanitizado. Leituras retornam `200`, `400` ou `500` sanitizado.
+
+Os contratos preservam enums oficiais como `YT_SEARCH`, `RELATED_VIDEO`, `BROWSE`, `SHORTS`, `EXT_URL`, `MOBILE`, `COMPUTER`, `SUBSCRIBED` e `UNSUBSCRIBED`. Termos de busca aparecem somente quando a API os fornece; ausência ou supressão é `missingData`, nunca uma keyword inferida.
