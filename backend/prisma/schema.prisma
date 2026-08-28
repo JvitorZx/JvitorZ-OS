@@ -69,6 +69,22 @@ model Operator {
   updatedAt   DateTime  @updatedAt
 }
 
+model ChannelSnapshot {
+  id              String   @id @default(cuid())
+  channelId       String   @unique
+  title           String
+  subscriberCount String?
+  videoCount      String?
+  viewCount       String?
+  country         String?
+  publishedAt     DateTime?
+  collectedAt     DateTime
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([collectedAt])
+}
+
 model LibraryItem {
   id                String                    @id @default(cuid())
   projectId         String?

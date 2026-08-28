@@ -1,4 +1,5 @@
 import { createPanel, html, createChatMessageElement, createSidebarSection, createFixedInput, createOperatorHeader, createChatArea, createSidebar, createWorkspaceLayout } from '../design-system/index.js';
+import { integrationFrom, operationalStatus } from '../utils/operational-status.js';
 
 export const plannerModule = {
   id: 'content-planner',
@@ -11,8 +12,9 @@ export const plannerModule = {
   createController(context) {
     return createPlannerController(context);
   },
-  render() {
-    const header = createOperatorHeader({ title: 'Planejador de Conteúdo', subtitle: 'Organize ideias, pautas e próximas publicações.', status: 'Pronto' });
+  render(data = {}) {
+    const ai = operationalStatus(integrationFrom(data, 'openai')?.state);
+    const header = createOperatorHeader({ title: 'Planejador de Conteúdo', subtitle: 'Organize ideias, pautas e próximas publicações.', status: ai.label });
     const chat = createChatArea();
     const sidebarHtml = createSidebar({ sections: [
       {

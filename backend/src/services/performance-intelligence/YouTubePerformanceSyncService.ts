@@ -226,6 +226,8 @@ export class YouTubePerformanceSyncService {
   }
 }
 
+export const youtubePerformanceSyncService = new YouTubePerformanceSyncService();
+
 export {
   YouTubeAnalyticsError,
   YouTubeAnalyticsNotAuthorizedError,

@@ -402,3 +402,21 @@ Analytics / Gerente / Supervisor
 O Gerente registra `channel-operator.ctr`, `channel-operator.retention`, `channel-operator.long-form` e `channel-operator.shorts` como capabilities `READ_ONLY`. O roteador determinístico pode escolher uma capability ou combinar CTR + Retenção. O Supervisor consulta resumos e nunca dispara mutação.
 
 O Dashboard opera em modo degradado quando OAuth Google não está disponível ou retorna `invalid_grant`: dados locais continuam em HTTP 200 e a UI oferece reconexão. Falhas inesperadas permanecem sanitizadas.
+
+## Live Data Integration e consistência operacional
+
+A Sprint 31 introduz uma fonte única para estado de integrações. `IntegrationStatusService` separa configuração, autenticação, disponibilidade e stale state de Google OAuth, YouTube Data, YouTube Analytics, OpenAI, banco, backend e runtime. Dashboard, Canal, Planner, Supervisor e Configurações consomem o mesmo contrato, enquanto status de operadores permanece um domínio separado.
+
+```text
+Google OAuth
+  -> ChannelDataService -> ChannelSnapshotRepository -> SQLite
+  -> YouTubePerformanceSyncService
+     -> YouTubeAnalyticsPerformanceProvider + YouTubeVideoMetadataService
+     -> PerformanceIngestionService -> snapshots/signals/memory
+     -> ChannelOperatorService
+        -> Analytics / Gerente / Supervisor / Dashboard
+```
+
+O refresh do OAuth é lazy e tokens atualizados são persistidos sem logs sensíveis. Canal possui last-known-good; falha externa temporária preserva o snapshot e resulta em `DEGRADED`. Analytics solicita `engagedViews` e `creatorContentType` reais, classifica Shorts e VOD sem heurística e mantém impressões/CTR como `null` até uma fonte real existir.
+
+O `PlannerModule` reflete a configuração real de OpenAI. Supervisor fornece estado técnico e resumo humano dos operadores. Configurações mostra apenas estado e ações seguras; nenhuma tela recebe secrets.

@@ -8,7 +8,10 @@ import {
 } from '../creator-intelligence/EditorialDecisionService';
 import { DecisionOutcomeService } from '../creator-intelligence/DecisionOutcomeService';
 import { OutcomeRefreshService } from '../creator-intelligence/OutcomeRefreshService';
-import { YouTubePerformanceSyncService } from '../performance-intelligence/YouTubePerformanceSyncService';
+import {
+  YouTubePerformanceSyncService,
+  youtubePerformanceSyncService,
+} from '../performance-intelligence/YouTubePerformanceSyncService';
 import { CapabilityRegistry } from './CapabilityRegistry';
 import { composeOrchestrationResponse, consolidateEvidence } from './EvidenceConsolidator';
 import { ChannelOperatorService } from '../channel-operators';
@@ -40,7 +43,7 @@ export const createDefaultOrchestrationDependencies = (): OrchestrationDependenc
     refresh,
     supervisor: new SupervisorModule(undefined, editorial, refresh),
     library: new LibraryService(),
-    youtube: new YouTubePerformanceSyncService(),
+    youtube: youtubePerformanceSyncService,
     channelOperators: new ChannelOperatorService(),
   };
 };

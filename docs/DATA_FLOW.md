@@ -515,3 +515,21 @@ Natural language request
 ```
 
 O Supervisor recebe somente `id`, status, confiança, tamanho da amostra e lacunas. O Hub recebe o contrato completo para exibir disponibilidade e encaminhar à workspace registrada.
+
+## Live data e estado operacional — Sprint 31
+
+```text
+OAuth Google lazy + refresh persistido
+  -> YouTube Data API -> ChannelDataService
+     -> ChannelSnapshot (last-known-good)
+  -> YouTube Analytics API + metadata
+     -> VideoPerformanceSnapshot
+     -> PerformanceSignal + ChannelInsight
+     -> baseline por formato
+     -> CTR / Retention / Long-form / Shorts
+     -> Gerente / Supervisor / Dashboard
+```
+
+Sincronização recente consulta IDs de uploads e sincronização por período descobre os vídeos antes de solicitar `creatorContentType` com filtro. Métricas e formatos são persistidos antes de qualquer análise. A UI executa uma sincronização por ação, bloqueia clique concorrente, recarrega Analytics e depois o estado global; erros operacionais usam códigos sanitizados e feedback local.
+
+`ChannelDataService` tenta coletar o canal quando autorizado. Em falha temporária, consulta `ChannelSnapshotRepository` e retorna o último dado com `stale = true`, sem apagar o registro. `IntegrationStatusService` consulta apenas estado e persistência; não dispara uma sincronização.

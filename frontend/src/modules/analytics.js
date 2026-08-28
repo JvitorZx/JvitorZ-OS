@@ -336,7 +336,7 @@ const errorMessage = (error, action = 'load') => {
     : 'Nao foi possivel carregar todos os dados de performance.';
 };
 
-export const createAnalyticsController = ({ api }) => {
+export const createAnalyticsController = ({ api, refreshDashboard }) => {
   let mountedRoot = null;
   let generation = 0;
   let syncing = false;
@@ -633,6 +633,8 @@ export const createAnalyticsController = ({ api }) => {
         const result = await api.syncYouTubePerformance(input);
         if (!isCurrent()) return;
         const refreshed = await load({ quiet: true });
+        if (!isCurrent()) return;
+        if (typeof refreshDashboard === 'function') await refreshDashboard();
         if (!isCurrent()) return;
         const processed = Number(result?.created ?? 0) + Number(result?.updated ?? 0);
         const suffix = refreshed ? '' : ' Alguns paineis nao puderam ser atualizados.';

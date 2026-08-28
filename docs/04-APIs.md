@@ -735,10 +735,12 @@ Sem sincronização anterior, `lastSyncAt` é `null`. Falha interna retorna `500
 
 ### Origem das métricas
 
-- YouTube Analytics API: `views`, `estimatedMinutesWatched`, `averageViewDuration`, `averageViewPercentage`, `subscribersGained`, `subscribersLost`, `likes` e `comments`.
+- YouTube Analytics API: `engagedViews`, `views`, `estimatedMinutesWatched`, `averageViewDuration`, `averageViewPercentage`, `subscribersGained`, `subscribersLost`, `likes`, `comments` e `creatorContentType`.
 - YouTube Data API: `videoId`, título, `publishedAt` e duração.
 - Impressões e CTR não são inferidas por este provider e permanecem `null`.
-- Jogo, série e formato também permanecem `null` até existir uma fonte real para essa classificação.
+- `creatorContentType` classifica somente `SHORTS` e `VIDEO_ON_DEMAND`; outros valores permanecem `UNKNOWN`. Jogo e série continuam opcionais.
+
+No modo `period`, o provider primeiro descobre os vídeos do período e depois faz uma consulta limitada a esses IDs para obter `creatorContentType`. Essa composição evita uma combinação não suportada pela API sem inferir formato.
 
 ### Consumo no frontend
 
@@ -958,4 +960,18 @@ Retorna `200`, `400`, `404` ou `500` sanitizado. A rota não chama YouTube e nã
 
 `GET /api/dashboard` retorna `200` com `unauthorized: true` e `authUrl` quando o Google não está autenticado ou exige novo consentimento. O payload preserva serviços locais. Somente falha interna inesperada retorna `500` sanitizado.
 
-Quando o Google/YouTube está temporariamente inacessível por rede, quota ou indisponibilidade do provider, o Dashboard também retorna `200`, agora com `youtubeUnavailable: true`, mantendo os dados e serviços locais operacionais. A consulta direta `GET /api/youtube/channel` retorna `503` com erro sanitizado nesse estado; ausência ou expiração da autenticação continua retornando `401`.
+Quando o Google/YouTube está temporariamente inacessível por rede, quota ou indisponibilidade do provider, o Dashboard também retorna `200`, agora com `youtubeUnavailable: true`, mantendo os dados e serviços locais operacionais. Dados de canal previamente persistidos são retornados com `integration.state = "DEGRADED"`, `stale = true` e `lastSuccessAt`. Sem cache válido, a consulta direta `GET /api/youtube/channel` retorna erro seguro; ausência ou expiração não recuperável da autenticação retorna `401` com `code = "AUTH_REQUIRED"`.
+
+## Estado consolidado de integrações
+
+### `GET /api/integrations/status`
+
+Retorna `200` com os estados seguros de `backend`, `database`, `googleOAuth`, `youtubeData`, `youtubeAnalytics`, `openai` e `automationRuntime`. Cada item contém `state`, `configured`, `available`, `stale`, `summary`, `lastSuccessAt` e `action` opcional. `state` usa somente `NOT_CONFIGURED`, `AUTH_REQUIRED`, `CONNECTED`, `DEGRADED` ou `ERROR`.
+
+O endpoint nunca retorna client secret, token, chave, caminho local ou payload bruto do provider.
+
+## Canal conectado
+
+### `GET /api/youtube/channel`
+
+Coleta o canal autenticado e persiste o último resultado válido. Retorna `200` com ID, título, contagens públicas, país, publicação e o estado operacional da coleta. Quando a rede externa falha e existe cache, retorna o dado conhecido com estado `DEGRADED`; configuração ausente retorna `503` com `CONFIG_MISSING`, autenticação ausente retorna `401` com `AUTH_REQUIRED` e indisponibilidade sem cache retorna `503` com `PROVIDER_UNAVAILABLE`.

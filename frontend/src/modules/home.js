@@ -1,6 +1,7 @@
 import { createPanel, escapeHtml, html } from '../design-system/index.js';
+import { integrationFrom, operationalStatus } from '../utils/operational-status.js';
 
-const statusLabel = (value) => value ? 'Operacional' : 'Requer configuração';
+const integrationLabel = (data, id) => operationalStatus(integrationFrom(data, id)?.state).label;
 const safeList = (items, empty) => {
   const values = Array.isArray(items) ? items.filter((item) => typeof item === 'string' && item.trim()).slice(0, 4) : [];
   if (!values.length) return html`<p class="home-empty">${escapeHtml(empty)}</p>`;
@@ -26,9 +27,9 @@ export const homeModule = {
 
     return html`
       <section class="home-status-grid" aria-label="Estado operacional">
-        <a class="home-status-card" href="#/channel"><span>YouTube</span><strong>${statusLabel(status.youtubeConnected)}</strong></a>
-        <a class="home-status-card" href="#/planner"><span>Planner IA</span><strong>${statusLabel(status.aiEnabled)}</strong></a>
-        <a class="home-status-card" href="#/automations"><span>Automações ativas</span><strong>${Number(automations.active ?? 0)}</strong></a>
+        <a class="home-status-card" href="#/channel"><span>YouTube</span><strong>${integrationLabel(data, 'youtubeData')}</strong></a>
+        <a class="home-status-card" href="#/planner"><span>Planner IA</span><strong>${integrationLabel(data, 'openai')}</strong></a>
+        <a class="home-status-card" href="#/automations"><span>Automações</span><strong>${integrationLabel(data, 'automationRuntime')}</strong></a>
         <a class="home-status-card" href="#/operators"><span>Operadores disponíveis</span><strong>${availableOperators}/${operators.length || 4}</strong></a>
       </section>
 

@@ -1028,3 +1028,40 @@ Transformar a navegação existente em páginas operacionais reais e tornar vis�
 ### Próxima camada recomendada
 
 Usar os operadores em fluxos editoriais concretos e evoluir a qualidade/observabilidade das recomendações antes de adicionar novos adapters externos.
+
+## Sprint 31 — Live Data Integration & Operational Consistency
+
+**Status: CONCLUÍDA**
+
+### Objetivo
+
+Conectar autenticação, coleta, persistência, classificação e consumo operacional reais do YouTube, eliminando estados contraditórios entre as páginas e preservando dados conhecidos durante falhas externas.
+
+### Entregas
+
+- contrato único de integração com `NOT_CONFIGURED`, `AUTH_REQUIRED`, `CONNECTED`, `DEGRADED` e `ERROR`;
+- endpoint consolidado de integrações e consumo coerente no Dashboard, Canal, Planner, Supervisor e Configurações;
+- OAuth lazy, refresh automático suportado pelo client e persistência atômica dos tokens atualizados;
+- `ChannelSnapshot`, repository e service com last-known-good;
+- sincronização Analytics real por vídeo, recentes e período;
+- engaged views reais quando fornecidas, sem estimativa;
+- classificação oficial `creatorContentType` em `SHORTS`, `LONG_FORM` ou `UNKNOWN`;
+- Analytics agregado por snapshots persistidos e baseline real por formato;
+- CTR `LIMITED` sem impressões/CTR, Retenção `LIMITED` sem curva granular e operadores de formato `AVAILABLE` somente com amostra classificada;
+- Gerente consumindo capabilities reais e Supervisor com resumo técnico e humano;
+- manual sync com bloqueio de duplicação, atualização automática e feedback seguro;
+- migration aditiva de canal, backup e verificação de integridade do SQLite;
+- smoke local real sem registrar segredos ou dados do canal na documentação;
+- regressão automatizada integral, sem rede externa na suíte.
+
+### Limites preservados
+
+- CTR e impressões dependem de uma futura integração com a fonte de reach apropriada; não são inferidos;
+- curva granular de retenção não está disponível no provider atual;
+- OpenAI permanece `NOT_CONFIGURED` sem `OPENAI_API_KEY` local;
+- runtime de automações permanece opt-in e desativado por padrão;
+- sem redesign, novos operadores, n8n, clipping, vidIQ ou pesquisa web.
+
+### Próxima camada recomendada
+
+Conectar reach reports oficiais para impressões/CTR e aprofundar observabilidade da qualidade dos dados, sem ampliar o catálogo de operadores antes de fechar as lacunas de evidência existentes.

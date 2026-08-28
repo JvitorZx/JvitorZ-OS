@@ -1,11 +1,9 @@
 import { Router } from 'express';
-import path from 'path';
-import fs from 'fs';
 import GoogleAuth from '../integrations/google/GoogleAuth';
 import { OAuthStateStore } from '../integrations/google/OAuthStateStore';
+import { GoogleService } from '../services/GoogleService';
 
 const router = Router();
-const tokenFile = path.resolve(__dirname, '../../google-tokens.json');
 const oauthStateStore = new OAuthStateStore();
 
 const getGoogleAuth = (): GoogleAuth => new GoogleAuth();
@@ -53,7 +51,7 @@ router.get('/google/callback', async (req, res) => {
   try {
     const googleAuth = getGoogleAuth();
     const tokens = await googleAuth.getToken(code);
-    fs.writeFileSync(tokenFile, JSON.stringify(tokens, null, 2), { encoding: 'utf-8' });
+    new GoogleService().saveTokens(tokens);
     console.log('Google OAuth callback completed', { stage: 'callback' });
     return res.json({ message: 'Google authentication completed successfully.' });
   } catch (error) {

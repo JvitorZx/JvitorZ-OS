@@ -5,6 +5,7 @@ const {
   YouTubeAnalyticsPerformanceProvider,
   YOUTUBE_ANALYTICS_METRICS,
   YOUTUBE_ANALYTICS_SOURCE,
+  classifyCreatorContentType,
 } = require('../dist/integrations/youtube/YouTubeAnalyticsPerformanceProvider');
 const {
   YouTubeAnalyticsNotAuthorizedError,
@@ -32,6 +33,8 @@ const metadataFor = (entries) => ({
 
 const columns = [
   'video',
+  'creatorContentType',
+  'engagedViews',
   'views',
   'estimatedMinutesWatched',
   'averageViewDuration',
@@ -59,6 +62,14 @@ const createProvider = ({ rows = [], metadata = {}, query, googleService = confi
           calls += 1;
           received = parameters;
           if (query) return query(parameters);
+          if (parameters.dimensions === 'video') {
+            return {
+              data: {
+                columnHeaders: columns.filter((name) => name !== 'creatorContentType').map((name) => ({ name })),
+                rows: rows.map(([videoId, , ...metrics]) => [videoId, ...metrics]),
+              },
+            };
+          }
           return {
             data: {
               columnHeaders: columns.map((name) => ({ name })),
@@ -89,14 +100,49 @@ describe('YouTube Analytics performance provider', () => {
   });
 
   test('queries the permitted metrics and configured period without extra metrics', async () => {
-    const { provider, getReceived } = createProvider();
+    const { provider, getReceived } = createProvider({
+      rows: [['abc', 'videoOnDemand', 90, 100]],
+      metadata: { abc: videoMetadata('abc') },
+    });
     await provider.fetch();
     assert.equal(getReceived().ids, 'channel==MINE');
-    assert.equal(getReceived().dimensions, 'video');
+    assert.equal(getReceived().dimensions, 'video,creatorContentType');
     assert.equal(getReceived().metrics, YOUTUBE_ANALYTICS_METRICS.join(','));
     assert.equal(getReceived().startDate, '2026-08-01');
     assert.equal(getReceived().endDate, '2026-08-24');
     assert.equal(getReceived().maxResults, 10);
+  });
+
+  test('discovers period videos before requesting their official content type', async () => {
+    const received = [];
+    const { provider, getCalls } = createProvider({
+      rows: [['abc', 'shorts', 90, 100]],
+      metadata: { abc: videoMetadata('abc') },
+      query: async (parameters) => {
+        received.push(parameters);
+        if (parameters.dimensions === 'video') {
+          return {
+            data: {
+              columnHeaders: [{ name: 'video' }, { name: 'views' }],
+              rows: [['abc', 100]],
+            },
+          };
+        }
+        return {
+          data: {
+            columnHeaders: columns.map((name) => ({ name })),
+            rows: [['abc', 'shorts', 90, 100]],
+          },
+        };
+      },
+    });
+    const [record] = await provider.fetch();
+    assert.equal(getCalls(), 2);
+    assert.equal(received[0].dimensions, 'video');
+    assert.equal(received[0].filters, undefined);
+    assert.equal(received[1].dimensions, 'video,creatorContentType');
+    assert.equal(received[1].filters, 'video==abc');
+    assert.equal(record.format, 'SHORTS');
   });
 
   test('adds a video filter for a bounded video sync', async () => {
@@ -107,14 +153,15 @@ describe('YouTube Analytics performance provider', () => {
 
   test('maps analytics and Data API metadata without inventing CTR or impressions', async () => {
     const { provider } = createProvider({
-      rows: [['abc', 100, 450, 270, 45, 4, 1, 12, 3]],
+      rows: [['abc', 'VIDEO_ON_DEMAND', 90, 100, 450, 270, 45, 4, 1, 12, 3]],
       metadata: { abc: videoMetadata('abc') },
     });
     const [record] = await provider.fetch();
     assert.equal(record.videoId, 'abc');
     assert.equal(record.title, 'Video abc');
     assert.equal(record.views, 100);
-    assert.equal(record.engagedViews, null);
+    assert.equal(record.engagedViews, 90);
+    assert.equal(record.format, 'LONG_FORM');
     assert.equal(record.watchTimeMinutes, 450);
     assert.equal(record.averageViewDurationSeconds, 270);
     assert.equal(record.averageViewPercentage, 45);
@@ -132,7 +179,7 @@ describe('YouTube Analytics performance provider', () => {
 
   test('keeps absent metrics null and preserves chronological metadata', async () => {
     const { provider } = createProvider({
-      rows: [['abc', 100]],
+      rows: [['abc', 'UNSPECIFIED', null, 100]],
       metadata: { abc: videoMetadata('abc', { publishedAt: null, durationSeconds: null }) },
     });
     const [record] = await provider.fetch();
@@ -145,15 +192,24 @@ describe('YouTube Analytics performance provider', () => {
 
   test('preserves the order returned by YouTube Analytics', async () => {
     const { provider } = createProvider({
-      rows: [['b', 200], ['a', 100]],
+      rows: [['b', 'SHORTS', 180, 200], ['a', 'VIDEO_ON_DEMAND', 90, 100]],
       metadata: { a: videoMetadata('a'), b: videoMetadata('b') },
     });
     assert.deepEqual((await provider.fetch()).map(({ videoId }) => videoId), ['b', 'a']);
   });
 
   test('does not fabricate records when Data API metadata is unavailable', async () => {
-    const { provider } = createProvider({ rows: [['missing', 100]] });
+    const { provider } = createProvider({ rows: [['missing', 'UNSPECIFIED', null, 100]] });
     assert.deepEqual(await provider.fetch(), []);
+  });
+
+  test('maps only official creator content types to persisted formats', () => {
+    assert.equal(classifyCreatorContentType('SHORTS'), 'SHORTS');
+    assert.equal(classifyCreatorContentType('shorts'), 'SHORTS');
+    assert.equal(classifyCreatorContentType('VIDEO_ON_DEMAND'), 'LONG_FORM');
+    assert.equal(classifyCreatorContentType('videoOnDemand'), 'LONG_FORM');
+    assert.equal(classifyCreatorContentType('LIVE_STREAM'), 'UNKNOWN');
+    assert.equal(classifyCreatorContentType(undefined), 'UNKNOWN');
   });
 
   test('reports a missing specifically requested video safely', async () => {

@@ -1,5 +1,6 @@
 import { createDetailList, createMetricCard, createPanel, createStatusPill, html } from '../design-system/index.js';
 import { emptyValue, formatDate, formatNumber } from '../utils/formatters.js';
+import { integrationFrom, operationalStatus } from '../utils/operational-status.js';
 
 export const channelModule = {
   id: 'channel',
@@ -11,13 +12,15 @@ export const channelModule = {
   render(data) {
     const channel = data.channel ?? {};
     const metrics = data.metrics ?? {};
+    const integration = integrationFrom(data, 'youtubeData') ?? channel.integration ?? {};
+    const state = operationalStatus(integration.state);
 
     return html`
       <section class="summary-grid" aria-label="Metricas principais">
         ${createMetricCard({
           label: 'Inscritos',
           value: formatNumber(metrics.subscribers),
-          caption: 'YouTube',
+          caption: integration.stale ? 'Último dado conhecido' : 'YouTube',
         })}
         ${createMetricCard({
           label: 'Videos',
@@ -36,13 +39,15 @@ export const channelModule = {
         title: channel.title ?? emptyValue,
         className: 'channel-panel',
         action: createStatusPill(
-          data.status?.youtubeConnected ? 'Conectado' : 'Pendente',
-          data.status?.youtubeConnected ? 'connected' : 'pending',
+          state.label,
+          state.variant,
         ),
         body: createDetailList([
           { label: 'ID', value: channel.id ?? emptyValue },
           { label: 'Pais', value: channel.country ?? emptyValue },
           { label: 'Publicado em', value: formatDate(channel.publishedAt) },
+          { label: 'Última atualização', value: formatDate(integration.lastSuccessAt) },
+          { label: 'Estado', value: integration.summary ?? state.label },
         ]),
       })}
     `;

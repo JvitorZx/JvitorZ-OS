@@ -95,7 +95,8 @@ router.get('/planner', async (_req, res) => {
     const info = await planner.getInfo();
     return res.json(info);
   } catch (error) {
-    console.error('Error in /api/operators/planner:', error);
+    const name = error instanceof Error ? error.name : 'UnknownError';
+    console.error(`Failed to fetch planner info (${name})`);
     return res.status(500).json({ error: 'Failed to fetch planner info' });
   }
 });

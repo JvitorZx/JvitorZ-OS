@@ -31,6 +31,7 @@ import {
   YouTubeAnalyticsQuotaError,
   YouTubeAnalyticsTemporaryError,
   YouTubePerformanceSyncService,
+  youtubePerformanceSyncService,
   YouTubePerformanceSyncValidationError,
   YouTubeVideoNotFoundError,
 } from '../services/performance-intelligence/YouTubePerformanceSyncService';
@@ -74,7 +75,7 @@ const sendSafeError = (res: Response): void => {
 
 export const createCreatorIntelligenceRouter = (
   service: CreatorIntelligenceService = new CreatorIntelligenceService(),
-  youtubeSyncService: YouTubePerformanceSyncService = new YouTubePerformanceSyncService(),
+  youtubeSyncService: YouTubePerformanceSyncService = youtubePerformanceSyncService,
   editorialDecisionService: EditorialDecisionService = new EditorialDecisionService(service),
   decisionOutcomeService: DecisionOutcomeService = new DecisionOutcomeService(),
   outcomeRefreshService: OutcomeRefreshService = new OutcomeRefreshService(),
@@ -699,14 +700,14 @@ export const createCreatorIntelligenceRouter = (
     } catch (error) {
       const name = error instanceof Error ? error.name : 'UnknownError';
       console.error(`Failed to read YouTube Analytics last sync (${name})`);
-      return res.status(500).json({ error: 'Failed to read YouTube Analytics last sync' });
+      return res.status(500).json({ code: 'INTERNAL_ERROR', error: 'Failed to read YouTube Analytics last sync' });
     }
   });
 
   router.post('/performance/youtube/sync', async (req, res) => {
     const fields = ['mode', 'startDate', 'endDate', 'projectId', 'videoId', 'limit'];
     if (!isObjectBody(req.body) || !hasOnlyFields(req.body, fields)) {
-      return res.status(400).json({ error: 'invalid YouTube Analytics sync payload' });
+      return res.status(400).json({ code: 'INVALID_REQUEST', error: 'invalid YouTube Analytics sync payload' });
     }
     const body = req.body;
     if (
@@ -717,7 +718,7 @@ export const createCreatorIntelligenceRouter = (
       || !isOptionalString(body.videoId)
       || !isOptionalNumber(body.limit)
     ) {
-      return res.status(400).json({ error: 'invalid YouTube Analytics sync payload' });
+      return res.status(400).json({ code: 'INVALID_REQUEST', error: 'invalid YouTube Analytics sync payload' });
     }
     try {
       return res.status(200).json(await youtubeSyncService.sync({
@@ -730,26 +731,26 @@ export const createCreatorIntelligenceRouter = (
       }));
     } catch (error) {
       if (error instanceof YouTubePerformanceSyncValidationError) {
-        return res.status(400).json({ error: error.message });
+        return res.status(400).json({ code: 'INVALID_REQUEST', error: error.message });
       }
       if (error instanceof YouTubeAnalyticsNotConfiguredError) {
-        return res.status(503).json({ error: 'YouTube Analytics is not configured', state: 'not_configured' });
+        return res.status(503).json({ code: 'CONFIG_MISSING', error: 'YouTube Analytics is not configured', state: 'not_configured' });
       }
       if (error instanceof YouTubeAnalyticsNotAuthorizedError) {
-        return res.status(401).json({ error: 'Google authorization is required', state: 'not_authorized' });
+        return res.status(401).json({ code: 'AUTH_REQUIRED', error: 'Google authorization is required', state: 'not_authorized' });
       }
       if (error instanceof YouTubeVideoNotFoundError) {
-        return res.status(404).json({ error: 'YouTube video not found' });
+        return res.status(404).json({ code: 'NO_DATA', error: 'YouTube video not found' });
       }
       if (error instanceof YouTubeAnalyticsQuotaError) {
-        return res.status(429).json({ error: 'YouTube Analytics quota is temporarily unavailable' });
+        return res.status(429).json({ code: 'RATE_LIMITED', error: 'YouTube Analytics quota is temporarily unavailable' });
       }
       if (error instanceof YouTubeAnalyticsTemporaryError) {
-        return res.status(503).json({ error: 'YouTube Analytics is temporarily unavailable' });
+        return res.status(503).json({ code: 'PROVIDER_UNAVAILABLE', error: 'YouTube Analytics is temporarily unavailable' });
       }
       const name = error instanceof Error ? error.name : 'UnknownError';
       console.error(`Failed to synchronize YouTube Analytics (${name})`);
-      return res.status(500).json({ error: 'Failed to synchronize YouTube Analytics' });
+      return res.status(500).json({ code: 'INTERNAL_ERROR', error: 'Failed to synchronize YouTube Analytics' });
     }
   });
 

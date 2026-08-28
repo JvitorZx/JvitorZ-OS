@@ -1,4 +1,4 @@
-import { YouTubeService } from '../../../services/YouTubeService';
+import { ChannelDataService } from '../../../services/ChannelDataService';
 
 type ChannelSummary = {
   title: string | null;
@@ -8,26 +8,13 @@ type ChannelSummary = {
   viewCount: string | null;
   country: string | null;
   publishedAt: string | null;
+  integration: Awaited<ReturnType<ChannelDataService['getChannel']>>['integration'];
 };
 
 export class ChannelModule {
-  private youtubeService = new YouTubeService();
+  constructor(private readonly channelData = new ChannelDataService()) {}
 
-  async getChannelSummary(): Promise<ChannelSummary> {
-    // Responsável por obter dados do canal e mapeá-los para a forma esperada pelo frontend.
-    const response = await this.youtubeService.getChannel();
-    const item = (response as any)?.data?.items?.[0] ?? {};
-    const snippet = item.snippet ?? {};
-    const statistics = item.statistics ?? {};
-
-    return {
-      title: snippet.title ?? null,
-      id: item.id ?? null,
-      subscribers: statistics.subscriberCount ?? null,
-      videoCount: statistics.videoCount ?? null,
-      viewCount: statistics.viewCount ?? null,
-      country: snippet.country ?? null,
-      publishedAt: snippet.publishedAt ?? null,
-    };
+  async getChannelSummary(options: { refresh?: boolean } = {}): Promise<ChannelSummary> {
+    return this.channelData.getChannel(options);
   }
 }

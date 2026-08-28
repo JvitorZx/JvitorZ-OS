@@ -6,15 +6,21 @@ Este documento descreve as responsabilidades da integração YouTube e mapeia ca
 
 `YouTubeAnalyticsPerformanceProvider` implementa o contrato neutro `PerformanceProvider`. Ele usa o `GoogleService` e o armazenamento OAuth já existentes; não cria cliente OAuth paralelo nem persiste tokens adicionais.
 
-- YouTube Analytics API: views, minutos assistidos, duração média, percentual médio assistido, inscritos ganhos/perdidos, likes e comentários.
+- YouTube Analytics API: engaged views, views, minutos assistidos, duração média, percentual médio assistido, inscritos ganhos/perdidos, likes, comentários e tipo de conteúdo.
 - YouTube Data API: ID, título, data de publicação, duração e playlist de uploads recentes.
 - Impressões e CTR: permanecem `null`, pois não são inferidas.
-- Sincronização: `YouTubePerformanceSyncService`, sob demanda, por vídeo, recentes ou período, limitada a 50 resultados.
+- Sincronização: `YouTubePerformanceSyncService`, sob demanda, por vídeo, recentes ou período, limitada a 50 resultados. O modo período descobre os IDs antes da consulta com tipo de conteúdo.
 - Resiliência: estados seguros para não configurado, não autorizado, quota e indisponibilidade temporária.
+
+`creatorContentType` é a fonte da classificação: `shorts`/`SHORTS` vira `SHORTS`, e `videoOnDemand`/`VIDEO_ON_DEMAND` vira `LONG_FORM`. Outros valores ficam `UNKNOWN`. Não existe heurística por duração ou título.
 
 O OAuth deve incluir `youtube.readonly` e `yt-analytics.readonly`. As variáveis locais são `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` e `GOOGLE_REDIRECT_URI`; valores reais ficam somente em `backend/.env`, fora do Git.
 
-O smoke test controlado da Sprint 20 confirmou uma consulta real de sete dias com um resultado e sem persistência local. A suíte automatizada permanece totalmente offline e usa clients fake.
+O smoke test controlado da Sprint 31 confirmou OAuth com refresh, Channel Data, Analytics por vídeos recentes e período, persistência, baseline e operadores. A suíte automatizada permanece totalmente offline e usa clients fake; nenhum segredo ou payload real é fixture.
+
+## Estado operacional consolidado
+
+`GoogleService` carrega tokens somente quando necessário e persiste refreshes de forma atômica, preservando o refresh token já existente. `ChannelDataService` persiste a última coleta válida em `ChannelSnapshot` e fornece fallback stale. `IntegrationStatusService` consolida Google OAuth, YouTube Data, YouTube Analytics, OpenAI, SQLite, backend e runtime de automações sem expor configuração sensível.
 
 ## Canal
 

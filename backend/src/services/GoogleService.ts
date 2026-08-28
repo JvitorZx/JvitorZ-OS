@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { google } from 'googleapis';
-import type { OAuth2Client } from 'google-auth-library';
+import type { Credentials, OAuth2Client } from 'google-auth-library';
 
 type GoogleRequestError = {
   name?: unknown;
@@ -49,6 +49,8 @@ export const getSafeGoogleRequestError = (error: unknown): Record<string, unknow
 };
 
 export class GoogleService {
+  constructor(private readonly tokenFilePath = path.resolve(__dirname, '../../google-tokens.json')) {}
+
   isConfigured(): boolean {
     return Boolean(
       process.env.GOOGLE_CLIENT_ID?.trim()
@@ -57,9 +59,8 @@ export class GoogleService {
     );
   }
 
-  loadTokens(): Record<string, unknown> | null {
-    // Define o caminho do arquivo google-tokens.json a partir da raiz do backend
-    const tokenFilePath = path.resolve(__dirname, '../../google-tokens.json');
+  loadTokens(): Credentials | null {
+    const tokenFilePath = this.tokenFilePath;
 
     // Se o arquivo não existe, retornamos null para indicar ausência de tokens
     if (!fs.existsSync(tokenFilePath)) {
@@ -72,17 +73,30 @@ export class GoogleService {
 
       // Converte o JSON string em objeto JavaScript
       const tokens = JSON.parse(rawData);
-
-      // Retorna o objeto de tokens lido do arquivo
-      return tokens;
-    } catch (error) {
-      // Se ocorrer qualquer erro na leitura ou parse, retorna null sem lançar
+      return tokens && typeof tokens === 'object' ? tokens as Credentials : null;
+    } catch {
       return null;
     }
   }
 
-  saveTokens(): void {
-    // TODO: implementar salvamento de tokens
+  saveTokens(tokens: Credentials): void {
+    const tokenFilePath = this.tokenFilePath;
+    const existing = this.loadTokens() ?? {};
+    const merged: Credentials = { ...existing, ...tokens };
+    const temporaryPath = `${tokenFilePath}.tmp`;
+    fs.writeFileSync(temporaryPath, JSON.stringify(merged, null, 2), { encoding: 'utf-8' });
+    fs.renameSync(temporaryPath, tokenFilePath);
+  }
+
+  getAuthenticationState(): 'NOT_CONFIGURED' | 'AUTH_REQUIRED' | 'CONNECTED' {
+    if (!this.isConfigured()) return 'NOT_CONFIGURED';
+    const tokens = this.loadTokens();
+    if (!tokens) return 'AUTH_REQUIRED';
+    if (typeof tokens.refresh_token === 'string' && tokens.refresh_token.length > 0) return 'CONNECTED';
+    if (typeof tokens.access_token !== 'string' || tokens.access_token.length === 0) return 'AUTH_REQUIRED';
+    return typeof tokens.expiry_date !== 'number' || tokens.expiry_date > Date.now()
+      ? 'CONNECTED'
+      : 'AUTH_REQUIRED';
   }
 
   getClient(): OAuth2Client {
@@ -107,28 +121,17 @@ export class GoogleService {
 
     // Configura o cliente OAuth2 com os tokens carregados
     oauth2Client.setCredentials(tokens);
+    oauth2Client.on('tokens', (refreshed) => this.saveTokens(refreshed));
 
     return oauth2Client;
   }
 
-  refreshAccessToken(): void {
-    // TODO: implementar refresh do token de acesso
+  async refreshAccessToken(): Promise<void> {
+    const client = this.getClient();
+    await client.getAccessToken();
   }
 
   isAuthenticated(): boolean {
-    // Tenta carregar os tokens do armazenamento local
-    const tokens = this.loadTokens();
-
-    // Se não existirem tokens salvos, não estamos autenticados
-    if (!tokens) {
-      return false;
-    }
-
-    // Um refresh token também permite ao client oficial renovar o acesso sob demanda.
-    const accessToken = tokens['access_token'];
-    const refreshToken = tokens['refresh_token'];
-
-    return (typeof accessToken === 'string' && accessToken.length > 0)
-      || (typeof refreshToken === 'string' && refreshToken.length > 0);
+    return this.getAuthenticationState() === 'CONNECTED';
   }
 }

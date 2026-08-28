@@ -101,8 +101,11 @@ export const createDashboard = ({ root, apiBaseUrl, api = createApiClient(apiBas
     setLoading(true); setGlobalState('Carregando estado global do sistema...');
     try {
       const data = await api.getDashboard(); dashboardData = data;
-      if (data.unauthorized) setGlobalState('YouTube ainda não está conectado.', 'warning', { href: data.authUrl, label: 'Conectar agora' });
-      else if (data.youtubeUnavailable) setGlobalState('YouTube está temporariamente indisponível. Os serviços locais continuam ativos.', 'warning');
+      const youtubeState = data.integrations?.youtubeData?.state;
+      if (youtubeState === 'AUTH_REQUIRED' || data.unauthorized) setGlobalState('YouTube precisa ser reconectado.', 'warning', { href: data.authUrl, label: 'Conectar agora' });
+      else if (youtubeState === 'NOT_CONFIGURED') setGlobalState('A integração do YouTube ainda não está configurada.', 'warning');
+      else if (youtubeState === 'DEGRADED' || data.youtubeUnavailable) setGlobalState('YouTube está temporariamente indisponível. O último dado válido continua visível.', 'warning');
+      else if (youtubeState === 'ERROR') setGlobalState('Não foi possível carregar dados do YouTube.', 'error');
       else setGlobalState();
       if (activeModule?.refreshOnDashboardData) activateFromHash({ rerender: true });
     } catch (error) {
@@ -111,6 +114,7 @@ export const createDashboard = ({ root, apiBaseUrl, api = createApiClient(apiBas
       setGlobalState(message, 'error');
     } finally { setLoading(false); }
   };
+  context.refreshDashboard = loadDashboard;
   const handleHashChange = () => activateFromHash();
   const handleRefresh = () => loadDashboard();
   const handleNavigationIntent = (event) => {

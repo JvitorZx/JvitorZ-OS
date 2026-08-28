@@ -1,16 +1,31 @@
 export class ApiRequestError extends Error {
-  constructor(message, status) {
+  constructor(message, status, code = null) {
     super(`${message} (${status})`);
     this.name = 'ApiRequestError';
     this.status = status;
+    this.code = code;
   }
 }
+
+const SAFE_ERROR_CODES = new Set([
+  'AUTH_REQUIRED', 'PROVIDER_UNAVAILABLE', 'RATE_LIMITED', 'CONFIG_MISSING',
+  'INVALID_REQUEST', 'NO_DATA', 'INTERNAL_ERROR',
+]);
 
 const requestJson = async (url, options, errorMessage) => {
   const response = await fetch(url, options);
 
   if (!response.ok) {
-    throw new ApiRequestError(errorMessage, response.status);
+    let code = null;
+    if (typeof response.json === 'function') {
+      try {
+        const payload = await response.json();
+        if (SAFE_ERROR_CODES.has(payload?.code)) code = payload.code;
+      } catch {
+        // Error bodies are optional; status remains the safe public contract.
+      }
+    }
+    throw new ApiRequestError(errorMessage, response.status, code);
   }
 
   if (response.status === 204) return undefined;
@@ -27,6 +42,10 @@ const requireIdentifier = (value, name) => {
 };
 
 export const createApiClient = (baseUrl) => ({
+  async getIntegrationStatus() {
+    return requestJson(`${baseUrl}/api/integrations/status`, undefined, 'Erro ao consultar integracoes');
+  },
+
   async listChannelOperators(projectId) {
     const query = projectId === undefined
       ? ''

@@ -138,6 +138,12 @@ Memória revisável do canal. Uma chave estável permite atualizar o aprendizado
 
 Sinal histórico normalizado entre 0 e 100, com chave estável opcional, métrica, fonte, amostragem, confiança e data. Pode se relacionar a projeto, ideia ou `VideoPerformanceSnapshot`, além de jogo, série e formato. Sinais derivados de snapshot são substituídos idempotentemente quando as métricas de origem mudam.
 
+### ChannelSnapshot
+
+Último dado válido do canal coletado pela YouTube Data API. `channelId` é único e permite `upsert` sem duplicar o canal. Título, inscritos, vídeos, views, país e publicação são preservados junto de `collectedAt`; contagens ficam como texto para manter a representação entregue pela API.
+
+O registro sustenta o modo last-known-good: falha externa não apaga o dado, e a camada de serviço o devolve como `DEGRADED` e `stale`. A migration `20260831200000_live_channel_snapshot` é aditiva e não reescreve tabelas existentes.
+
 ### VideoPerformanceSnapshot
 
 Registro normalizado de desempenho de um vídeo em um projeto, fonte e período. `ingestionKey` é única e identifica `projectId + source + videoId + periodStart + periodEnd`. Campos observáveis incluem views, views engajadas, impressões, CTR, duração, AVD, percentual médio assistido, watch time, inscritos ganhos, inscritos perdidos, likes e comentários.
@@ -211,7 +217,7 @@ VideoPerformanceSnapshot 1 -> N EditorialDecisionOutcome (snapshot avaliado)
 ChannelInsight 1 -> N EditorialDecisionOutcome
 ```
 
-A migration `20260825233000_decision_outcome_loop` é aditiva: inclui `engagedViews` opcional, cria vínculos e outcomes e preserva snapshots e decisões existentes. O provider YouTube atual não oferece `engagedViews`, portanto grava `null` sem estimativa.
+A migration `20260825233000_decision_outcome_loop` é aditiva: inclui `engagedViews` opcional, cria vínculos e outcomes e preserva snapshots e decisões existentes. O provider YouTube Analytics solicita a métrica real; quando a API não a fornece, o campo permanece `null` sem estimativa.
 
 ### EditorialDecisionOutcomeReview
 

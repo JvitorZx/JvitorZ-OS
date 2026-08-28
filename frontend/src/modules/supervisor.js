@@ -1,4 +1,5 @@
 import { createPanel, createStatusPill, escapeHtml, html } from '../design-system/index.js';
+import { integrationFrom, operationalStatus } from '../utils/operational-status.js';
 
 const youtubeAnalyticsStatus = {
   connected: { label: 'Conectado', variant: 'connected' },
@@ -33,6 +34,14 @@ export const supervisorModule = {
     const channelOperators = Array.isArray(data.supervisor?.channelOperators)
       ? data.supervisor.channelOperators
       : [];
+    const integrationPill = (id, fallback) => {
+      const integration = integrationFrom(data, id);
+      if (!integration && fallback) {
+        return createStatusPill(fallback.label, fallback.variant);
+      }
+      const value = operationalStatus(integration?.state);
+      return createStatusPill(value.label, value.variant);
+    };
     const renderItems = (items, empty) => items.length > 0
       ? `<ul>${items.slice(0, 3).map((item) => `<li>${escapeHtml(item)}</li>`).join('')}</ul>`
       : `<p class="performance-empty">${empty}</p>`;
@@ -45,19 +54,25 @@ export const supervisorModule = {
         <div class="status-stack">
           <div>
             <span>YouTube</span>
-            ${createStatusPill(status.youtubeConnected ? 'Conectado' : 'Pendente', status.youtubeConnected ? 'connected' : 'pending')}
+            ${integrationPill('youtubeData', status.youtubeConnected
+              ? { label: 'Conectado', variant: 'connected' }
+              : { label: 'Nao conectado', variant: 'pending' })}
           </div>
           <div>
             <span>YouTube Analytics</span>
-            ${createStatusPill(analytics.label, analytics.variant)}
+            ${integrationPill('youtubeAnalytics', analytics)}
           </div>
           <div>
             <span>IA</span>
-            ${createStatusPill(status.aiEnabled ? 'Configurada' : 'Nao configurada', status.aiEnabled ? 'connected' : 'pending')}
+            ${integrationPill('openai', status.aiConfigured
+              ? { label: 'Configurada', variant: 'connected' }
+              : { label: 'Nao configurada', variant: 'pending' })}
           </div>
           <div>
             <span>Automacoes</span>
-            ${createStatusPill(status.automationsEnabled ? 'Operacionais' : 'Sem rotinas ativas', status.automationsEnabled ? 'connected' : 'pending')}
+            ${integrationPill('automationRuntime', status.automationConfigured
+              ? { label: 'Ativas', variant: 'connected' }
+              : { label: 'Sem rotinas ativas', variant: 'pending' })}
           </div>
         </div>
         <div class="supervisor-editorial-grid">
@@ -103,7 +118,7 @@ export const supervisorModule = {
           </section>
           <section>
             <h3>Operadores do canal</h3>
-            ${channelOperators.length > 0 ? `<ul>${channelOperators.map((operator) => `<li>${escapeHtml(operator.id)}: ${escapeHtml(operator.status)} · confiança ${escapeHtml(Math.round(Number(operator.confidence ?? 0) * 100))}%</li>`).join('')}</ul>` : '<p class="performance-empty">Sem estado dos operadores especializados.</p>'}
+            ${channelOperators.length > 0 ? `<ul>${channelOperators.map((operator) => `<li>${escapeHtml(operator.summary ?? `${operator.id}: ${operator.status}`)} · confiança ${escapeHtml(Math.round(Number(operator.confidence ?? 0) * 100))}%</li>`).join('')}</ul>` : '<p class="performance-empty">Sem estado dos operadores especializados.</p>'}
           </section>
           <section>
             <h3>Prioridades editoriais</h3>

@@ -163,7 +163,10 @@ describe('YouTube route expected states', { concurrency: false }, () => {
     try {
       const result = await getChannel();
       assert.equal(result.status, 503);
-      assert.deepEqual(result.body, { error: 'YouTube temporarily unavailable' });
+      assert.deepEqual(result.body, {
+        error: 'YouTube temporarily unavailable',
+        code: 'PROVIDER_UNAVAILABLE',
+      });
       assert.doesNotMatch(JSON.stringify(result.body), /private|stack/);
     } finally {
       console.warn = originalWarn;

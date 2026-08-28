@@ -17,6 +17,7 @@ import {
 
 export const YOUTUBE_ANALYTICS_SOURCE = 'youtube-analytics';
 export const YOUTUBE_ANALYTICS_METRICS = [
+  'engagedViews',
   'views',
   'estimatedMinutesWatched',
   'averageViewDuration',
@@ -26,6 +27,12 @@ export const YOUTUBE_ANALYTICS_METRICS = [
   'likes',
   'comments',
 ] as const;
+
+export const classifyCreatorContentType = (value: unknown): 'SHORTS' | 'LONG_FORM' | 'UNKNOWN' => {
+  if (value === 'SHORTS' || value === 'shorts') return 'SHORTS';
+  if (value === 'VIDEO_ON_DEMAND' || value === 'videoOnDemand') return 'LONG_FORM';
+  return 'UNKNOWN';
+};
 
 export interface YouTubeAnalyticsProviderOptions {
   startDate: string;
@@ -71,17 +78,29 @@ export class YouTubeAnalyticsPerformanceProvider implements PerformanceProvider 
   async fetch(): Promise<readonly RawVideoPerformanceRecord[]> {
     try {
       const client = this.getClient();
-      const videoIds = [...new Set(this.options.videoIds ?? [])];
-      const response = await client.reports.query({
+      let videoIds = [...new Set(this.options.videoIds ?? [])];
+      const query = (ids: readonly string[], includeContentType: boolean) => client.reports.query({
         ids: 'channel==MINE',
         startDate: this.options.startDate,
         endDate: this.options.endDate,
-        dimensions: 'video',
+        dimensions: includeContentType ? 'video,creatorContentType' : 'video',
         metrics: YOUTUBE_ANALYTICS_METRICS.join(','),
-        ...(videoIds.length > 0 ? { filters: `video==${videoIds.join(',')}` } : {}),
+        ...(ids.length > 0 ? { filters: `video==${ids.join(',')}` } : {}),
         sort: '-views',
         maxResults: this.options.maxResults ?? 50,
       });
+
+      if (videoIds.length === 0) {
+        const discovery = await query([], false);
+        const discoveryHeaders = (discovery.data.columnHeaders ?? []).map(({ name }) => name ?? '');
+        const videoIndex = discoveryHeaders.indexOf('video');
+        videoIds = [...new Set((discovery.data.rows ?? []).flatMap((row) => (
+          videoIndex >= 0 && typeof row[videoIndex] === 'string' ? [row[videoIndex] as string] : []
+        )))];
+        if (videoIds.length === 0) return [];
+      }
+
+      const response = await query(videoIds, true);
       const headers = (response.data.columnHeaders ?? []).map(({ name }) => name ?? '');
       const rows = response.data.rows ?? [];
       const rowObjects = rows.map((row) => Object.fromEntries(
@@ -104,10 +123,11 @@ export class YouTubeAnalyticsPerformanceProvider implements PerformanceProvider 
           title: video.title,
           publishedAt: video.publishedAt,
           durationSeconds: video.durationSeconds,
+          format: classifyCreatorContentType(row.creatorContentType),
           periodStart: this.options.startDate,
           periodEnd: this.options.endDate,
           views: finiteNumberOrNull(row.views),
-          engagedViews: null,
+          engagedViews: finiteNumberOrNull(row.engagedViews),
           impressions: null,
           ctr: null,
           averageViewDurationSeconds: finiteNumberOrNull(row.averageViewDuration),

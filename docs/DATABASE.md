@@ -114,7 +114,13 @@ O campo opcional `subscribersLost` registra a métrica homônima quando fornecid
 
 `PerformanceSignal` pode apontar para o snapshot de origem e usa `key` única para substituir sinais derivados sem duplicação. A relação usa `ON DELETE CASCADE`: remover um snapshot remove somente seus sinais derivados. Sinais legados sem snapshot continuam válidos.
 
-`engagedViews` é uma métrica opcional adicionada pela migration `20260825233000_decision_outcome_loop`. O provider YouTube atual não a fornece e persiste `null`; o sistema não deriva nem estima esse valor.
+`engagedViews` é uma métrica opcional adicionada pela migration `20260825233000_decision_outcome_loop`. O provider solicita o valor real ao YouTube Analytics; ausência continua representada por `null`, sem derivação ou estimativa.
+
+## ChannelSnapshot
+
+`ChannelSnapshot` guarda o último dado válido do canal obtido pela YouTube Data API. `channelId` é único; novas coletas atualizam o registro e preservam a data da última coleta bem-sucedida. Quando o provider está temporariamente indisponível, `ChannelDataService` lê esse registro sem apagar ou substituir informação por placeholders.
+
+A migration `20260831200000_live_channel_snapshot` cria a tabela e o índice por `collectedAt`. Antes de aplicá-la ao banco local foi criado backup, conferido hash e executado `PRAGMA integrity_check`; a migration também é testada em SQLite isolado.
 
 A migration `20260824213000_performance_intelligence` cria snapshots, preserva sinais anteriores e adiciona série, confiança, chave e relação de origem. Os testes aplicam a migration em SQLite em memória.
 

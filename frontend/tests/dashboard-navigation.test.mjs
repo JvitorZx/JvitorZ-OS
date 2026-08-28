@@ -632,7 +632,7 @@ test('global OAuth state remains global while navigating between modules', async
   const globalMessage = statePanel.textContent;
 
   assert.equal(statePanel.className, 'state-panel warning');
-  assert.match(globalMessage, /YouTube ainda não está conectado/);
+  assert.match(globalMessage, /YouTube precisa ser reconectado/);
 
   harness.navLink('content-planner').click();
   harness.navLink('channel').click();

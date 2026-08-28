@@ -293,7 +293,10 @@ describe('Performance Intelligence HTTP API', { concurrency: false }, () => {
         body: JSON.stringify({ mode: 'period', startDate: '2026-08-01', endDate: '2026-08-24' }),
       });
       assert.equal(response.status, 500);
-      assert.deepEqual(response.body, { error: 'Failed to synchronize YouTube Analytics' });
+      assert.deepEqual(response.body, {
+        error: 'Failed to synchronize YouTube Analytics',
+        code: 'INTERNAL_ERROR',
+      });
       assert.ok(!logs.join(' ').includes('secret-token'));
       assert.ok(!logs.join(' ').includes('raw prompt'));
     } finally {

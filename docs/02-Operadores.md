@@ -41,3 +41,12 @@ Considera somente snapshots explicitamente classificados como Shorts. Não estim
 - Supervisor: consome apenas resumo de status, confiança, amostra e dados ausentes; não executa operadores nem produz mutações.
 
 Os operadores consultam dados persistidos já sincronizados. Abrir uma análise nunca dispara uma chamada ao YouTube.
+
+## Estado live após sincronização
+
+- CTR fica `LIMITED` enquanto impressões e CTR reais não forem fornecidas pela fonte atual; views não são usadas para inventar essas métricas.
+- Retenção usa AVD, percentual médio e watch time reais, mas permanece `LIMITED` sem curva granular.
+- Long-form fica `AVAILABLE` somente com amostra classificada como `LONG_FORM` pelo `creatorContentType` do YouTube.
+- Shorts fica `AVAILABLE` somente com amostra classificada como `SHORTS` pelo mesmo campo oficial.
+
+`sampleSize`, `confidence`, `lastDataAt`, evidências e lacunas vêm do mesmo `ChannelOperatorService` consumido pelo Hub, Analytics, Gerente, Supervisor e Dashboard. Assim, disponibilidade possui a mesma semântica em todas as telas.

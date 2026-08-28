@@ -1,5 +1,9 @@
 import type { EditorialDecision } from '@prisma/client';
-import { YouTubePerformanceSyncService } from '../../../services/performance-intelligence/YouTubePerformanceSyncService';
+import {
+  YouTubePerformanceSyncService,
+  youtubePerformanceSyncService,
+  type YouTubeAnalyticsProviderStatus,
+} from '../../../services/performance-intelligence/YouTubePerformanceSyncService';
 import { EditorialDecisionService } from '../../../services/creator-intelligence/EditorialDecisionService';
 import { OutcomeRefreshService } from '../../../services/creator-intelligence/OutcomeRefreshService';
 import { PlanReviewService } from '../../../services/orchestration/PlanReviewService';
@@ -10,9 +14,19 @@ import { automationRuntime, type AutomationRuntimeService } from '../../../servi
 import { AutomationDiagnosticsService } from '../../../services/automation/AutomationDiagnosticsService';
 import { ChannelOperatorService } from '../../../services/channel-operators';
 
+const operatorSummary = (operator: { id: string; status: string; missingData: string[]; sampleSize: number }): string => {
+  if (operator.status === 'AVAILABLE') {
+    return `${operator.id} disponível com ${operator.sampleSize} item(ns) na amostra.`;
+  }
+  if (operator.status === 'LIMITED') {
+    return `${operator.id} limitado: faltam ${operator.missingData.join(', ')}.`;
+  }
+  return `${operator.id} ainda sem dados sincronizados suficientes.`;
+};
+
 export class SupervisorModule {
   constructor(
-    private readonly youtubeSyncService = new YouTubePerformanceSyncService(),
+    private readonly youtubeSyncService = youtubePerformanceSyncService,
     private readonly editorialDecisionService = new EditorialDecisionService(),
     private readonly outcomeRefreshService = new OutcomeRefreshService(),
     private readonly planReviewService = new PlanReviewService(),
@@ -24,7 +38,7 @@ export class SupervisorModule {
   ) {}
 
   async getSupervisorOverview() {
-    let youtubeAnalytics;
+    let youtubeAnalytics: YouTubeAnalyticsProviderStatus;
     try {
       youtubeAnalytics = await this.youtubeSyncService.getStatus();
     } catch {
@@ -91,10 +105,15 @@ export class SupervisorModule {
     try { running = await this.automationRunRepository.countByStatuses(['PENDING', 'RUNNING']); } catch { running = 0; }
     let governance = { healthy: 0, degraded: 0, blocked: 0, failing: 0, disabled: 0, quotasReached: 0, pausedByFailure: 0, approvalsPending: 0, retriesPending: 0 };
     try { governance = await this.automationDiagnosticsService.getSummary(); } catch { /* Local diagnostics must not break Dashboard. */ }
-    let channelOperators: Array<{ id: string; status: string; confidence: number; sampleSize: number; missingData: string[] }> = [];
+    let channelOperators: Array<{ id: string; status: string; confidence: number; sampleSize: number; missingData: string[]; summary: string }> = [];
     try {
-      channelOperators = (await this.channelOperatorService.list()).map(({ id, status, confidence, sampleSize, missingData }) => ({
-        id, status, confidence, sampleSize, missingData,
+      channelOperators = (await this.channelOperatorService.list()).map((operator) => ({
+        id: operator.id,
+        status: operator.status,
+        confidence: operator.confidence,
+        sampleSize: operator.sampleSize,
+        missingData: operator.missingData,
+        summary: operatorSummary(operator),
       }));
     } catch { /* Specialized read models must not break the Supervisor. */ }
     return {
