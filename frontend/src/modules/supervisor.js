@@ -34,6 +34,7 @@ export const supervisorModule = {
     const channelOperators = Array.isArray(data.supervisor?.channelOperators)
       ? data.supervisor.channelOperators
       : [];
+    const dataQuality = Array.isArray(data.supervisor?.dataQuality) ? data.supervisor.dataQuality : [];
     const integrationPill = (id, fallback) => {
       const integration = integrationFrom(data, id);
       if (!integration && fallback) {
@@ -61,6 +62,10 @@ export const supervisorModule = {
           <div>
             <span>YouTube Analytics</span>
             ${integrationPill('youtubeAnalytics', analytics)}
+          </div>
+          <div>
+            <span>YouTube Reach</span>
+            ${integrationPill('youtubeReach')}
           </div>
           <div>
             <span>IA</span>
@@ -119,6 +124,10 @@ export const supervisorModule = {
           <section>
             <h3>Operadores do canal</h3>
             ${channelOperators.length > 0 ? `<ul>${channelOperators.map((operator) => `<li>${escapeHtml(operator.summary ?? `${operator.id}: ${operator.status}`)} · confiança ${escapeHtml(Math.round(Number(operator.confidence ?? 0) * 100))}%</li>`).join('')}</ul>` : '<p class="performance-empty">Sem estado dos operadores especializados.</p>'}
+          </section>
+          <section>
+            <h3>Qualidade dos dados</h3>
+            ${dataQuality.length > 0 ? `<ul>${dataQuality.map((item) => `<li>${escapeHtml(item.area)}: ${escapeHtml(item.state)} · ${escapeHtml(item.summary)}</li>`).join('')}</ul>` : '<p class="performance-empty">Sem diagnóstico de qualidade.</p>'}
           </section>
           <section>
             <h3>Prioridades editoriais</h3>

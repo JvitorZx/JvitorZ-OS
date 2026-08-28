@@ -738,6 +738,36 @@ Sem sincronização anterior, `lastSyncAt` é `null`. Falha interna retorna `500
 - YouTube Analytics API: `engagedViews`, `views`, `estimatedMinutesWatched`, `averageViewDuration`, `averageViewPercentage`, `subscribersGained`, `subscribersLost`, `likes`, `comments` e `creatorContentType`.
 - YouTube Data API: `videoId`, título, `publishedAt` e duração.
 - Impressões e CTR não são inferidas por este provider e permanecem `null`.
+
+Essas duas métricas pertencem ao provider separado de Reach descrito abaixo. O endpoint Analytics continua sem inferi-las.
+
+## YouTube Reach Reporting e qualidade dos dados
+
+### `GET /api/operators/creator-intelligence/reach/youtube/status`
+
+Retorna o estado do job `channel_reach_basic_a1`, último relatório/sync e o diagnóstico de qualidade. Estados possíveis: `not_configured`, `not_authorized`, `waiting_for_report`, `synchronized` e `temporary_error`. Consultar status não cria job nem chama sincronização.
+
+### `POST /api/operators/creator-intelligence/reach/youtube/sync`
+
+Body estrito:
+
+```json
+{ "startDate": "2026-08-01", "endDate": "2026-08-27", "projectId": "opcional" }
+```
+
+Aceita no máximo 31 dias. Reutiliza um job existente do tipo `channel_reach_basic_a1`; se não existir, cria um único job. Retorna `202` enquanto o primeiro relatório assíncrono ainda não está disponível e `200` ao processar relatórios. Erros: `400 INVALID_REQUEST`, `401 AUTH_REQUIRED`, `429 RATE_LIMITED`, `503 CONFIG_MISSING|PROVIDER_UNAVAILABLE` e `500 INTERNAL_ERROR` sanitizado.
+
+### `GET /api/operators/creator-intelligence/reach/data`
+
+Lista `VideoReachSnapshot` persistidos em ordem determinística. Filtros opcionais: `projectId` e `videoId`. Cada item contém período, impressões, CTR oficial, fonte, coleta, freshness e metadados técnicos mínimos; não contém token ou credencial.
+
+### `GET /api/operators/creator-intelligence/reach/quality`
+
+Retorna `GOOD`, `PARTIAL`, `STALE`, `MISSING`, `INCONSISTENT` ou `ERROR`, além de availability, freshness, completeness, consistency, sampleSize, sourceReliability e reasons estruturados. Ausência de relatório retorna `MISSING`, não `ERROR`.
+
+### `GET /api/operators/channel/ctr`
+
+Continua sendo o endpoint de análise do operador CTR. Quando há Reach real, retorna impressões/CTR, baselines compatíveis, sinais, freshness e qualidade; sem Reach, permanece limitado e não deriva CTR de views.
 - `creatorContentType` classifica somente `SHORTS` e `VIDEO_ON_DEMAND`; outros valores permanecem `UNKNOWN`. Jogo e série continuam opcionais.
 
 No modo `period`, o provider primeiro descobre os vídeos do período e depois faz uma consulta limitada a esses IDs para obter `creatorContentType`. Essa composição evita uma combinação não suportada pela API sem inferir formato.

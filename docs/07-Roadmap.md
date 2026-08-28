@@ -1065,3 +1065,22 @@ Conectar autenticação, coleta, persistência, classificação e consumo operac
 ### Próxima camada recomendada
 
 Conectar reach reports oficiais para impressões/CTR e aprofundar observabilidade da qualidade dos dados, sem ampliar o catálogo de operadores antes de fechar as lacunas de evidência existentes.
+
+## Sprint 32 — Reach Reporting + Data Quality Observability — CONCLUÍDA
+
+**Objetivo:** conectar alcance oficial e tornar disponibilidade, freshness, completude e consistência observáveis de ponta a ponta.
+
+Entregas:
+
+- provider separado da YouTube Reporting API para `channel_reach_basic_a1`;
+- job remoto idempotente, leitura incremental limitada e parser CSV seguro;
+- persistência aditiva de impressões/CTR por vídeo e período;
+- política central de freshness e estados `GOOD/PARTIAL/STALE/MISSING/INCONSISTENT/ERROR`;
+- last-known-good de alcance, sem apagar Analytics em falha parcial;
+- CTR com dados oficiais, baselines compatíveis, sinais e separação entre fato, hipótese e recomendação;
+- qualidade integrada ao Performance Intelligence, Gerente, Supervisor, Dashboard, Analytics e Configurações;
+- endpoints e testes offline determinísticos, sem rede externa na suíte.
+
+Validação externa local em 27/08/2026: backend, migration e endpoints iniciaram corretamente. Uma única tentativa de sincronização retornou `401 AUTH_REQUIRED`; nenhum job foi criado e nenhum snapshot de alcance foi persistido. É necessário confirmar a YouTube Reporting API habilitada no projeto Google e reconectar o OAuth para renovar a autorização. Essa pendência afeta apenas Reach; Analytics e dados persistidos permanecem operacionais.
+
+Backlog não bloqueador: granularidade por fonte de tráfego/dispositivo (`channel_reach_combined_a1`), tendências com janelas maiores, curva granular de retenção e smoke com o primeiro relatório real após a autorização.

@@ -50,3 +50,8 @@ Os operadores consultam dados persistidos já sincronizados. Abrir uma análise 
 - Shorts fica `AVAILABLE` somente com amostra classificada como `SHORTS` pelo mesmo campo oficial.
 
 `sampleSize`, `confidence`, `lastDataAt`, evidências e lacunas vêm do mesmo `ChannelOperatorService` consumido pelo Hub, Analytics, Gerente, Supervisor e Dashboard. Assim, disponibilidade possui a mesma semântica em todas as telas.
+# Operador de CTR e qualidade de Reach
+
+O operador CTR usa somente `VideoReachSnapshot` do YouTube Reporting. Ele mostra impressões, CTR mediano, baselines compatíveis, amostra, freshness, qualidade e evidências. Sinais de embalagem são associações: o sistema não afirma que uma thumbnail causou o resultado e não prevê views.
+
+Quando o relatório não existe, o operador permanece `LIMITED`/`NOT_CONFIGURED` e recomenda configurar o provider. Quando existe dado real, fica `AVAILABLE`, ainda que sinalize stale ou inconsistência na qualidade.

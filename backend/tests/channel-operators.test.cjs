@@ -6,6 +6,7 @@ process.env.DATABASE_URL = ':memory:';
 
 const { DatabaseService } = require('../dist/database/DatabaseService');
 const { VideoPerformanceSnapshotRepository } = require('../dist/database/repositories/VideoPerformanceSnapshotRepository');
+const { VideoReachSnapshotRepository } = require('../dist/database/repositories/VideoReachSnapshotRepository');
 const { ChannelOperatorService } = require('../dist/services/channel-operators/ChannelOperatorService');
 const { createChannelOperatorsRouter } = require('../dist/routes/channelOperators');
 const { classifyOrchestrationIntent, createOrchestrationPlan } = require('../dist/services/orchestration/IntentRouter');
@@ -25,6 +26,15 @@ const snapshot = (id, overrides = {}) => ({
   subscribersLost: 1, likes: 80, comments: 10, source: 'youtube-analytics', confidence: 1,
   collectedAt: new Date(`2026-08-${id === 'a' ? '20' : '21'}T12:00:00.000Z`), ...overrides,
 });
+const reach = (id, overrides = {}) => ({
+  id: `reach-${id}`, ingestionKey: `reach-ingestion-${id}`, videoId: `video-${id}`,
+  periodStart: new Date(`2026-08-${id === 'a' ? '20' : '21'}T00:00:00.000Z`),
+  periodEnd: new Date(`2026-08-${id === 'a' ? '21' : '22'}T00:00:00.000Z`),
+  impressions: 10000, ctr: 8, source: 'youtube-reporting-reach', reportId: 'report', jobId: 'job',
+  reportCreatedAt: new Date('2026-08-22T03:00:00.000Z'), collectedAt: new Date('2026-08-22T04:00:00.000Z'),
+  freshnessAtCollection: 'RECENT', qualityAtCollection: 'PARTIAL', qualityReasons: [], providerMetadata: {},
+  ...overrides,
+});
 
 before(async () => {
   client = await DatabaseService.connect();
@@ -41,7 +51,17 @@ before(async () => {
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, "updatedAt" DATETIME NOT NULL,
     FOREIGN KEY ("projectId") REFERENCES "Project"("id") ON DELETE SET NULL
   )`);
-  service = new ChannelOperatorService(new VideoPerformanceSnapshotRepository(client));
+  await client.$executeRawUnsafe(`CREATE TABLE "VideoReachSnapshot" (
+    "id" TEXT NOT NULL PRIMARY KEY, "projectId" TEXT, "ingestionKey" TEXT NOT NULL UNIQUE,
+    "videoId" TEXT NOT NULL, "periodStart" DATETIME NOT NULL, "periodEnd" DATETIME NOT NULL,
+    "impressions" REAL NOT NULL, "ctr" REAL NOT NULL, "source" TEXT NOT NULL, "reportId" TEXT,
+    "jobId" TEXT, "reportCreatedAt" DATETIME, "collectedAt" DATETIME NOT NULL,
+    "freshnessAtCollection" TEXT NOT NULL, "qualityAtCollection" TEXT NOT NULL,
+    "qualityReasons" JSONB NOT NULL, "providerMetadata" JSONB,
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, "updatedAt" DATETIME NOT NULL,
+    FOREIGN KEY ("projectId") REFERENCES "Project"("id") ON DELETE SET NULL
+  )`);
+  service = new ChannelOperatorService(new VideoPerformanceSnapshotRepository(client), new VideoReachSnapshotRepository(client));
   const app = express();
   app.use(express.json());
   app.use(createChannelOperatorsRouter(service));
@@ -54,6 +74,7 @@ before(async () => {
 });
 
 beforeEach(async () => {
+  await client.videoReachSnapshot.deleteMany();
   await client.videoPerformanceSnapshot.deleteMany();
   await client.project.deleteMany();
 });
@@ -83,9 +104,11 @@ describe('specialized channel operators', { concurrency: false }, () => {
   });
 
   test('computes CTR only from persisted impressions and CTR', async () => {
-    await client.videoPerformanceSnapshot.createMany({ data: [snapshot('a', { ctr: 6 }), snapshot('b', { ctr: 10 })] });
+    await client.videoPerformanceSnapshot.createMany({ data: [snapshot('a', { ctr: null, impressions: null }), snapshot('b', { ctr: null, impressions: null })] });
+    await client.videoReachSnapshot.createMany({ data: [reach('a', { ctr: 6 }), reach('b', { ctr: 10 })] });
     const analysis = await service.run('ctr');
     assert.equal(analysis.status, 'AVAILABLE');
+    assert.equal(analysis.source, 'youtube-reporting-reach');
     assert.equal(analysis.facts.find(({ label }) => label === 'CTR mediano').value, 8);
     assert.equal(analysis.evidence.length, 2);
     assert.doesNotMatch(JSON.stringify(analysis), /thumbnail causou|views exatas/i);
@@ -95,7 +118,7 @@ describe('specialized channel operators', { concurrency: false }, () => {
     await client.videoPerformanceSnapshot.create({ data: snapshot('a', { ctr: null, impressions: null }) });
     const analysis = await service.run('ctr');
     assert.equal(analysis.status, 'LIMITED');
-    assert.deepEqual(analysis.missingData, ['impressions', 'ctr']);
+    assert.deepEqual(analysis.missingData, ['YouTube reach report (impressions, CTR)']);
     assert.equal(analysis.sampleSize, 0);
   });
 
@@ -133,15 +156,20 @@ describe('specialized channel operators', { concurrency: false }, () => {
       snapshot('a', { projectId: 'project-a' }),
       snapshot('b', { projectId: 'project-b', ingestionKey: 'other-project' }),
     ] });
+    await client.videoReachSnapshot.createMany({ data: [
+      reach('a', { projectId: 'project-a' }),
+      reach('b', { projectId: 'project-b', ingestionKey: 'reach-other-project' }),
+    ] });
     const analysis = await service.run('ctr', 'project-a');
     assert.equal(analysis.sampleSize, 1);
-    assert.equal(analysis.evidence[0].snapshotId, 'a');
+    assert.equal(analysis.evidence[0].snapshotId, 'reach-a');
   });
 });
 
 describe('channel operator HTTP contracts', { concurrency: false }, () => {
   test('lists and opens operators through safe HTTP responses', async () => {
     await client.videoPerformanceSnapshot.create({ data: snapshot('a') });
+    await client.videoReachSnapshot.create({ data: reach('a') });
     const list = await request('/');
     const item = await request('/ctr');
     assert.equal(list.status, 200);
@@ -170,6 +198,7 @@ test('natural language routes to one or combined channel operators', () => {
 
 test('Gerente executes combined specialists and consolidates their persisted evidence', async () => {
   await client.videoPerformanceSnapshot.create({ data: snapshot('a') });
+  await client.videoReachSnapshot.create({ data: reach('a') });
   const records = [];
   const repository = {
     async create(data) { const now = new Date(); const record = { id: 'execution-channel', status: 'pending', result: null, evidence: null, errorType: null, startedAt: now, completedAt: null, createdAt: now, updatedAt: now, ...structuredClone(data) }; records.push(record); return structuredClone(record); },

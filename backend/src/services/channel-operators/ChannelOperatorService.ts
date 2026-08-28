@@ -1,6 +1,8 @@
-import type { VideoPerformanceSnapshot } from '@prisma/client';
+import type { VideoPerformanceSnapshot, VideoReachSnapshot } from '@prisma/client';
 import { DatabaseService } from '../../database/DatabaseService';
 import { VideoPerformanceSnapshotRepository } from '../../database/repositories/VideoPerformanceSnapshotRepository';
+import { VideoReachSnapshotRepository } from '../../database/repositories/VideoReachSnapshotRepository';
+import { DataQualityService, type DataQualityReport } from '../../domains/data-quality/DataQualityService';
 import {
   CHANNEL_OPERATOR_IDS,
   type ChannelOperatorAnalysis,
@@ -61,17 +63,25 @@ export class ChannelOperatorNotFoundError extends Error {
 }
 
 export class ChannelOperatorService {
-  constructor(private readonly snapshots = new VideoPerformanceSnapshotRepository(DatabaseService.client)) {}
+  constructor(
+    private readonly snapshots = new VideoPerformanceSnapshotRepository(DatabaseService.client),
+    private readonly reach = new VideoReachSnapshotRepository(DatabaseService.client),
+    private readonly qualityService = new DataQualityService(),
+  ) {}
 
   async list(projectId?: string | null): Promise<ChannelOperatorAnalysis[]> {
-    const records = await this.snapshots.findAll(projectId === undefined ? {} : { projectId });
-    return CHANNEL_OPERATOR_IDS.map((id) => this.analyze(id, records));
+    const filters = projectId === undefined ? {} : { projectId };
+    const [records, reach] = await Promise.all([this.snapshots.findAll(filters), this.reach.findAll(filters)]);
+    const quality = this.qualityService.evaluateReach(reach, { knownVideoIds: new Set(records.map(({ videoId }) => videoId)) });
+    return CHANNEL_OPERATOR_IDS.map((id) => this.analyze(id, records, reach, quality));
   }
 
   async run(id: string, projectId?: string | null): Promise<ChannelOperatorAnalysis> {
     if (!CHANNEL_OPERATOR_IDS.includes(id as ChannelOperatorId)) throw new ChannelOperatorNotFoundError();
-    const records = await this.snapshots.findAll(projectId === undefined ? {} : { projectId });
-    return this.analyze(id as ChannelOperatorId, records);
+    const filters = projectId === undefined ? {} : { projectId };
+    const [records, reach] = await Promise.all([this.snapshots.findAll(filters), this.reach.findAll(filters)]);
+    const quality = this.qualityService.evaluateReach(reach, { knownVideoIds: new Set(records.map(({ videoId }) => videoId)) });
+    return this.analyze(id as ChannelOperatorId, records, reach, quality);
   }
 
   private base(id: ChannelOperatorId, records: VideoPerformanceSnapshot[], sample: VideoPerformanceSnapshot[], missingData: string[], availableFields: number, expectedFields: number) {
@@ -84,27 +94,61 @@ export class ChannelOperatorService {
     };
   }
 
-  private analyze(id: ChannelOperatorId, records: VideoPerformanceSnapshot[]): ChannelOperatorAnalysis {
-    if (id === 'ctr') return this.ctr(records);
+  private analyze(id: ChannelOperatorId, records: VideoPerformanceSnapshot[], reach: VideoReachSnapshot[], quality: DataQualityReport): ChannelOperatorAnalysis {
+    if (id === 'ctr') return this.ctr(records, reach, quality);
     if (id === 'retention') return this.retention(records);
     return this.format(id, records);
   }
 
-  private ctr(records: VideoPerformanceSnapshot[]): ChannelOperatorAnalysis {
-    const sample = records.filter(({ ctr, impressions }) => numeric(ctr) && numeric(impressions));
+  private ctr(records: VideoPerformanceSnapshot[], reach: VideoReachSnapshot[], quality: DataQualityReport): ChannelOperatorAnalysis {
+    const sample = reach.filter(({ ctr, impressions }) => numeric(ctr) && numeric(impressions));
     const ctrMedian = median(sample.map(({ ctr }) => ctr));
-    const missingData = records.length === 0 ? ['performance snapshots'] : sample.length === 0 ? ['impressions', 'ctr'] : [];
+    const impressionsMedian = median(sample.map(({ impressions }) => impressions));
+    const missingData = sample.length === 0 ? ['YouTube reach report (impressions, CTR)'] : [];
+    const metadata = new Map(records.map((record) => [record.videoId, record]));
+    const formatGroups = new Map<string, VideoReachSnapshot[]>();
+    for (const item of sample) {
+      const format = metadata.get(item.videoId)?.format?.trim() || 'formato não classificado';
+      formatGroups.set(format, [...(formatGroups.get(format) ?? []), item]);
+    }
+    const baselines = [
+      { scope: 'canal', median: ctrMedian, sampleSize: sample.length },
+      ...[...formatGroups.entries()].map(([scope, items]) => ({ scope: `formato:${scope}`, median: median(items.map(({ ctr }) => ctr)), sampleSize: items.length })),
+    ];
+    const signals: ChannelOperatorSignal[] = [];
+    for (const item of sample) {
+      if (ctrMedian !== null && impressionsMedian !== null) {
+        if (item.impressions >= impressionsMedian && item.ctr < ctrMedian * 0.85) signals.push({ classification: 'fact', direction: 'negative', summary: `${metadata.get(item.videoId)?.title ?? item.videoId}: alcance acima da mediana e CTR abaixo da baseline observada.`, videoId: item.videoId, snapshotId: item.id });
+        if (item.impressions < impressionsMedian && item.ctr >= ctrMedian * 1.15) signals.push({ classification: 'inference', direction: 'neutral', summary: `${metadata.get(item.videoId)?.title ?? item.videoId}: CTR acima da baseline em alcance ainda abaixo da mediana; ampliação de distribuição permanece incerta.`, videoId: item.videoId, snapshotId: item.id });
+      }
+    }
+    const byVideo = new Map<string, VideoReachSnapshot[]>();
+    for (const item of sample) byVideo.set(item.videoId, [...(byVideo.get(item.videoId) ?? []), item]);
+    for (const [videoId, items] of byVideo) {
+      const ordered = [...items].sort((a, b) => a.periodStart.getTime() - b.periodStart.getTime());
+      if (ordered.length < 2 || ordered[0].ctr === 0) continue;
+      const ratio = ordered.at(-1)!.ctr / ordered[0].ctr;
+      if (ratio >= 1.15) signals.push({ classification: 'fact', direction: 'positive', summary: `${metadata.get(videoId)?.title ?? videoId}: CTR em alta no período observado.`, videoId, snapshotId: ordered.at(-1)!.id });
+      if (ratio <= 0.85) signals.push({ classification: 'fact', direction: 'negative', summary: `${metadata.get(videoId)?.title ?? videoId}: CTR em queda no período observado.`, videoId, snapshotId: ordered.at(-1)!.id });
+    }
+    if (sample.length < 3) signals.push({ classification: 'inference', direction: 'neutral', summary: 'Amostra insuficiente para comparação robusta de embalagem e distribuição.' });
     return {
-      ...this.base('ctr', records, sample, missingData, sample.length ? 2 : 0, 2),
+      id: 'ctr', ...definitions.ctr,
+      status: sample.length ? 'AVAILABLE' : records.length ? 'LIMITED' : 'NOT_CONFIGURED',
+      missingData, source: 'youtube-reporting-reach', sampleSize: sample.length,
+      confidence: Number((boundedConfidence(sample.length, sample.length ? 2 : 0, 2) * quality.consistency * (quality.freshness === 'RECENT' ? 1 : 0.65)).toFixed(2)),
+      lastDataAt: quality.latestCollectedAt,
       facts: [
-        { label: 'Vídeos com CTR real', value: sample.length, unit: 'count', source: 'persisted-youtube-performance' },
-        { label: 'CTR mediano', value: ctrMedian, unit: 'percent', source: 'persisted-youtube-performance' },
-        { label: 'Impressões observadas', value: total(sample.map(({ impressions }) => impressions)), unit: 'count', source: 'persisted-youtube-performance' },
+        { label: 'Períodos com CTR real', value: sample.length, unit: 'count', source: 'youtube-reporting-reach' },
+        { label: 'CTR mediano', value: ctrMedian, unit: 'percent', source: 'youtube-reporting-reach' },
+        { label: 'Impressões observadas', value: total(sample.map(({ impressions }) => impressions)), unit: 'count', source: 'youtube-reporting-reach' },
       ],
-      signals: rankedSignals(sample, 'ctr', ctrMedian, 'CTR'),
-      insights: sample.length ? ['CTR descreve resposta à embalagem e distribuição; isoladamente não identifica a causa do resultado.'] : [],
-      recommendations: sample.length ? ['Investigue título, thumbnail, tema e fonte de tráfego dos vídeos fora da faixa observada antes de alterar a embalagem.'] : ['Sincronize impressões e CTR no YouTube Analytics.'],
-      evidence: sample.slice(0, 20).map((item) => evidence(item, ['impressions', 'ctr', 'views'])),
+      signals: signals.slice(0, 12),
+      insights: sample.length ? ['Fato: o CTR mede cliques sobre impressões. Hipótese: título, thumbnail, tema e origem da distribuição podem contribuir, mas o relatório não prova causalidade.'] : [],
+      recommendations: sample.length ? ['Compare itens dentro do mesmo formato e janela antes de testar uma mudança de embalagem.'] : ['Configure e sincronize o relatório oficial de alcance do YouTube.'],
+      evidence: sample.slice(0, 20).map((item) => ({ snapshotId: item.id, videoId: item.videoId, title: metadata.get(item.videoId)?.title ?? item.videoId, collectedAt: item.collectedAt, source: 'youtube-reporting-reach', periodStart: item.periodStart, periodEnd: item.periodEnd, metrics: { impressions: item.impressions, ctr: item.ctr, views: metadata.get(item.videoId)?.views ?? null } })),
+      quality: { state: quality.state, freshness: quality.freshness, completeness: quality.completeness, consistency: quality.consistency, sourceReliability: quality.sourceReliability, reasons: quality.reasons },
+      baselines,
     };
   }
 

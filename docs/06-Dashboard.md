@@ -35,9 +35,9 @@ O clique na sidebar atualiza sua seleção imediatamente; o `hashchange` continu
 
 Sem OAuth Google válido, a rota do Dashboard retorna o estado local com uma ação de reconexão. Em indisponibilidade temporária do Google/YouTube, retorna o mesmo estado local com um aviso global discreto. Planner, Biblioteca, Gerente, Supervisor e Automações não ficam indisponíveis por esses estados.
 
-O Dashboard e Configurações usam o contrato consolidado de `/api/integrations/status`. Integrações usam `NOT_CONFIGURED`, `AUTH_REQUIRED`, `CONNECTED`, `DEGRADED` e `ERROR`; disponibilidade de operadores continua separada em `AVAILABLE`, `LIMITED` e `NOT_CONFIGURED`. O Planner só aparece com IA conectada quando `OPENAI_API_KEY` está configurada, e o runtime de automações só aparece ativo quando sua configuração opt-in está habilitada.
+O Dashboard e Configurações usam o contrato consolidado de `/api/integrations/status`. Integrações usam `NOT_CONFIGURED`, `AUTH_REQUIRED`, `CONNECTED`, `DEGRADED` e `ERROR`; disponibilidade de operadores continua separada em `AVAILABLE`, `LIMITED` e `NOT_CONFIGURED`. YouTube Data, Analytics e Reach aparecem como integrações distintas. Reach mostra também qualidade e freshness, sem apagar Analytics válido quando a Reporting API requer autorização ou está temporariamente indisponível. O Planner só aparece com IA conectada quando `OPENAI_API_KEY` está configurada, e o runtime de automações só aparece ativo quando sua configuração opt-in está habilitada.
 
-Canal e Analytics mostram dados persistidos reais. Uma coleta externa bem-sucedida atualiza `lastSuccessAt`; uma falha temporária preserva o último canal conhecido, marca o estado como degradado e evita substituir valores reais por `--`.
+Canal e Analytics mostram dados persistidos reais. Uma coleta externa bem-sucedida atualiza `lastSuccessAt`; uma falha temporária preserva o último canal conhecido, marca o estado como degradado e evita substituir valores reais por `--`. O resumo inicial mostra saúde de alcance/CTR e alertas de qualidade sem duplicar a análise detalhada disponível em Analytics.
 
 ## Lifecycle
 

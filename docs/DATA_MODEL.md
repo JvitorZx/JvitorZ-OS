@@ -148,6 +148,20 @@ O registro sustenta o modo last-known-good: falha externa não apaga o dado, e a
 
 Registro normalizado de desempenho de um vídeo em um projeto, fonte e período. `ingestionKey` é única e identifica `projectId + source + videoId + periodStart + periodEnd`. Campos observáveis incluem views, views engajadas, impressões, CTR, duração, AVD, percentual médio assistido, watch time, inscritos ganhos, inscritos perdidos, likes e comentários.
 
+Impressões e CTR existentes em snapshots manuais/legados permanecem compatíveis, mas a fonte oficial nova é mantida separadamente em `VideoReachSnapshot` para não misturar universos Analytics e Reporting.
+
+## VideoReachSnapshot
+
+Linha diária do relatório oficial `channel_reach_basic_a1`. Guarda `videoId`, `periodStart`, `periodEnd`, `impressions`, `ctr`, `source`, `reportId`, `jobId`, `reportCreatedAt`, `collectedAt`, freshness/qualidade na coleta e metadados mínimos do provider. `ingestionKey` é a identidade única de projeto + fonte + vídeo + período, tornando reprocessamento idempotente.
+
+## ReachSyncState
+
+Estado local e não sensível do provider: report type, job ID, estado, último relatório, último sync e classe segura do último erro. Tokens OAuth nunca são persistidos nessa tabela.
+
+## DataQualityReport
+
+Read model calculado, não uma métrica inventada. Consolida disponibilidade, freshness, completude, consistência, tamanho da amostra, confiabilidade da fonte e motivos. Os estados oficiais do produto são `GOOD`, `PARTIAL`, `STALE`, `MISSING`, `INCONSISTENT` e `ERROR`.
+
 Todos os campos que a fonte não fornece permanecem `null`; o sistema não substitui ausência por zero. `source`, `confidence` e `collectedAt` registram provenance. Atualizações do mesmo vídeo/período preservam a identidade do snapshot.
 
 ```text

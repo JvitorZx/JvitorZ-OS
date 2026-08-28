@@ -6,6 +6,7 @@ const STATUS = {
   not_authorized: ['Autorizacao necessaria', 'pending'],
   not_configured: ['Nao configurado', 'pending'],
   temporary_error: ['Erro temporario', 'pending'],
+  waiting_for_report: ['Aguardando relatorio', 'pending'],
 };
 
 const METRICS = [
@@ -135,6 +136,12 @@ const renderAnalytics = (active = 'overview') => {
           <strong class="status-pill pending" data-youtube-performance-status>Pendente</strong>
           <small>Ultima sincronizacao: <time data-youtube-last-sync>--</time></small>
         </div>
+        <div class="performance-provider-state">
+          <span>Provider YouTube Reporting / Reach</span>
+          <strong class="status-pill pending" data-youtube-reach-status>Pendente</strong>
+          <small data-youtube-reach-quality>Qualidade ainda não avaliada</small>
+          <button class="button secondary" type="button" data-reach-sync>Sincronizar alcance</button>
+        </div>
         <form class="performance-sync-form" data-performance-sync-form>
           <label>
             <span>Escopo</span>
@@ -244,6 +251,8 @@ const renderChannelOperator = (id) => createPanel({
         <strong class="operator-status" data-channel-operator-status>Pendente</strong>
       </div>
       <dl class="channel-operator-meta" data-channel-operator-meta></dl>
+      <section class="channel-operator-evidence"><h3>Qualidade e freshness</h3><div data-channel-operator-quality></div></section>
+      <section class="channel-operator-evidence"><h3>Baselines compatíveis</h3><div data-channel-operator-baselines></div></section>
       <div class="channel-operator-columns">
         <section><h3>Fatos</h3><div data-channel-operator-facts></div></section>
         <section><h3>Sinais</h3><div data-channel-operator-signals></div></section>
@@ -298,6 +307,15 @@ const createChannelOperatorController = ({ api }) => {
         row.append(createTextElement('dt', label), createTextElement('dd', value));
         return row;
       }));
+      const quality = analysis.quality;
+      setList('[data-channel-operator-quality]', quality ? [
+        `Estado: ${quality.state}`,
+        `Freshness: ${quality.freshness}`,
+        `Completude: ${Math.round(Number(quality.completeness ?? 0) * 100)}%`,
+        `Consistência: ${Math.round(Number(quality.consistency ?? 0) * 100)}%`,
+        ...(Array.isArray(quality.reasons) ? quality.reasons.map((reason) => reason.message) : []),
+      ] : [], (value) => value);
+      setList('[data-channel-operator-baselines]', analysis.baselines, (baseline) => `${baseline.scope}: mediana ${formatPerformanceValue(baseline.median, 'percent')} · amostra ${baseline.sampleSize}`);
       setList('[data-channel-operator-facts]', analysis.facts, (fact) => `${fact.label}: ${formatPerformanceValue(fact.value, fact.unit === 'seconds' ? 'duration' : fact.unit)}`);
       setList('[data-channel-operator-signals]', analysis.signals, (signal) => `${classificationLabel(signal.classification)}: ${signal.summary}`);
       setList('[data-channel-operator-insights]', analysis.insights, (value) => value);
@@ -375,6 +393,9 @@ export const createAnalyticsController = ({ api, refreshDashboard }) => {
       outcomes: panel.querySelector('[data-decision-outcomes]'),
       reviewOutcomes: panel.querySelector('[data-review-outcomes]'),
       baselineSample: panel.querySelector('[data-baseline-sample]'),
+      reachStatus: panel.querySelector('[data-youtube-reach-status]'),
+      reachQuality: panel.querySelector('[data-youtube-reach-quality]'),
+      reachSync: panel.querySelector('[data-reach-sync]'),
     };
     if (Object.values(elements).some((element) => !element)) return;
 
@@ -388,6 +409,16 @@ export const createAnalyticsController = ({ api, refreshDashboard }) => {
       const [label, variant] = STATUS[state] ?? ['Pendente', 'pending'];
       elements.status.textContent = label;
       elements.status.className = `status-pill ${variant}`;
+    };
+
+    const setReachStatus = (value) => {
+      const [label, variant] = STATUS[value?.state] ?? ['Pendente', 'pending'];
+      elements.reachStatus.textContent = label;
+      elements.reachStatus.className = `status-pill ${variant}`;
+      const quality = value?.quality;
+      elements.reachQuality.textContent = quality
+        ? `Qualidade ${quality.state} · ${quality.freshness} · amostra ${quality.sampleSize}`
+        : 'Qualidade ainda não avaliada';
     };
 
     const setSyncBusy = (busy) => {
@@ -585,9 +616,10 @@ export const createAnalyticsController = ({ api, refreshDashboard }) => {
           : typeof api.listDecisionOutcomes === 'function'
             ? api.listDecisionOutcomes({ limit: 8 })
             : Promise.resolve([]),
+        typeof api.getYouTubeReachStatus === 'function' ? api.getYouTubeReachStatus() : Promise.resolve(null),
       ]);
       if (!isCurrent()) return false;
-      const [status, lastSync, records, baseline, signals, learnings, context, outcomes] = requests;
+      const [status, lastSync, records, baseline, signals, learnings, context, outcomes, reachStatus] = requests;
       if (status.status === 'fulfilled') setStatus(status.value?.state);
       if (lastSync.status === 'fulfilled') elements.lastSync.textContent = formatDateTime(lastSync.value?.lastSyncAt);
       if (records.status === 'fulfilled') renderRecords(records.value);
@@ -602,11 +634,34 @@ export const createAnalyticsController = ({ api, refreshDashboard }) => {
       else replaceWithEmpty(elements.decisions, 'Nao foi possivel carregar as decisoes.');
       if (outcomes.status === 'fulfilled') renderOutcomes(outcomes.value);
       else replaceWithEmpty(elements.outcomes, 'Nao foi possivel carregar os resultados editoriais.');
+      if (reachStatus.status === 'fulfilled') setReachStatus(reachStatus.value);
       const failed = requests.find((request) => request.status === 'rejected');
       if (failed && !quiet) setFeedback(errorMessage(failed.reason), 'error');
       else if (!quiet) setFeedback('');
       if (!quiet) panel.setAttribute('aria-busy', 'false');
       return !failed;
+    };
+
+    const handleReachSync = async () => {
+      if (syncing || typeof api.syncYouTubeReach !== 'function') return;
+      syncing = true;
+      elements.reachSync.disabled = true;
+      elements.reachSync.setAttribute('aria-busy', 'true');
+      setFeedback('Sincronizando relatório de alcance...');
+      try {
+        const result = await api.syncYouTubeReach({ startDate: elements.start.value, endDate: elements.end.value });
+        if (!isCurrent()) return;
+        await load({ quiet: true });
+        if (!isCurrent()) return;
+        setFeedback(result?.state === 'waiting_for_report'
+          ? 'Job configurado. O YouTube pode levar até 24 horas para disponibilizar o primeiro relatório.'
+          : `Alcance sincronizado: ${Number(result?.created ?? 0) + Number(result?.updated ?? 0)} período(s).`, result?.state === 'waiting_for_report' ? 'warning' : 'success');
+      } catch (error) {
+        if (isCurrent()) setFeedback(errorMessage(error, 'sync'), 'error');
+      } finally {
+        syncing = false;
+        if (isCurrent()) { elements.reachSync.disabled = false; elements.reachSync.setAttribute('aria-busy', 'false'); }
+      }
     };
 
     const updateVideoField = () => {
@@ -713,6 +768,7 @@ export const createAnalyticsController = ({ api, refreshDashboard }) => {
     };
 
     elements.form.addEventListener('submit', handleSync);
+    elements.reachSync.addEventListener('click', handleReachSync);
     elements.mode.addEventListener('change', updateVideoField);
     elements.decisions.addEventListener('click', handleDecisionClick);
     elements.outcomes.addEventListener('click', handleOutcomeClick);
@@ -722,6 +778,7 @@ export const createAnalyticsController = ({ api, refreshDashboard }) => {
 
     cleanup = () => {
       elements.form.removeEventListener('submit', handleSync);
+      elements.reachSync.removeEventListener('click', handleReachSync);
       elements.mode.removeEventListener('change', updateVideoField);
       elements.decisions.removeEventListener('click', handleDecisionClick);
       elements.outcomes.removeEventListener('click', handleOutcomeClick);

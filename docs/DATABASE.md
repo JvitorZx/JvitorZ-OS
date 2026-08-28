@@ -112,6 +112,12 @@ Para garantir o máximo de cinco itens mesmo com chamadas concorrentes, a criaç
 
 O campo opcional `subscribersLost` registra a métrica homônima quando fornecida pelo YouTube Analytics. A migration `20260825100000_youtube_analytics_subscribers_lost` adiciona a coluna sem reescrever snapshots existentes; registros anteriores recebem `null`.
 
+## Reach Reporting e Data Quality
+
+A migration `20260827213000_reach_reporting_data_quality` é aditiva. Ela cria `VideoReachSnapshot` e `ReachSyncState`, sem reescrever snapshots de performance, conversas, decisões ou automações. A identidade de ingestão impede duplicar o mesmo vídeo/período/fonte; reprocessamento atualiza a linha existente.
+
+`VideoReachSnapshot` preserva o dado oficial recebido, inclusive anomalias numéricas que precisam ser sinalizadas. O `DataQualityService` não corrige valores silenciosamente: classifica inconsistências e freshness em leitura. Em falha externa, linhas anteriores não são apagadas e funcionam como last-known-good.
+
 `PerformanceSignal` pode apontar para o snapshot de origem e usa `key` única para substituir sinais derivados sem duplicação. A relação usa `ON DELETE CASCADE`: remover um snapshot remove somente seus sinais derivados. Sinais legados sem snapshot continuam válidos.
 
 `engagedViews` é uma métrica opcional adicionada pela migration `20260825233000_decision_outcome_loop`. O provider solicita o valor real ao YouTube Analytics; ausência continua representada por `null`, sem derivação ou estimativa.

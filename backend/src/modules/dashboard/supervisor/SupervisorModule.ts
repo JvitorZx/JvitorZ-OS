@@ -13,6 +13,11 @@ import { AutomationRunRepository } from '../../../database/repositories/Automati
 import { automationRuntime, type AutomationRuntimeService } from '../../../services/automation/AutomationRuntimeService';
 import { AutomationDiagnosticsService } from '../../../services/automation/AutomationDiagnosticsService';
 import { ChannelOperatorService } from '../../../services/channel-operators';
+import {
+  YouTubeReachSyncService,
+  youtubeReachSyncService,
+  type YouTubeReachStatus,
+} from '../../../services/performance-intelligence/YouTubeReachSyncService';
 
 const operatorSummary = (operator: { id: string; status: string; missingData: string[]; sampleSize: number }): string => {
   if (operator.status === 'AVAILABLE') {
@@ -35,6 +40,7 @@ export class SupervisorModule {
     private readonly automationRuntimeService: Pick<AutomationRuntimeService, 'getHealth'> = automationRuntime,
     private readonly automationDiagnosticsService = new AutomationDiagnosticsService(),
     private readonly channelOperatorService = new ChannelOperatorService(),
+    private readonly youtubeReachService: Pick<YouTubeReachSyncService, 'getStatus'> = youtubeReachSyncService,
   ) {}
 
   async getSupervisorOverview() {
@@ -49,6 +55,11 @@ export class SupervisorModule {
       };
     }
     let recentDecisions: EditorialDecision[] = [];
+    let youtubeReach: YouTubeReachStatus;
+    try { youtubeReach = await this.youtubeReachService.getStatus(); }
+    catch {
+      youtubeReach = { state: 'temporary_error', reportTypeId: 'channel_reach_basic_a1', jobId: null, lastReportAt: null, lastSyncAt: null, lastErrorType: 'temporary', quality: { state: 'ERROR', availability: 0, freshness: 'MISSING', completeness: 0, consistency: 0, sampleSize: 0, sourceReliability: 1, latestCollectedAt: null, latestPeriodEnd: null, reasons: [{ code: 'STATUS_ERROR', message: 'Qualidade de alcance indisponível.', severity: 'error' }] } };
+    }
     try {
       recentDecisions = await this.editorialDecisionService.list({ limit: 5 });
     } catch {
@@ -116,10 +127,21 @@ export class SupervisorModule {
         summary: operatorSummary(operator),
       }));
     } catch { /* Specialized read models must not break the Supervisor. */ }
+    const byId = new Map(channelOperators.map((operator) => [operator.id, operator]));
+    const analyticsQuality = youtubeAnalytics.state === 'synchronized' || youtubeAnalytics.state === 'connected' ? 'GOOD'
+      : youtubeAnalytics.lastSyncAt ? 'STALE' : youtubeAnalytics.state === 'temporary_error' ? 'ERROR' : 'MISSING';
+    const dataQuality = [
+      { area: 'Analytics', state: analyticsQuality, summary: analyticsQuality === 'GOOD' ? 'Snapshots Analytics disponíveis.' : 'Analytics requer atenção ou sincronização.' },
+      { area: 'Alcance', state: youtubeReach.quality.state, summary: youtubeReach.quality.reasons[0]?.message ?? 'Impressões e CTR com qualidade adequada.' },
+      { area: 'Retenção', state: byId.get('retention')?.status === 'AVAILABLE' ? 'GOOD' : byId.get('retention')?.status === 'LIMITED' ? 'PARTIAL' : 'MISSING', summary: byId.get('retention')?.summary ?? 'Retenção sem dados.' },
+      { area: 'Tipo de conteúdo', state: byId.get('long-form')?.sampleSize || byId.get('shorts')?.sampleSize ? 'GOOD' : 'MISSING', summary: 'Classificação real de long-form e Shorts.' },
+    ];
     return {
-      alerts: [],
+      alerts: dataQuality.filter(({ state }) => ['STALE', 'INCONSISTENT', 'ERROR'].includes(state)).map(({ area, summary }) => `${area}: ${summary}`),
       issues: [],
       youtubeAnalytics,
+      youtubeReach,
+      dataQuality,
       editorial: {
         decisions: recentDecisions.map((decision) => ({
           id: decision.id,

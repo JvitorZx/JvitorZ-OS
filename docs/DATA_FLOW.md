@@ -177,7 +177,7 @@ O feedback não expõe payloads, stack traces ou detalhes internos. Uma ação p
 
 ## Testes do Fluxo
 
-`npm test`, executado em `backend/`, cobre APIs reais com Prisma e SQLite em memória, providers/clients injetáveis, migrations e controllers frontend com DOM controlado. As 439 verificações atuais não dependem de OAuth, YouTube, OpenAI real, chave, rede externa ou `dev.db`.
+`npm test`, executado em `backend/`, cobre APIs reais com Prisma e SQLite em memória, providers/clients injetáveis, migrations e controllers frontend com DOM controlado. A suíte completa não depende de OAuth, YouTube, OpenAI real, chave, rede externa ou `dev.db`.
 
 Permanece pendente, sem bloquear a Sprint, um smoke test manual com `OPENAI_API_KEY` válida para confirmar uma chamada real HTTP `201`. Chave, prompt e resposta do teste não devem ser registrados na documentação.
 
@@ -533,3 +533,25 @@ OAuth Google lazy + refresh persistido
 Sincronização recente consulta IDs de uploads e sincronização por período descobre os vídeos antes de solicitar `creatorContentType` com filtro. Métricas e formatos são persistidos antes de qualquer análise. A UI executa uma sincronização por ação, bloqueia clique concorrente, recarrega Analytics e depois o estado global; erros operacionais usam códigos sanitizados e feedback local.
 
 `ChannelDataService` tenta coletar o canal quando autorizado. Em falha temporária, consulta `ChannelSnapshotRepository` e retorna o último dado com `stale = true`, sem apagar o registro. `IntegrationStatusService` consulta apenas estado e persistência; não dispara uma sincronização.
+
+## Reach Reporting e observabilidade — Sprint 32
+
+```text
+Google OAuth (yt-analytics.readonly)
+  -> YouTube Reporting API
+     -> job channel_reach_basic_a1 (reutilizado ou criado uma vez)
+        -> reports.list (janela limitada)
+           -> download CSV autorizado
+              -> GoogleYouTubeReachProvider
+                 -> YouTubeReachSyncService
+                    -> VideoReachSnapshotRepository -> SQLite
+                    -> DataQualityService
+                       -> ChannelOperatorService / CTR
+                       -> Performance Intelligence / Editorial Decision
+                       -> Gerente / Supervisor / Dashboard
+                       -> Analytics / Configurações
+```
+
+A Data API fornece canal e metadados; a Analytics API de consultas direcionadas fornece consumo/performance; a Reporting API fornece o relatório bulk de alcance. O sistema não soma universos incompatíveis nem calcula CTR a partir de views. O job é assíncrono e o primeiro relatório pode levar até 24 horas; esse intervalo é `waiting_for_report` + `MISSING`, não erro.
+
+Freshness é centralizada: até 72 horas é `RECENT`, até 14 dias é `STALE` e acima disso é `HISTORICAL`. Falha de Reach não remove Analytics nem alcance anterior. O operador CTR compara somente observações reais, com baseline geral e por formato quando existe classificação local, separando fato, hipótese e recomendação.

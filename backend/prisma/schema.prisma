@@ -30,6 +30,7 @@ model Project {
   channelInsights    ChannelInsight[]
   performanceSignals PerformanceSignal[]
   videoPerformanceSnapshots VideoPerformanceSnapshot[]
+  videoReachSnapshots VideoReachSnapshot[]
   editorialDecisions EditorialDecision[]
   orchestrationExecutions OrchestrationExecution[]
   createdAt        DateTime           @default(now())
@@ -361,6 +362,44 @@ model VideoPerformanceSnapshot {
   @@index([game])
   @@index([series])
   @@index([format])
+}
+
+model VideoReachSnapshot {
+  id                    String   @id @default(cuid())
+  projectId             String?
+  project               Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  ingestionKey          String   @unique
+  videoId               String
+  periodStart           DateTime
+  periodEnd             DateTime
+  impressions           Float
+  ctr                    Float
+  source                 String
+  reportId               String?
+  jobId                  String?
+  reportCreatedAt        DateTime?
+  collectedAt            DateTime
+  freshnessAtCollection  String
+  qualityAtCollection    String
+  qualityReasons         Json
+  providerMetadata       Json?
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  @@index([projectId, collectedAt])
+  @@index([videoId, periodStart, periodEnd, source])
+  @@index([source, collectedAt])
+}
+
+model ReachSyncState {
+  source        String   @id
+  reportTypeId  String
+  jobId         String?
+  state         String
+  lastReportAt  DateTime?
+  lastSyncAt    DateTime?
+  lastErrorType String?
+  updatedAt     DateTime @updatedAt
 }
 
 model EditorialDecision {

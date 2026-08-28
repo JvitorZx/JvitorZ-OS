@@ -3,7 +3,7 @@ import { operationalStatus } from '../utils/operational-status.js';
 
 const LABELS = {
   backend: 'Backend API', database: 'SQLite', googleOAuth: 'Google OAuth',
-  youtubeData: 'YouTube Data API', youtubeAnalytics: 'YouTube Analytics',
+  youtubeData: 'YouTube Data API', youtubeAnalytics: 'YouTube Analytics', youtubeReach: 'YouTube Reporting / Reach',
   openai: 'OpenAI', automationRuntime: 'Automation Runtime',
 };
 
@@ -19,7 +19,7 @@ export const settingsModule = {
     const rows = Object.entries(LABELS).map(([id, label]) => {
       const integration = integrations[id] ?? {};
       const state = operationalStatus(integration.state);
-      const action = ['googleOAuth', 'youtubeData', 'youtubeAnalytics'].includes(id)
+      const action = ['googleOAuth', 'youtubeData', 'youtubeAnalytics', 'youtubeReach'].includes(id)
         && ['AUTH_REQUIRED', 'NOT_CONFIGURED'].includes(integration.state)
         ? html`<a class="button secondary" href="${escapeHtml(data.authUrl ?? `${context.apiBaseUrl}/api/auth/google`)}">${integration.state === 'AUTH_REQUIRED' ? 'Reconectar' : 'Conectar'}</a>`
         : '';

@@ -11,6 +11,7 @@ import { PerformanceSignalRepository } from '../../database/repositories/Perform
 import { VideoPerformanceSnapshotRepository } from '../../database/repositories/VideoPerformanceSnapshotRepository';
 import type { RankedIdeaEvaluation } from '../../domains/creator-intelligence/types';
 import { CreatorIntelligenceService } from './CreatorIntelligenceService';
+import { ChannelOperatorService } from '../channel-operators';
 
 export const EDITORIAL_DECISION_INTENTS = [
   'next_content',
@@ -174,6 +175,7 @@ export class EditorialDecisionService {
   private conversationRepository?: ConversationRepository;
   private snapshotRepository?: VideoPerformanceSnapshotRepository;
   private signalRepository?: PerformanceSignalRepository;
+  private readonly channelOperators: Pick<ChannelOperatorService, 'run'>;
 
   constructor(
     private readonly intelligence = new CreatorIntelligenceService(),
@@ -181,11 +183,13 @@ export class EditorialDecisionService {
     conversationRepository?: ConversationRepository,
     snapshotRepository?: VideoPerformanceSnapshotRepository,
     signalRepository?: PerformanceSignalRepository,
+    channelOperators: Pick<ChannelOperatorService, 'run'> = new ChannelOperatorService(),
   ) {
     this.decisionRepository = decisionRepository;
     this.conversationRepository = conversationRepository;
     this.snapshotRepository = snapshotRepository;
     this.signalRepository = signalRepository;
+    this.channelOperators = channelOperators;
   }
 
   private get decisions(): EditorialDecisionRepository {
@@ -234,7 +238,7 @@ export class EditorialDecisionService {
     const videoId = input.videoId?.trim() || null;
     const intent = classifyEditorialIntent(question, ideaIds.length);
     const normalizedQuestionKey = searchable(question).replace(/\s+/g, ' ').trim();
-    const [context, recommendation, baseline, allSignals, learnings, allSnapshots, previousEditorialDecisions] = await Promise.all([
+    const [context, recommendation, baseline, allSignals, learnings, allSnapshots, previousEditorialDecisions, ctrAnalysis] = await Promise.all([
       this.intelligence.buildContext(projectId),
       ideaIds.length > 0
         ? this.intelligence.rankIdeas(ideaIds).then((ranking) => ({ recommendation: ranking[0] ?? null, ranking }))
@@ -247,6 +251,7 @@ export class EditorialDecisionService {
         ...(conversationId ? { conversationId } : { projectId }),
         limit: 5,
       }),
+      this.channelOperators.run('ctr', projectId).catch(() => null),
     ]);
     const snapshots = videoId ? allSnapshots.filter((snapshot) => snapshot.videoId === videoId) : allSnapshots;
     const ranking = recommendation.ranking.slice(0, 5);
@@ -260,6 +265,15 @@ export class EditorialDecisionService {
         source: 'channel-baseline',
         summary: `A baseline atual de views tem mediana ${baseline.views.median} em ${baseline.views.sampleSize} conteúdo(s).`,
         confidence: baseline.views.sampleSize >= 3 ? 1 : 0.5,
+      });
+    }
+    if (ctrAnalysis?.sampleSize) {
+      const ctrMedian = ctrAnalysis.facts.find(({ label }) => label === 'CTR mediano')?.value;
+      evidence.push({
+        classification: 'fact',
+        source: 'youtube-reporting-reach',
+        summary: `O alcance oficial possui ${ctrAnalysis.sampleSize} período(s) e CTR mediano ${ctrMedian ?? 'indisponível'}%. Qualidade: ${ctrAnalysis.quality?.state ?? 'desconhecida'}.`,
+        confidence: ctrAnalysis.confidence,
       });
     }
     for (const snapshot of snapshots.slice(0, 3)) {
@@ -326,9 +340,11 @@ export class EditorialDecisionService {
     if (learnings.length === 0) missingData.add('memória do canal');
     if (ranking.length === 0) missingData.add('ideias cadastradas');
     if (videoId && snapshots.length === 0) missingData.add('performance do vídeo solicitado');
+    if (!ctrAnalysis?.sampleSize) missingData.add('alcance e CTR oficiais');
     const risks = [...new Set([
       ...(top?.risks ?? []),
       ...(baseline.views.sampleSize > 0 && baseline.views.sampleSize < 3 ? ['A baseline ainda possui amostra pequena.'] : []),
+      ...(ctrAnalysis?.quality && ctrAnalysis.quality.state !== 'GOOD' ? [`Qualidade de alcance: ${ctrAnalysis.quality.state}.`] : []),
       'Desempenho histórico não garante resultado futuro.',
     ])];
     const confidence = confidenceAverage([

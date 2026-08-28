@@ -8,7 +8,8 @@ Este documento descreve as responsabilidades da integração YouTube e mapeia ca
 
 - YouTube Analytics API: engaged views, views, minutos assistidos, duração média, percentual médio assistido, inscritos ganhos/perdidos, likes, comentários e tipo de conteúdo.
 - YouTube Data API: ID, título, data de publicação, duração e playlist de uploads recentes.
-- Impressões e CTR: permanecem `null`, pois não são inferidas.
+- YouTube Reporting API: impressões de thumbnail e CTR de thumbnail oficiais por vídeo/data por meio do relatório `channel_reach_basic_a1`.
+- Impressões e CTR continuam `null` nos snapshots da Analytics API; os valores oficiais ficam separados em `VideoReachSnapshot` e nunca são inferidos de views.
 - Sincronização: `YouTubePerformanceSyncService`, sob demanda, por vídeo, recentes ou período, limitada a 50 resultados. O modo período descobre os IDs antes da consulta com tipo de conteúdo.
 - Resiliência: estados seguros para não configurado, não autorizado, quota e indisponibilidade temporária.
 
@@ -20,7 +21,9 @@ O smoke test controlado da Sprint 31 confirmou OAuth com refresh, Channel Data, 
 
 ## Estado operacional consolidado
 
-`GoogleService` carrega tokens somente quando necessário e persiste refreshes de forma atômica, preservando o refresh token já existente. `ChannelDataService` persiste a última coleta válida em `ChannelSnapshot` e fornece fallback stale. `IntegrationStatusService` consolida Google OAuth, YouTube Data, YouTube Analytics, OpenAI, SQLite, backend e runtime de automações sem expor configuração sensível.
+`GoogleService` carrega tokens somente quando necessário e persiste refreshes de forma atômica, preservando o refresh token já existente. `ChannelDataService` persiste a última coleta válida em `ChannelSnapshot` e fornece fallback stale. `IntegrationStatusService` consolida Google OAuth, YouTube Data, YouTube Analytics, YouTube Reach, OpenAI, SQLite, backend e runtime de automações sem expor configuração sensível.
+
+`GoogleYouTubeReachProvider` é separado do provider de Analytics porque a Reporting API usa jobs e relatórios CSV assíncronos. O sistema reutiliza um job existente, limita o período processado, persiste por identidade de ingestão e mantém o último alcance válido se uma tentativa posterior falhar. O primeiro relatório pode demorar até 24 horas após a criação do job; esse estado é aguardando dados, não sucesso inventado.
 
 ## Canal
 

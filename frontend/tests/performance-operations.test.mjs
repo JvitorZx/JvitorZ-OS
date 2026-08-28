@@ -104,6 +104,7 @@ const defaultData = () => ({
     },
   },
   outcomes: [],
+  reachStatus: { state: 'synchronized', quality: { state: 'GOOD', freshness: 'RECENT', sampleSize: 4 } },
 });
 
 const createApi = (overrides = {}) => {
@@ -112,6 +113,8 @@ const createApi = (overrides = {}) => {
   const api = {
     calls,
     getYouTubePerformanceStatus: async () => { calls.push('status'); return data.status; },
+    getYouTubeReachStatus: async () => { calls.push('reachStatus'); return data.reachStatus; },
+    syncYouTubeReach: async (input) => { calls.push(['reachSync', structuredClone(input)]); return { state: 'synchronized', created: 2, updated: 0 }; },
     getYouTubeLastSync: async () => { calls.push('lastSync'); return data.lastSync; },
     listPerformanceRecords: async () => { calls.push('records'); return data.records; },
     getPerformanceBaseline: async () => { calls.push('baseline'); return data.baseline; },
@@ -146,6 +149,7 @@ const createDom = () => {
     '[data-decision-outcomes]',
     '[data-review-outcomes]',
     '[data-baseline-sample]',
+    '[data-youtube-reach-status]', '[data-youtube-reach-quality]', '[data-reach-sync]',
   ];
   for (const selector of selectors) panel.selectorMap.set(selector, new FakeElement());
   for (const field of [
@@ -175,6 +179,7 @@ test('Analytics markup exposes accessible operational regions without redesignin
   const markup = analyticsModule.render({});
   assert.match(markup, /data-performance-sync-form/);
   assert.match(markup, /data-youtube-performance-status/);
+  assert.match(markup, /data-youtube-reach-status/);
   assert.match(markup, /data-performance-signals/);
   assert.match(markup, /data-channel-learnings/);
   assert.match(markup, /data-decision-evidence/);
@@ -194,9 +199,23 @@ test('mount loads every real data source once and renders provider state', async
   const dom = createDom();
   createAnalyticsController({ api }).mount(dom.root);
   await flush();
-  assert.deepEqual(api.calls, ['status', 'lastSync', 'records', 'baseline', 'signals', 'learnings', 'context', 'outcomes']);
+  assert.deepEqual(api.calls, ['status', 'lastSync', 'records', 'baseline', 'signals', 'learnings', 'context', 'outcomes', 'reachStatus']);
   assert.equal(dom.get('[data-youtube-performance-status]').textContent, 'Sincronizado');
+  assert.equal(dom.get('[data-youtube-reach-status]').textContent, 'Sincronizado');
+  assert.match(dom.get('[data-youtube-reach-quality]').textContent, /GOOD.*RECENT.*4/);
   assert.equal(dom.get('[data-performance-feedback]').hidden, true);
+});
+
+test('manual reach sync uses the selected bounded period once and reports persisted rows', async () => {
+  const api = createApi();
+  const dom = createDom();
+  createAnalyticsController({ api }).mount(dom.root);
+  await flush();
+  await dom.get('[data-reach-sync]').dispatch('click');
+  await flush();
+  const calls = api.calls.filter((call) => Array.isArray(call) && call[0] === 'reachSync');
+  assert.deepEqual(calls, [['reachSync', { startDate: '2026-08-01', endDate: '2026-08-24' }]]);
+  assert.match(dom.get('[data-performance-feedback]').textContent, /Alcance sincronizado: 2/);
 });
 
 test('renders evaluated editorial outcomes from real API data as literal text', async () => {

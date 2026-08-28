@@ -241,6 +241,28 @@ EditorialDecisionOutcomeReview
 - `ConversationLibraryItem` usa chave composta entre conversa e item, não copia conteúdo e é removido em cascata com qualquer lado da associação.
 - `VideoPerformanceSnapshot.ingestionKey` impede duplicação do mesmo projeto/fonte/vídeo/período; campos ausentes permanecem nulos.
 - `VideoPerformanceSnapshot.subscribersLost` é opcional e recebe dados reais do YouTube Analytics; snapshots anteriores permanecem válidos com `null`.
+
+## Reach Reporting
+
+```text
+Project 1 ─── N VideoReachSnapshot
+
+VideoReachSnapshot
+  ingestionKey UNIQUE
+  videoId
+  periodStart / periodEnd
+  impressions / ctr
+  source / reportId / jobId
+  collectedAt
+  freshnessAtCollection / qualityAtCollection / qualityReasons
+
+ReachSyncState
+  source PK
+  reportTypeId / jobId
+  state / lastReportAt / lastSyncAt / lastErrorType
+```
+
+O alcance não possui FK para `VideoPerformanceSnapshot`: os providers têm granularidade e atraso diferentes. A junção para análise usa `videoId` e janelas temporais na camada de serviço, preservando as fontes originais.
 - `VideoPerformanceSnapshot.engagedViews` é opcional; permanece `null` quando o provider não a fornece e nunca é estimado.
 - `PerformanceSignal.key` torna sinais derivados idempotentes e sua relação registra a evidência de origem.
 - vínculos usam snapshots reais e são únicos por decisão/vídeo; outcomes são únicos por vínculo/snapshot.

@@ -14,6 +14,7 @@ export type IntegrationId =
   | 'googleOAuth'
   | 'youtubeData'
   | 'youtubeAnalytics'
+  | 'youtubeReach'
   | 'openai'
   | 'automationRuntime';
 

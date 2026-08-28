@@ -24,10 +24,14 @@ export const homeModule = {
     const automations = supervisor.automations ?? {};
     const operators = Array.isArray(supervisor.channelOperators) ? supervisor.channelOperators : [];
     const availableOperators = operators.filter(({ status: operatorStatus }) => operatorStatus === 'AVAILABLE').length;
+    const qualityAlerts = (Array.isArray(data.dataQuality) ? data.dataQuality : [])
+      .filter(({ state }) => state !== 'GOOD')
+      .map(({ area, state, summary }) => `${area}: ${state}. ${summary ?? ''}`);
 
     return html`
       <section class="home-status-grid" aria-label="Estado operacional">
         <a class="home-status-card" href="#/channel"><span>YouTube</span><strong>${integrationLabel(data, 'youtubeData')}</strong></a>
+        <a class="home-status-card" href="#/analytics/ctr"><span>Alcance / CTR</span><strong>${integrationLabel(data, 'youtubeReach')}</strong></a>
         <a class="home-status-card" href="#/planner"><span>Planner IA</span><strong>${integrationLabel(data, 'openai')}</strong></a>
         <a class="home-status-card" href="#/automations"><span>Automações</span><strong>${integrationLabel(data, 'automationRuntime')}</strong></a>
         <a class="home-status-card" href="#/operators"><span>Operadores disponíveis</span><strong>${availableOperators}/${operators.length || 4}</strong></a>
@@ -45,6 +49,12 @@ export const homeModule = {
           title: 'Pontos que pedem atenção',
           className: 'home-summary-panel',
           body: safeList(editorial.risks, 'Nenhum risco editorial registrado.'),
+        })}
+        ${createPanel({
+          eyebrow: 'Qualidade',
+          title: 'Freshness e dados ausentes',
+          className: 'home-summary-panel',
+          body: safeList(qualityAlerts, 'Fontes principais com qualidade adequada.'),
         })}
       </section>
 

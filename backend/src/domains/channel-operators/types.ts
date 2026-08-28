@@ -6,7 +6,7 @@ export interface ChannelOperatorFact {
   label: string;
   value: number | string | null;
   unit?: 'count' | 'percent' | 'seconds' | 'minutes';
-  source: 'persisted-youtube-performance';
+  source: 'persisted-youtube-performance' | 'youtube-reporting-reach';
 }
 export interface ChannelOperatorSignal {
   classification: 'fact' | 'inference';
@@ -22,6 +22,15 @@ export interface ChannelOperatorEvidence {
   title: string;
   collectedAt: Date;
   metrics: Record<string, number | null>;
+  source?: 'persisted-youtube-performance' | 'youtube-reporting-reach';
+  periodStart?: Date;
+  periodEnd?: Date;
+}
+
+export interface ChannelOperatorBaseline {
+  scope: string;
+  median: number | null;
+  sampleSize: number;
 }
 
 export interface ChannelOperatorAnalysis {
@@ -36,7 +45,16 @@ export interface ChannelOperatorAnalysis {
   missingData: string[];
   confidence: number;
   evidence: ChannelOperatorEvidence[];
-  source: 'persisted-youtube-performance';
+  source: 'persisted-youtube-performance' | 'youtube-reporting-reach';
   sampleSize: number;
   lastDataAt: Date | null;
+  quality?: {
+    state: string;
+    freshness: string;
+    completeness: number;
+    consistency: number;
+    sourceReliability: number;
+    reasons: Array<{ code: string; message: string; severity: string }>;
+  };
+  baselines?: ChannelOperatorBaseline[];
 }

@@ -449,6 +449,35 @@ export const createApiClient = (baseUrl) => ({
     );
   },
 
+  async getYouTubeReachStatus() {
+    return requestJson(
+      `${baseUrl}/api/operators/creator-intelligence/reach/youtube/status`,
+      undefined,
+      'Erro ao consultar status de alcance',
+    );
+  },
+
+  async syncYouTubeReach(input) {
+    if (!input || typeof input !== 'object' || Array.isArray(input)) throw new TypeError('reach sync input must be an object');
+    return requestJson(
+      `${baseUrl}/api/operators/creator-intelligence/reach/youtube/sync`,
+      { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(input) },
+      'Erro ao sincronizar alcance do YouTube',
+    );
+  },
+
+  async listYouTubeReachData(filters = {}) {
+    const query = new URLSearchParams();
+    if (filters.projectId) query.set('projectId', requireIdentifier(filters.projectId, 'projectId'));
+    if (filters.videoId) query.set('videoId', requireIdentifier(filters.videoId, 'videoId'));
+    return requestJson(`${baseUrl}/api/operators/creator-intelligence/reach/data${query.size ? `?${query}` : ''}`, undefined, 'Erro ao carregar alcance');
+  },
+
+  async getDataQuality(projectId) {
+    const query = projectId ? `?projectId=${encodeURIComponent(requireIdentifier(projectId, 'projectId'))}` : '';
+    return requestJson(`${baseUrl}/api/operators/creator-intelligence/reach/quality${query}`, undefined, 'Erro ao carregar qualidade dos dados');
+  },
+
   async syncYouTubePerformance(input) {
     if (!input || typeof input !== 'object' || Array.isArray(input)) {
       throw new TypeError('sync input must be an object');

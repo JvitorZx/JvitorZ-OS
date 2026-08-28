@@ -3,6 +3,23 @@ import { describe, test } from 'node:test';
 
 import { ApiRequestError, createApiClient } from '../src/api/client.js';
 
+test('reach API client uses centralized status, sync, data and quality contracts', async () => {
+  const originalFetch = globalThis.fetch;
+  const calls = [];
+  globalThis.fetch = async (...args) => { calls.push(args); return { ok: true, status: 200, async json() { return { state: 'GOOD' }; } }; };
+  try {
+    const api = createApiClient('http://localhost:4000');
+    await api.getYouTubeReachStatus();
+    await api.syncYouTubeReach({ startDate: '2026-08-01', endDate: '2026-08-25' });
+    await api.listYouTubeReachData({ videoId: 'video/one' });
+    await api.getDataQuality('project/one');
+    assert.equal(calls[0][0], 'http://localhost:4000/api/operators/creator-intelligence/reach/youtube/status');
+    assert.deepEqual(calls[1][1], { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{"startDate":"2026-08-01","endDate":"2026-08-25"}' });
+    assert.equal(calls[2][0], 'http://localhost:4000/api/operators/creator-intelligence/reach/data?videoId=video%2Fone');
+    assert.equal(calls[3][0], 'http://localhost:4000/api/operators/creator-intelligence/reach/quality?projectId=project%2Fone');
+  } finally { globalThis.fetch = originalFetch; }
+});
+
 test('channel operator client uses centralized encoded contracts and preserves safe status', async () => {
   const originalFetch = globalThis.fetch;
   const calls = [];

@@ -108,7 +108,7 @@ export const createDefaultCapabilityRegistry = (
         recommendations: analysis.recommendations,
         missingData: analysis.missingData,
         confidence: analysis.confidence,
-        data: { operatorId: analysis.id, status: analysis.status, sampleSize: analysis.sampleSize },
+        data: { operatorId: analysis.id, status: analysis.status, sampleSize: analysis.sampleSize, quality: analysis.quality ?? null },
       };
     });
   }
@@ -203,12 +203,13 @@ export const createDefaultCapabilityRegistry = (
       summary: 'Estado operacional consolidado pelo Supervisor.',
       facts: [
         `YouTube Analytics: ${overview.youtubeAnalytics.state}.`,
+        `YouTube Reach: ${overview.youtubeReach?.state ?? 'unavailable'} (${overview.youtubeReach?.quality?.state ?? 'MISSING'}).`,
         `${overview.outcomeReviews.reviewAvailable} outcomes com revisão disponível.`,
       ],
-      risks: overview.editorial.risks,
+      risks: [...overview.editorial.risks, ...(overview.alerts ?? [])],
       recommendations: overview.editorial.actions,
-      confidence: 1,
-      data: { youtubeAnalytics: overview.youtubeAnalytics.state, outcomeReviews: overview.outcomeReviews },
+      confidence: overview.youtubeReach?.quality?.state === 'GOOD' ? 1 : 0.7,
+      data: { youtubeAnalytics: overview.youtubeAnalytics.state, youtubeReach: overview.youtubeReach?.state ?? 'unavailable', dataQuality: overview.dataQuality ?? [], outcomeReviews: overview.outcomeReviews },
     };
   });
 

@@ -31,14 +31,23 @@ export class DashboardService {
       channel,
       analytics: supervisor.youtubeAnalytics,
     });
+    const dataQuality = [
+      {
+        area: 'Canal',
+        state: channel.integration.state === 'CONNECTED' && !channel.integration.stale ? 'GOOD' : channel.id ? 'STALE' : 'MISSING',
+        summary: channel.integration.summary,
+      },
+      ...(supervisor.dataQuality ?? []),
+    ];
 
     return {
       channel,
       analytics,
       operators,
-      supervisor,
+      supervisor: { ...supervisor, dataQuality },
       settings,
       integrations,
+      dataQuality,
       metrics: {
         subscribers: channel.subscribers,
         videos: channel.videoCount,

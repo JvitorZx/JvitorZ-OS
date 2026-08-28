@@ -49,6 +49,8 @@ const channelAnalysis = (overrides = {}) => ({
   signals: [{ classification: 'fact', summary: 'Vídeo acima da mediana.' }],
   insights: ['Associação observada.'], recommendations: ['Investigue a embalagem.'],
   missingData: [], evidence: [{ title: '<img src=x onerror=alert(1)>', videoId: 'video-1', collectedAt: '2026-08-25T12:00:00.000Z' }],
+  quality: { state: 'GOOD', freshness: 'RECENT', completeness: 1, consistency: 1, reasons: [] },
+  baselines: [{ scope: 'canal', median: 8, sampleSize: 2 }],
   ...overrides,
 });
 
@@ -98,7 +100,7 @@ const createAnalyticsDom = (id = 'ctr') => {
     '[data-channel-operator-feedback]', '[data-channel-operator-responsibility]', '[data-channel-operator-status]',
     '[data-channel-operator-meta]', '[data-channel-operator-facts]', '[data-channel-operator-signals]',
     '[data-channel-operator-insights]', '[data-channel-operator-recommendations]', '[data-channel-operator-missing]',
-    '[data-channel-operator-evidence]',
+    '[data-channel-operator-evidence]', '[data-channel-operator-quality]', '[data-channel-operator-baselines]',
   ]) panel.selectorMap.set(selector, new FakeElement());
   return { root, panel, summary, get: (selector) => panel.querySelector(selector) };
 };
@@ -111,6 +113,8 @@ test('Analytics contextual route renders one specialized operator with safe evid
   assert.equal(dom.get('[data-channel-operator-status]').textContent, 'Disponível');
   assert.equal(dom.get('[data-channel-operator-facts]').children[0].children[0].textContent, 'CTR mediano: 8%');
   assert.match(dom.get('[data-channel-operator-evidence]').children[0].children[0].textContent, /<img src=x onerror=alert\(1\)>/);
+  assert.equal(dom.get('[data-channel-operator-quality]').children[0].children[0].textContent, 'Estado: GOOD');
+  assert.match(dom.get('[data-channel-operator-baselines]').children[0].children[0].textContent, /canal: mediana 8%/);
   assert.match(analyticsModule.render({}, { route: { subpath: 'retention' } }), /data-operator-id="retention"/);
 });
 
@@ -189,6 +193,7 @@ test('Analytics CTR route integrates persisted SQLite data through HTTP into the
   const express = require('../../backend/node_modules/express');
   const { DatabaseService } = require('../../backend/dist/database/DatabaseService');
   const { VideoPerformanceSnapshotRepository } = require('../../backend/dist/database/repositories/VideoPerformanceSnapshotRepository');
+  const { VideoReachSnapshotRepository } = require('../../backend/dist/database/repositories/VideoReachSnapshotRepository');
   const { ChannelOperatorService } = require('../../backend/dist/services/channel-operators/ChannelOperatorService');
   const { createChannelOperatorsRouter } = require('../../backend/dist/routes/channelOperators');
   const client = await DatabaseService.connect();
@@ -209,9 +214,25 @@ test('Analytics CTR route integrates persisted SQLite data through HTTP into the
     subscribersGained: 10, source: 'youtube-analytics', confidence: 1,
     collectedAt: new Date('2026-08-25T12:00:00.000Z'),
   } });
+  await client.$executeRawUnsafe(`CREATE TABLE "VideoReachSnapshot" (
+    "id" TEXT NOT NULL PRIMARY KEY, "projectId" TEXT, "ingestionKey" TEXT NOT NULL UNIQUE,
+    "videoId" TEXT NOT NULL, "periodStart" DATETIME NOT NULL, "periodEnd" DATETIME NOT NULL,
+    "impressions" REAL NOT NULL, "ctr" REAL NOT NULL, "source" TEXT NOT NULL, "reportId" TEXT,
+    "jobId" TEXT, "reportCreatedAt" DATETIME, "collectedAt" DATETIME NOT NULL,
+    "freshnessAtCollection" TEXT NOT NULL, "qualityAtCollection" TEXT NOT NULL,
+    "qualityReasons" JSONB NOT NULL, "providerMetadata" JSONB,
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, "updatedAt" DATETIME NOT NULL
+  )`);
+  await client.videoReachSnapshot.create({ data: {
+    id: 'integrated-reach', ingestionKey: 'integrated-reach-key', videoId: 'integrated-video',
+    periodStart: new Date('2026-08-25T00:00:00.000Z'), periodEnd: new Date('2026-08-26T00:00:00.000Z'),
+    impressions: 10000, ctr: 9, source: 'youtube-reporting-reach', reportId: 'report', jobId: 'job',
+    collectedAt: new Date('2026-08-26T03:00:00.000Z'), freshnessAtCollection: 'RECENT',
+    qualityAtCollection: 'PARTIAL', qualityReasons: [], providerMetadata: {},
+  } });
   const app = express();
   app.use('/api/operators/channel', createChannelOperatorsRouter(
-    new ChannelOperatorService(new VideoPerformanceSnapshotRepository(client)),
+    new ChannelOperatorService(new VideoPerformanceSnapshotRepository(client), new VideoReachSnapshotRepository(client)),
   ));
   const server = await new Promise((resolve) => {
     const active = app.listen(0, '127.0.0.1', () => resolve(active));

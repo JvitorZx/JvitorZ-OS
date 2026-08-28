@@ -419,4 +419,14 @@ Google OAuth
 
 O refresh do OAuth é lazy e tokens atualizados são persistidos sem logs sensíveis. Canal possui last-known-good; falha externa temporária preserva o snapshot e resulta em `DEGRADED`. Analytics solicita `engagedViews` e `creatorContentType` reais, classifica Shorts e VOD sem heurística e mantém impressões/CTR como `null` até uma fonte real existir.
 
+## Reach Reporting e Data Quality
+
+A Sprint 32 adiciona `GoogleYouTubeReachProvider`, uma integração separada com a YouTube Reporting API. O report type oficial `channel_reach_basic_a1` entrega `date`, `channel_id`, `video_id`, `video_thumbnail_impressions` e `video_thumbnail_impressions_ctr`. O provider reutiliza jobs remotos, trata conflito concorrente de criação, limita a leitura a 31 relatórios e usa parser CSV estruturado.
+
+`YouTubeReachSyncService` é a fronteira de aplicação e persiste por repositories. `VideoReachSnapshot` não substitui `VideoPerformanceSnapshot`; o `ChannelOperatorService` cruza as fontes apenas para leitura por vídeo/período. Isso separa distribuição (impressões), clique (CTR), consumo (retenção/watch time) e resultado (views/outcomes).
+
+`DataQualityService` aplica a política única de freshness e produz estados explícitos. Ausência é `MISSING`; falha do provider é `ERROR`; anomalias são `INCONSISTENT`; uma amostra incompleta é `PARTIAL`. Supervisor, Gerente, Analytics, Dashboard e Configurações recebem esse metadado sem acesso a OAuth, payload bruto ou Prisma.
+
+Fontes oficiais: [YouTube Reporting API](https://developers.google.com/youtube/reporting/v1/reference/rest), [Channel Reach reports](https://developers.google.com/youtube/reporting/v1/reports/channel_reports) e [Reach metrics](https://developers.google.com/youtube/reporting/v1/reports/metrics).
+
 O `PlannerModule` reflete a configuração real de OpenAI. Supervisor fornece estado técnico e resumo humano dos operadores. Configurações mostra apenas estado e ações seguras; nenhuma tela recebe secrets.

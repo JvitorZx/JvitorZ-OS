@@ -8,6 +8,11 @@ import {
   youtubePerformanceSyncService,
   type YouTubeAnalyticsProviderStatus,
 } from './performance-intelligence/YouTubePerformanceSyncService';
+import {
+  YouTubeReachSyncService,
+  youtubeReachSyncService,
+  type YouTubeReachStatus,
+} from './performance-intelligence/YouTubeReachSyncService';
 
 export type IntegrationStatusMap = Record<IntegrationState['id'], IntegrationState>;
 
@@ -51,6 +56,14 @@ const analyticsStatus = (value: YouTubeAnalyticsProviderStatus): IntegrationStat
     });
 };
 
+const reachStatus = (value: YouTubeReachStatus): IntegrationState => {
+  if (value.state === 'not_configured') return status('youtubeReach', 'NOT_CONFIGURED', 'YouTube Reporting não configurado.', { configured: false, available: false, action: 'CONFIGURE' });
+  if (value.state === 'not_authorized') return status('youtubeReach', 'AUTH_REQUIRED', 'Autorização Google necessária para alcance.', { available: value.quality.sampleSize > 0, stale: value.quality.sampleSize > 0, lastSuccessAt: value.lastSyncAt, action: 'RECONNECT' });
+  if (value.state === 'waiting_for_report') return status('youtubeReach', 'DEGRADED', 'Job de alcance configurado; aguardando relatório do YouTube.', { available: value.quality.sampleSize > 0, stale: value.quality.freshness !== 'RECENT', lastSuccessAt: value.lastSyncAt, action: 'SYNC' });
+  if (value.state === 'temporary_error') return status('youtubeReach', value.quality.sampleSize > 0 ? 'DEGRADED' : 'ERROR', value.quality.sampleSize > 0 ? 'Alcance temporariamente indisponível; último dado válido preservado.' : 'YouTube Reporting temporariamente indisponível.', { available: value.quality.sampleSize > 0, stale: true, lastSuccessAt: value.lastSyncAt, action: 'SYNC' });
+  return status('youtubeReach', 'CONNECTED', 'Impressões e CTR sincronizados pelo YouTube Reporting.', { available: true, stale: value.quality.freshness !== 'RECENT', lastSuccessAt: value.lastSyncAt, action: 'SYNC' });
+};
+
 export class IntegrationStatusService {
   constructor(
     private readonly google = new GoogleService(),
@@ -58,6 +71,7 @@ export class IntegrationStatusService {
     private readonly analytics: Pick<YouTubePerformanceSyncService, 'getStatus'> = youtubePerformanceSyncService,
     private readonly runtime: Pick<AutomationRuntimeService, 'getHealth'> = automationRuntime,
     private readonly database = DatabaseService.client,
+    private readonly reach: Pick<YouTubeReachSyncService, 'getStatus'> = youtubeReachSyncService,
   ) {}
 
   async getAll(preloaded: { channel?: ChannelDataResult; analytics?: YouTubeAnalyticsProviderStatus } = {}): Promise<IntegrationStatusMap> {
@@ -65,6 +79,15 @@ export class IntegrationStatusService {
     const channelData = preloaded.channel ?? await this.channel.getChannel({ refresh: false });
     const analytics = preloaded.analytics ?? await this.analytics.getStatus();
     const runtime = this.runtime.getHealth();
+    let reach: YouTubeReachStatus;
+    try { reach = await this.reach.getStatus(); }
+    catch {
+      reach = {
+        state: 'temporary_error', reportTypeId: 'channel_reach_basic_a1', jobId: null,
+        lastReportAt: null, lastSyncAt: null, lastErrorType: 'temporary',
+        quality: { state: 'ERROR', availability: 0, freshness: 'MISSING', completeness: 0, consistency: 0, sampleSize: 0, sourceReliability: 1, latestCollectedAt: null, latestPeriodEnd: null, reasons: [{ code: 'STATUS_ERROR', message: 'Estado de alcance indisponível.', severity: 'error' }] },
+      };
+    }
     let databaseState: IntegrationState;
     try {
       await this.database.$queryRawUnsafe('SELECT 1');
@@ -106,6 +129,7 @@ export class IntegrationStatusService {
       googleOAuth,
       youtubeData,
       youtubeAnalytics: analyticsStatus(analytics),
+      youtubeReach: reachStatus(reach),
       openai,
       automationRuntime,
     };
