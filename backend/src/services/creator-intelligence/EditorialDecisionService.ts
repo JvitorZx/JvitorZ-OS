@@ -12,6 +12,7 @@ import { VideoPerformanceSnapshotRepository } from '../../database/repositories/
 import type { RankedIdeaEvaluation } from '../../domains/creator-intelligence/types';
 import { CreatorIntelligenceService } from './CreatorIntelligenceService';
 import { ChannelOperatorService } from '../channel-operators';
+import { SeriesIntelligenceService, TrendIntelligenceService } from '../trend-intelligence';
 
 export const EDITORIAL_DECISION_INTENTS = [
   'next_content',
@@ -20,6 +21,7 @@ export const EDITORIAL_DECISION_INTENTS = [
   'continue_series',
   'improve_next',
   'general_editorial',
+  'trend_analysis',
 ] as const;
 
 export type EditorialDecisionIntent = (typeof EDITORIAL_DECISION_INTENTS)[number];
@@ -100,6 +102,7 @@ export const classifyEditorialIntent = (
   const text = searchable(question);
   if (ideaCount > 1 || /qual dessas|compar|melhor ideia/.test(text)) return 'compare_ideas';
   if (/por que|porque|foi fraco|desempenho|performance|ultimo teste|deu certo|ainda funciona/.test(text)) return 'diagnose_performance';
+  if (/tendenc|crescendo|subindo|caindo|qual formato.*resultado|qual serie.*(forte|caindo)/.test(text)) return 'trend_analysis';
   if (/continuar.*serie|vale.*serie|essa serie/.test(text)) return 'continue_series';
   if (/o que.*mudar|melhorar|proximo video/.test(text)) return 'improve_next';
   if (/o que.*gravar|vale gravar|jogo.*testar|vale testar|gravar agora/.test(text)) return 'next_content';
@@ -176,6 +179,8 @@ export class EditorialDecisionService {
   private snapshotRepository?: VideoPerformanceSnapshotRepository;
   private signalRepository?: PerformanceSignalRepository;
   private readonly channelOperators: Pick<ChannelOperatorService, 'run'>;
+  private readonly trendIntelligence: Pick<TrendIntelligenceService, 'list'>;
+  private readonly seriesIntelligence: Pick<SeriesIntelligenceService, 'list'>;
 
   constructor(
     private readonly intelligence = new CreatorIntelligenceService(),
@@ -184,12 +189,16 @@ export class EditorialDecisionService {
     snapshotRepository?: VideoPerformanceSnapshotRepository,
     signalRepository?: PerformanceSignalRepository,
     channelOperators: Pick<ChannelOperatorService, 'run'> = new ChannelOperatorService(),
+    trendIntelligence: Pick<TrendIntelligenceService, 'list'> = new TrendIntelligenceService(),
+    seriesIntelligence: Pick<SeriesIntelligenceService, 'list'> = new SeriesIntelligenceService(),
   ) {
     this.decisionRepository = decisionRepository;
     this.conversationRepository = conversationRepository;
     this.snapshotRepository = snapshotRepository;
     this.signalRepository = signalRepository;
     this.channelOperators = channelOperators;
+    this.trendIntelligence = trendIntelligence;
+    this.seriesIntelligence = seriesIntelligence;
   }
 
   private get decisions(): EditorialDecisionRepository {
@@ -238,7 +247,7 @@ export class EditorialDecisionService {
     const videoId = input.videoId?.trim() || null;
     const intent = classifyEditorialIntent(question, ideaIds.length);
     const normalizedQuestionKey = searchable(question).replace(/\s+/g, ' ').trim();
-    const [context, recommendation, baseline, allSignals, learnings, allSnapshots, previousEditorialDecisions, ctrAnalysis] = await Promise.all([
+    const [context, recommendation, baseline, allSignals, learnings, allSnapshots, previousEditorialDecisions, ctrAnalysis, temporalTrends, seriesAnalyses] = await Promise.all([
       this.intelligence.buildContext(projectId),
       ideaIds.length > 0
         ? this.intelligence.rankIdeas(ideaIds).then((ranking) => ({ recommendation: ranking[0] ?? null, ranking }))
@@ -252,6 +261,8 @@ export class EditorialDecisionService {
         limit: 5,
       }),
       this.channelOperators.run('ctr', projectId).catch(() => null),
+      this.trendIntelligence.list({ projectId, days: 28 }).catch(() => []),
+      this.seriesIntelligence.list(projectId).catch(() => []),
     ]);
     const snapshots = videoId ? allSnapshots.filter((snapshot) => snapshot.videoId === videoId) : allSnapshots;
     const ranking = recommendation.ranking.slice(0, 5);
@@ -300,6 +311,25 @@ export class EditorialDecisionService {
         confidence: insight.confidence,
       });
     }
+    const relevantTrends = temporalTrends
+      .filter(({ classification }) => classification !== 'INSUFFICIENT_DATA')
+      .sort((left, right) => {
+        const leftRelevant = top && [top.ideaId, context.ideas.find(({ id }) => id === top.ideaId)?.game, context.ideas.find(({ id }) => id === top.ideaId)?.format]
+          .filter(Boolean).some((value) => searchable(String(value)) === searchable(left.subject));
+        const rightRelevant = top && [top.ideaId, context.ideas.find(({ id }) => id === top.ideaId)?.game, context.ideas.find(({ id }) => id === top.ideaId)?.format]
+          .filter(Boolean).some((value) => searchable(String(value)) === searchable(right.subject));
+        return Number(rightRelevant) - Number(leftRelevant) || right.confidence - left.confidence;
+      }).slice(0, 4);
+    for (const trend of relevantTrends) {
+      evidence.push({ classification: 'inference', source: `trend:${trend.id}`,
+        summary: `${trend.subject} · ${trend.metric}: ${trend.classification} em janelas equivalentes (${trend.sampleSize} observações).`,
+        confidence: trend.confidence });
+    }
+    for (const item of seriesAnalyses.filter(({ health }) => health.health !== 'INSUFFICIENT_DATA').slice(0, 3)) {
+      evidence.push({ classification: 'inference', source: `series:${item.series.id}`,
+        summary: `${item.series.name}: saúde ${item.health.health}, tendência ${item.health.trend}, amostra ${item.health.sampleSize}.`,
+        confidence: item.health.confidence });
+    }
     for (const previous of context.previousDecisions.slice(0, 3)) {
       evidence.push({
         classification: 'inference',
@@ -341,6 +371,8 @@ export class EditorialDecisionService {
     if (ranking.length === 0) missingData.add('ideias cadastradas');
     if (videoId && snapshots.length === 0) missingData.add('performance do vídeo solicitado');
     if (!ctrAnalysis?.sampleSize) missingData.add('alcance e CTR oficiais');
+    if (!relevantTrends.length) missingData.add('tendências com janelas equivalentes suficientes');
+    if (!seriesAnalyses.some(({ health }) => health.health !== 'INSUFFICIENT_DATA')) missingData.add('séries com episódios comparáveis');
     const risks = [...new Set([
       ...(top?.risks ?? []),
       ...(baseline.views.sampleSize > 0 && baseline.views.sampleSize < 3 ? ['A baseline ainda possui amostra pequena.'] : []),
@@ -370,6 +402,8 @@ export class EditorialDecisionService {
       previousDecisions: context.previousDecisions.slice(0, 10).map(({ id, score }) => [id, score]),
       previousEditorialDecisions: relevantEditorialHistory.map(({ id, updatedAt }) => [id, updatedAt]),
       ranking: ranking.map(({ ideaId, score }) => [ideaId, score]),
+      trends: relevantTrends.map(({ id, detectedAt, classification }) => [id, detectedAt, classification]),
+      series: seriesAnalyses.slice(0, 10).map(({ series, health }) => [series.id, health.health, health.sampleSize]),
     });
     const existing = await this.decisions.findByDedupeKey(dedupeKey);
     if (existing) return { decision: existing, created: false };

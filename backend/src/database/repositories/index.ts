@@ -16,3 +16,6 @@ export * from './ContentOpportunityRepository';
 export * from './ContentDecisionRepository';
 export * from './ChannelInsightRepository';
 export * from './PerformanceSignalRepository';
+export * from './TrendSignalRepository';
+export * from './SeriesDefinitionRepository';
+export * from './ContentPatternRepository';

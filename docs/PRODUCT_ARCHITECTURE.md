@@ -450,3 +450,23 @@ GoogleYouTubeAudienceProvider
 Fatos, sinais, hipóteses e recomendações são canais separados. País não é convertido em idioma; subscribed status não prova fidelidade; origem de tráfego não prova causa de CTR ou retenção. Duração média e percentual médio permanecem `null` nos relatórios em que a API não os aceita. Termos de busca nunca são gerados localmente.
 
 Fontes oficiais: [Channel reports](https://developers.google.com/youtube/analytics/channel_reports), [Dimensions](https://developers.google.com/youtube/analytics/dimensions) e [Metrics](https://developers.google.com/youtube/analytics/metrics).
+
+## Trends, Series & Content Pattern Intelligence
+
+A inteligência temporal é uma camada derivada e read-only sobre evidências persistidas. `TrendIntelligenceService` compara janelas equivalentes definidas por `TrendWindowPolicy`, persiste `TrendSignal` e mantém classificação, confiança, qualidade e evidências separadas. Os limites iniciais exigem duas observações por janela, tratam variação inferior a 8% como estável, exigem 15% para movimento significativo e usam coeficiente de variação 0,60 para volatilidade.
+
+```text
+Performance + Reach + Audience persistidos
+  -> TrendWindowPolicy + TrendDetection
+    -> TrendIntelligenceService -> TrendSignalRepository
+    -> SeriesIntelligenceService -> SeriesDefinitionRepository
+    -> ContentPatternIntelligenceService -> ContentPatternRepository
+      -> Trends / Series operators
+        -> Analytics / Planner / Gerente / Supervisor
+```
+
+Confiança combina volume (35%), comparabilidade das janelas (20%), qualidade da fonte (25%) e consistência direcional (20%). Histórico insuficiente produz `INSUFFICIENT_DATA`; não é convertido em tendência. O mapper preserva as observações recentes e não altera snapshots de origem.
+
+`SeriesIntelligenceService` aceita importação apenas de metadado explícito, vínculo manual reversível e associação automática somente por correspondência exata de alta confiança. Saúde compara os três episódios mais recentes com os três anteriores quando há amostra. `DORMANT` comunica inatividade e não julgamento de qualidade.
+
+`ContentPatternIntelligenceService` agrupa apenas dimensões realmente persistidas. Resultado é uma associação com amostra, recência, confiança e evidências; não é uma explicação causal. Trends e Series seguem o contrato comum de operadores e entram no Gerente como capabilities read-only. O Planner recebe evidências temporais pelo `EditorialDecisionService`; o Dashboard continua sem lógica específica desses operadores e o Supervisor apenas consolida destaques.

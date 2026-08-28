@@ -11,12 +11,15 @@ import {
   type ChannelOperatorId,
   type ChannelOperatorSignal,
 } from '../../domains/channel-operators';
+import { SeriesIntelligenceService, TrendIntelligenceService } from '../trend-intelligence';
 
 const definitions: Record<ChannelOperatorId, Pick<ChannelOperatorAnalysis, 'name' | 'responsibility'>> = {
   ctr: { name: 'Operador de CTR', responsibility: 'Analisar embalagem e distribuição sem atribuir causalidade à thumbnail.' },
   retention: { name: 'Operador de Retenção', responsibility: 'Diagnosticar consumo médio, duração e watch time do conteúdo.' },
   'long-form': { name: 'Operador de Longos', responsibility: 'Consolidar performance editorial de vídeos long-form identificados.' },
   shorts: { name: 'Operador de Shorts', responsibility: 'Consolidar performance de conteúdos explicitamente identificados como Shorts.' },
+  trends: { name: 'Operador de Tendências', responsibility: 'Detectar mudanças temporais significativas sem transformar oscilação em previsão.' },
+  series: { name: 'Operador de Séries', responsibility: 'Avaliar saúde e evolução de séries com amostras comparáveis.' },
 };
 
 const numeric = (value: number | null): value is number => typeof value === 'number' && Number.isFinite(value);
@@ -69,6 +72,8 @@ export class ChannelOperatorService {
     private readonly reach = new VideoReachSnapshotRepository(DatabaseService.client),
     private readonly qualityService = new DataQualityService(),
     private readonly audience = new AudienceSnapshotRepository(DatabaseService.client),
+    private readonly trendIntelligence = new TrendIntelligenceService(),
+    private readonly seriesIntelligence = new SeriesIntelligenceService(),
   ) {}
 
   private async audienceRows(filters: { projectId?: string | null }): Promise<AudienceSnapshot[]> {
@@ -79,15 +84,19 @@ export class ChannelOperatorService {
     const filters = projectId === undefined ? {} : { projectId };
     const [records, reach, audience] = await Promise.all([this.snapshots.findAll(filters), this.reach.findAll(filters), this.audienceRows(filters)]);
     const quality = this.qualityService.evaluateReach(reach, { knownVideoIds: new Set(records.map(({ videoId }) => videoId)) });
-    return CHANNEL_OPERATOR_IDS.map((id) => this.analyze(id, records, reach, quality, audience));
+    return Promise.all(CHANNEL_OPERATOR_IDS.map((id) => (
+      id === 'trends' ? this.trends(projectId) : id === 'series' ? this.series(projectId) : this.analyze(id, records, reach, quality, audience)
+    )));
   }
 
   async run(id: string, projectId?: string | null): Promise<ChannelOperatorAnalysis> {
     if (!CHANNEL_OPERATOR_IDS.includes(id as ChannelOperatorId)) throw new ChannelOperatorNotFoundError();
+    if (id === 'trends') return this.trends(projectId);
+    if (id === 'series') return this.series(projectId);
     const filters = projectId === undefined ? {} : { projectId };
     const [records, reach, audience] = await Promise.all([this.snapshots.findAll(filters), this.reach.findAll(filters), this.audienceRows(filters)]);
     const quality = this.qualityService.evaluateReach(reach, { knownVideoIds: new Set(records.map(({ videoId }) => videoId)) });
-    return this.analyze(id as ChannelOperatorId, records, reach, quality, audience);
+    return this.analyze(id as Exclude<ChannelOperatorId, 'trends' | 'series'>, records, reach, quality, audience);
   }
 
   private base(id: ChannelOperatorId, records: VideoPerformanceSnapshot[], sample: VideoPerformanceSnapshot[], missingData: string[], availableFields: number, expectedFields: number) {
@@ -100,10 +109,59 @@ export class ChannelOperatorService {
     };
   }
 
-  private analyze(id: ChannelOperatorId, records: VideoPerformanceSnapshot[], reach: VideoReachSnapshot[], quality: DataQualityReport, audience: AudienceSnapshot[]): ChannelOperatorAnalysis {
+  private analyze(id: Exclude<ChannelOperatorId, 'trends' | 'series'>, records: VideoPerformanceSnapshot[], reach: VideoReachSnapshot[], quality: DataQualityReport, audience: AudienceSnapshot[]): ChannelOperatorAnalysis {
     if (id === 'ctr') return this.ctr(records, reach, quality, audience);
     if (id === 'retention') return this.retention(records, audience);
     return this.format(id, records, audience);
+  }
+
+  private async trends(projectId?: string | null): Promise<ChannelOperatorAnalysis> {
+    const trends = await this.trendIntelligence.list({ projectId, days: 28 });
+    const meaningful = trends.filter(({ classification }) => classification !== 'INSUFFICIENT_DATA');
+    const strongest = [...meaningful].sort((a, b) => b.confidence - a.confidence).slice(0, 12);
+    const latest = trends[0]?.detectedAt ?? null;
+    return {
+      id: 'trends', ...definitions.trends,
+      status: trends.length === 0 || trends.every(({ sampleSize }) => sampleSize === 0) ? 'NOT_CONFIGURED' : meaningful.length ? 'AVAILABLE' : 'LIMITED',
+      facts: [
+        { label: 'Sinais avaliados', value: trends.length, unit: 'count', source: 'derived-temporal-intelligence' },
+        { label: 'Tendências com evidência', value: meaningful.length, unit: 'count', source: 'derived-temporal-intelligence' },
+      ],
+      signals: strongest.map((trend) => ({ classification: 'fact',
+        direction: trend.classification === 'RISING' ? 'positive' : trend.classification === 'DECLINING' ? 'negative' : 'neutral',
+        summary: `${trend.subject} · ${trend.metric}: ${trend.classification} (${Math.round(trend.confidence * 100)}% de confiança).`, snapshotId: trend.id })),
+      insights: ['As janelas comparadas têm a mesma duração; associação temporal não é previsão de resultado.'],
+      recommendations: strongest.length ? ['Priorize testes sobre sinais recentes com confiança alta e valide o resultado após publicação.'] : ['Colete janelas equivalentes antes de concluir uma tendência.'],
+      missingData: meaningful.length ? [] : ['janelas equivalentes com ao menos duas observações cada'],
+      confidence: strongest.length ? Number((strongest.reduce((sum, item) => sum + item.confidence, 0) / strongest.length).toFixed(2)) : 0,
+      evidence: strongest.map((trend) => ({ snapshotId: trend.id, videoId: '', title: trend.subject, collectedAt: trend.detectedAt,
+        source: 'derived-temporal-intelligence', metrics: { delta: trend.delta, sampleSize: trend.sampleSize } })),
+      source: 'derived-temporal-intelligence', sampleSize: trends.reduce((sum, item) => sum + item.sampleSize, 0), lastDataAt: latest,
+    };
+  }
+
+  private async series(projectId?: string | null): Promise<ChannelOperatorAnalysis> {
+    const analyses = await this.seriesIntelligence.list(projectId);
+    const usable = analyses.filter(({ health }) => health.health !== 'INSUFFICIENT_DATA');
+    return {
+      id: 'series', ...definitions.series,
+      status: analyses.length === 0 ? 'NOT_CONFIGURED' : usable.length ? 'AVAILABLE' : 'LIMITED',
+      facts: [
+        { label: 'Séries identificadas', value: analyses.length, unit: 'count', source: 'derived-temporal-intelligence' },
+        { label: 'Séries com amostra comparável', value: usable.length, unit: 'count', source: 'derived-temporal-intelligence' },
+      ],
+      signals: analyses.slice(0, 12).map(({ health }) => ({ classification: 'fact',
+        direction: health.health === 'STRONG' ? 'positive' : health.health === 'DECLINING' ? 'negative' : 'neutral',
+        summary: `${health.name}: ${health.health} (${health.sampleSize} vídeo(s), ${Math.round(health.confidence * 100)}% de confiança).` })),
+      insights: ['DORMANT representa ausência de publicação recente, não falha editorial automática.'],
+      recommendations: usable.length ? ['Revise as evidências da série antes de decidir continuidade ou pausa.'] : ['Confirme vínculos e acumule episódios comparáveis.'],
+      missingData: analyses.length ? [...new Set(analyses.flatMap(({ health }) => health.missingData))].slice(0, 8) : ['series metadata or manual links'],
+      confidence: usable.length ? Number((usable.reduce((sum, item) => sum + item.health.confidence, 0) / usable.length).toFixed(2)) : 0,
+      evidence: analyses.flatMap(({ health }) => health.evidence).slice(0, 20).map((item) => ({ snapshotId: item.snapshotId, videoId: item.videoId,
+        title: item.title, collectedAt: item.collectedAt, source: 'derived-temporal-intelligence', metrics: { views: item.views } })),
+      source: 'derived-temporal-intelligence', sampleSize: analyses.reduce((sum, item) => sum + item.health.sampleSize, 0),
+      lastDataAt: analyses.map(({ health }) => health.lastPublishedAt).filter((value): value is Date => value !== null).sort((a, b) => b.getTime() - a.getTime())[0] ?? null,
+    };
   }
 
   private ctr(records: VideoPerformanceSnapshot[], reach: VideoReachSnapshot[], quality: DataQualityReport, audience: AudienceSnapshot[]): ChannelOperatorAnalysis {

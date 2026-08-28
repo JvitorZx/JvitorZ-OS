@@ -38,6 +38,8 @@ let snapshots;
 let signals;
 let intelligence;
 let service;
+let temporalTrends;
+let temporalSeries;
 let server;
 let baseUrl;
 
@@ -60,6 +62,8 @@ const ranking = (overrides = {}) => ({
 });
 
 const resetIntelligence = () => {
+  temporalTrends = [];
+  temporalSeries = [];
   intelligence = {
     context: {
       channelState: { insights: [] }, relevantHistory: [], ideas: [], opportunities: [],
@@ -78,7 +82,12 @@ const resetIntelligence = () => {
     async getChannelLearnings() { return structuredClone(this.learnings); },
     async listPerformanceRecords() { return structuredClone(this.records); },
   };
-  service = new EditorialDecisionService(intelligence, decisions, conversations, snapshots, signals);
+  service = new EditorialDecisionService(
+    intelligence, decisions, conversations, snapshots, signals,
+    { async run() { throw new Error('reach not configured in this fixture'); } },
+    { async list() { return structuredClone(temporalTrends); } },
+    { async list() { return structuredClone(temporalSeries); } },
+  );
 };
 
 const createConversation = (overrides = {}) => conversations.create({
@@ -191,6 +200,19 @@ describe('Editorial decision intent', () => {
 });
 
 describe('EditorialDecisionService', { concurrency: false }, () => {
+  test('selects relevant temporal and series evidence without predicting views', async () => {
+    temporalTrends = [{ id: 'trend-game', subject: 'BeamNG.drive', metric: 'views', classification: 'RISING',
+      confidence: 0.82, sampleSize: 8, detectedAt: new Date('2026-08-27T00:00:00Z') }];
+    temporalSeries = [{ series: { id: 'series-one', name: 'Desafios' }, health: {
+      health: 'HEALTHY', trend: 'STABLE', sampleSize: 6, confidence: 0.75,
+    } }];
+    intelligence.context.ideas = [{ id: 'idea-a', game: 'BeamNG.drive', theme: 'Teste', format: 'narrado', premise: 'Premissa' }];
+    const { decision } = await service.generate({ question: 'O que vale gravar agora?' });
+    const evidence = Array.isArray(decision.evidence) ? decision.evidence : [];
+    assert.ok(evidence.some(({ source }) => source === 'trend:trend-game'));
+    assert.ok(evidence.some(({ source }) => source === 'series:series-one'));
+    assert.doesNotMatch(JSON.stringify(decision), /previsão exata|vai ter \d+ views/i);
+  });
   test('combines facts, inference, recommendation, risks and missing data', async () => {
     const snapshot = await createSnapshot();
     intelligence.records = [snapshot];

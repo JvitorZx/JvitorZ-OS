@@ -571,7 +571,7 @@ test('Operators registry points available capabilities only to registered routes
 
   assert.ok(navigable.every(({ route }) => registered(route)));
   assert.deepEqual(operatorRegistry.filter(({ dynamic }) => dynamic).map(({ id }) => id), [
-    'ctr', 'retention', 'long-form', 'shorts',
+    'ctr', 'retention', 'long-form', 'shorts', 'trends', 'series',
   ]);
 });
 

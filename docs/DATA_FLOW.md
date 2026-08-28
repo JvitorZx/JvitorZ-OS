@@ -575,3 +575,22 @@ Analytics UI / sync manual
 Cada dataset é consultado de forma independente. Um relatório vazio ou oficialmente indisponível entra em `missingDimensions`; linhas válidas das outras dimensões ainda são persistidas. Falha de uma sincronização não remove snapshots anteriores nem invalida Performance, Channel ou Reach.
 
 O frontend carrega status e leitura persistida ao montar `#/analytics/audience` ou `#/analytics/traffic`. Uma sincronização por vez usa período explícito, feedback local e lifecycle; resposta tardia após unmount não altera a tela. O Dashboard recebe apenas principal fonte e país, enquanto Analytics mantém o detalhamento.
+
+## Fluxo de inteligência temporal
+
+```text
+YouTube sincronizado
+  -> VideoPerformanceSnapshot / VideoReachSnapshot / AudienceSnapshot
+  -> janelas equivalentes de 7 ou 28 dias
+  -> TrendDetection
+  -> TrendSignal persistido
+  -> Series health + ContentPattern
+  -> Trends / Series operators
+  -> Analytics / Planner / Gerente / Supervisor
+```
+
+O cálculo usa somente dados já persistidos e nunca abre uma chamada Google ao consultar uma tendência. A janela atual e a anterior têm o mesmo tamanho e não se sobrepõem; o comparador N versus N preserva os itens mais recentes. Dados ausentes, fonte stale/inconsistente ou amostra curta reduzem confiança e podem resultar em `INSUFFICIENT_DATA`.
+
+No Planner, uma pergunta temporal é reconhecida pelo roteador determinístico e o `EditorialDecisionService` seleciona sinais e séries relevantes à ideia. Evidências entram separadas de inferências e recomendações. O Gerente pode executar `channel-operator.trends` e `channel-operator.series`; o Supervisor apenas lê resumos e não dispara sincronização, criação de série ou outro side effect.
+
+Na UI, Analytics usa o client central para listar tendências, abrir detalhes, consultar padrões e manter séries. Respostas obsoletas são descartadas por geração de request e o controller remove listeners no unmount. Conteúdo persistido é renderizado como texto.

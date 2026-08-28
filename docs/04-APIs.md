@@ -1019,3 +1019,39 @@ Base: `/api/operators/creator-intelligence/audience`.
 `POST /sync` retorna `200`; payload inválido retorna `400`, autorização ausente `401`, quota `429`, configuração ou provider temporariamente indisponível `503` e falha inesperada `500` sanitizado. Leituras retornam `200`, `400` ou `500` sanitizado.
 
 Os contratos preservam enums oficiais como `YT_SEARCH`, `RELATED_VIDEO`, `BROWSE`, `SHORTS`, `EXT_URL`, `MOBILE`, `COMPUTER`, `SUBSCRIBED` e `UNSUBSCRIBED`. Termos de busca aparecem somente quando a API os fornece; ausência ou supressão é `missingData`, nunca uma keyword inferida.
+
+## Trends, Series e Content Patterns
+
+Base: `/api/operators/creator-intelligence`. Todos os endpoints retornam erros sanitizados; IDs e queries inválidos retornam `400`, registros ausentes retornam `404` e falhas inesperadas retornam `500` sem stack ou payload interno.
+
+### `GET /trends`
+
+Lista sinais persistidos/atualizados. Queries opcionais: `projectId`, `subjectType`, `classification`, `days` (`7` ou `28`) e `refresh` (`false` evita recalcular). Retorna `200` com array em ordem determinística.
+
+### `GET /trends/:id`
+
+Abre uma tendência com janelas, confiança, qualidade e evidências. Retorna `200` ou `404`.
+
+### `POST /series`
+
+Cria ou reutiliza uma série com body estrito `{ "name": "Série", "projectId"?: "...", "game"?: "...", "topic"?: "...", "status"?: "ACTIVE" | "PAUSED" | "ARCHIVED", "metadata"?: {} }`. A listagem posterior importa somente snapshots cujo metadado explícito de série corresponda exatamente. Retorna `201` na criação ou `200` quando a chave já existe; payload inválido retorna `400`.
+
+### `GET /series` e `GET /series/:id`
+
+Listam ou abrem séries com episódios e saúde derivada. Aceitam `projectId` na listagem. Retornam `200`; ID ausente retorna `404`.
+
+### `POST /series/:id/videos`
+
+Vincula um snapshot real com `{ "snapshotId": "...", "mode"?: "manual" | "auto" }`. O modo automático exige evidência explícita de alta confiança e o mesmo projeto. Retorna `201` na criação, `200` no vínculo idempotente ou `422` quando a evidência automática é insuficiente; validação retorna `400` e registros ausentes retornam `404`.
+
+### `DELETE /series/:id/videos/:videoId`
+
+Remove apenas a associação da série. Retorna `204`; parâmetros inválidos retornam `400`.
+
+### `GET /content-patterns`
+
+Lista associações persistidas. Queries opcionais: `projectId`, `patternType` (`GAME`, `FORMAT`, `SERIES`, `TOPIC`, `TRAFFIC_MIX`, `AUDIENCE_SEGMENT`) e `refresh` (`false` evita recalcular). Retorna `200`.
+
+### `GET /subject-performance`
+
+Consulta agrupamentos reais por `type=game|topic`, com `projectId` opcional. Retorna `200`; tipo ausente ou inválido retorna `400`. Metadado indisponível resulta em lista vazia, nunca inferência textual.

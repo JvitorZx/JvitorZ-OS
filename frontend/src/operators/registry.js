@@ -24,6 +24,14 @@ export const operatorRegistry = [
     responsibility: 'Compara conteúdos explicitamente classificados como Shorts.', source: 'Snapshots de performance', dynamic: true,
   },
   {
+    id: 'trends', name: 'Operador de Tendências', route: '/analytics/trends', status: 'NOT_CONFIGURED',
+    responsibility: 'Detecta altas, quedas, estabilidade e volatilidade em janelas equivalentes.', source: 'Inteligência temporal persistida', dynamic: true,
+  },
+  {
+    id: 'series', name: 'Operador de Séries', route: '/analytics/series', status: 'NOT_CONFIGURED',
+    responsibility: 'Avalia saúde, evolução e frequência de séries editoriais.', source: 'Séries e snapshots persistidos', dynamic: true,
+  },
+  {
     id: 'automation-runner', name: 'Executor de Automações', route: '/automations', status: 'AVAILABLE',
     responsibility: 'Executa e governa planos aprovados com controle operacional.', source: 'Runtime local de automações',
   },

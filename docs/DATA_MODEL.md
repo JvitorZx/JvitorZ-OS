@@ -349,3 +349,25 @@ AudienceSyncState (global por source)
 ```
 
 A identidade não mistura projetos e evita duplicar a mesma dimensão/segmento/formato/período. Valores ausentes permanecem `null`; supressão de termos de busca não produz linhas artificiais.
+
+## Inteligência temporal, séries e padrões
+
+### TrendSignal
+
+Representa uma leitura derivada e reprodutível de uma dimensão (`CHANNEL`, `FORMAT`, `GAME`, `SERIES`, `TRAFFIC_SOURCE`, `COUNTRY`, `DEVICE` ou `SUBSCRIBER_SEGMENT`) e métrica. Guarda classificação, janelas comparadas, valores, variação, confiança, amostra, qualidade, evidências e chave única de derivação. Pertence opcionalmente a um `Project`.
+
+### SeriesDefinition e VideoSeriesLink
+
+`SeriesDefinition` guarda nome, descrição opcional, origem e timestamps. `VideoSeriesLink` associa a série a um `VideoPerformanceSnapshot`, registra `MANUAL`, `AUTO` ou `IMPORTED`, confiança e evidência, e impede duplicar o mesmo vídeo na mesma série. O vínculo é corrigível sem alterar o snapshot original.
+
+### ContentPattern
+
+Registra associação derivada por `GAME`, `FORMAT`, `SERIES`, `TOPIC`, `TRAFFIC_MIX` ou `AUDIENCE_SEGMENT`. Mantém força, confiança, amostra, recência, métricas e evidências. O conteúdo representa hipótese operacional revisável, não causalidade.
+
+Relações principais:
+
+- `Project 1:N TrendSignal`;
+- `Project 1:N SeriesDefinition`;
+- `Project 1:N ContentPattern`;
+- `SeriesDefinition 1:N VideoSeriesLink`;
+- `VideoPerformanceSnapshot 1:N VideoSeriesLink`.

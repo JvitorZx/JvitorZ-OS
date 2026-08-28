@@ -1,4 +1,4 @@
-export const CHANNEL_OPERATOR_IDS = ['ctr', 'retention', 'long-form', 'shorts'] as const;
+export const CHANNEL_OPERATOR_IDS = ['ctr', 'retention', 'long-form', 'shorts', 'trends', 'series'] as const;
 export type ChannelOperatorId = typeof CHANNEL_OPERATOR_IDS[number];
 export type ChannelOperatorStatus = 'AVAILABLE' | 'LIMITED' | 'NOT_CONFIGURED';
 
@@ -6,7 +6,7 @@ export interface ChannelOperatorFact {
   label: string;
   value: number | string | null;
   unit?: 'count' | 'percent' | 'seconds' | 'minutes';
-  source: 'persisted-youtube-performance' | 'youtube-reporting-reach' | 'youtube-analytics-audience';
+  source: 'persisted-youtube-performance' | 'youtube-reporting-reach' | 'youtube-analytics-audience' | 'derived-temporal-intelligence';
 }
 export interface ChannelOperatorSignal {
   classification: 'fact' | 'inference';
@@ -22,7 +22,7 @@ export interface ChannelOperatorEvidence {
   title: string;
   collectedAt: Date;
   metrics: Record<string, number | null>;
-  source?: 'persisted-youtube-performance' | 'youtube-reporting-reach' | 'youtube-analytics-audience';
+  source?: 'persisted-youtube-performance' | 'youtube-reporting-reach' | 'youtube-analytics-audience' | 'derived-temporal-intelligence';
   periodStart?: Date;
   periodEnd?: Date;
 }
@@ -45,7 +45,7 @@ export interface ChannelOperatorAnalysis {
   missingData: string[];
   confidence: number;
   evidence: ChannelOperatorEvidence[];
-  source: 'persisted-youtube-performance' | 'youtube-reporting-reach' | 'youtube-analytics-audience';
+  source: 'persisted-youtube-performance' | 'youtube-reporting-reach' | 'youtube-analytics-audience' | 'derived-temporal-intelligence';
   sampleSize: number;
   lastDataAt: Date | null;
   quality?: {

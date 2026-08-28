@@ -93,6 +93,8 @@ export const createDefaultCapabilityRegistry = (
     ['retention', 'Analisar retenção média, duração e watch time reais.'],
     ['long-form', 'Analisar snapshots explicitamente classificados como long-form.'],
     ['shorts', 'Analisar snapshots explicitamente classificados como Shorts.'],
+    ['trends', 'Detectar mudanças significativas em janelas equivalentes.'],
+    ['series', 'Avaliar saúde e evolução de séries com evidência suficiente.'],
   ] as const;
   for (const [operatorId, responsibility] of specialized) {
     registry.register({

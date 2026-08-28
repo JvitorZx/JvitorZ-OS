@@ -59,3 +59,15 @@ Quando o relatório não existe, o operador permanece `LIMITED`/`NOT_CONFIGURED`
 ## Audience Intelligence
 
 O `AudienceIntelligenceService` é read-only e consolida fontes, países, dispositivos, subscribed status e termos de busca realmente disponíveis. O Gerente reconhece perguntas sobre origem de views, recomendação, país, dispositivo e inscritos e combina os operadores Long-form e Shorts. Ausência permanece em `missingData`; Supervisor mostra qualidade e fatos sem disparar sync.
+
+## Trends e Series
+
+### Trends
+
+Compara períodos equivalentes de 7 ou 28 dias para canal, formato, jogo, série e dimensões de audiência. Fica `LIMITED` quando a amostra ou comparabilidade não permite tendência e nunca converte histórico curto em crescimento/queda. Expõe somente classificação, magnitude, confiança, qualidade e evidências persistidas.
+
+### Series
+
+Lê séries persistidas e sua saúde operacional. Vínculo automático exige metadado explícito com correspondência exata; casos ambíguos dependem de vínculo manual. `DORMANT` significa ausência recente de episódios, não fracasso editorial. Sem séries persistidas, o operador fica `NOT_CONFIGURED`.
+
+As capabilities `channel-operator.trends` e `channel-operator.series` são read-only. Abrir esses operadores não sincroniza YouTube nem altera snapshots.

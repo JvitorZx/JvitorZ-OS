@@ -785,4 +785,70 @@ export const createApiClient = (baseUrl) => ({
       'Erro ao carregar resumo de revisão dos outcomes',
     );
   },
+
+  async listTrends(filters = {}) {
+    const params = new URLSearchParams();
+    if (filters.projectId !== undefined) params.set('projectId', requireIdentifier(filters.projectId, 'projectId'));
+    if (filters.subjectType) params.set('subjectType', requireIdentifier(filters.subjectType, 'subjectType'));
+    if (filters.classification) params.set('classification', requireIdentifier(filters.classification, 'classification'));
+    if (filters.days !== undefined) {
+      if (![7, 28].includes(filters.days)) throw new TypeError('days must be 7 or 28');
+      params.set('days', String(filters.days));
+    }
+    if (filters.refresh === false) params.set('refresh', 'false');
+    const query = params.toString();
+    return requestJson(`${baseUrl}/api/operators/creator-intelligence/trends${query ? `?${query}` : ''}`, undefined, 'Erro ao carregar tendências');
+  },
+
+  async getTrend(trendId) {
+    const id = requireIdentifier(trendId, 'trendId');
+    return requestJson(`${baseUrl}/api/operators/creator-intelligence/trends/${encodeURIComponent(id)}`, undefined, 'Erro ao abrir tendência');
+  },
+
+  async createSeries(input) {
+    return requestJson(`${baseUrl}/api/operators/creator-intelligence/series`, {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(input),
+    }, 'Erro ao criar série');
+  },
+
+  async listSeries(projectId) {
+    const query = projectId === undefined ? '' : `?projectId=${encodeURIComponent(requireIdentifier(projectId, 'projectId'))}`;
+    return requestJson(`${baseUrl}/api/operators/creator-intelligence/series${query}`, undefined, 'Erro ao carregar séries');
+  },
+
+  async getSeries(seriesId) {
+    const id = requireIdentifier(seriesId, 'seriesId');
+    return requestJson(`${baseUrl}/api/operators/creator-intelligence/series/${encodeURIComponent(id)}`, undefined, 'Erro ao abrir série');
+  },
+
+  async linkSeriesVideo(seriesId, snapshotId, mode = 'manual') {
+    const id = requireIdentifier(seriesId, 'seriesId');
+    const snapshot = requireIdentifier(snapshotId, 'snapshotId');
+    if (!['manual', 'auto'].includes(mode)) throw new TypeError('mode must be manual or auto');
+    return requestJson(`${baseUrl}/api/operators/creator-intelligence/series/${encodeURIComponent(id)}/videos`, {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ snapshotId: snapshot, mode }),
+    }, 'Erro ao associar vídeo à série');
+  },
+
+  async unlinkSeriesVideo(seriesId, videoId) {
+    const id = requireIdentifier(seriesId, 'seriesId');
+    const video = requireIdentifier(videoId, 'videoId');
+    return requestJson(`${baseUrl}/api/operators/creator-intelligence/series/${encodeURIComponent(id)}/videos/${encodeURIComponent(video)}`, { method: 'DELETE' }, 'Erro ao remover vídeo da série');
+  },
+
+  async listContentPatterns(filters = {}) {
+    const params = new URLSearchParams();
+    if (filters.projectId !== undefined) params.set('projectId', requireIdentifier(filters.projectId, 'projectId'));
+    if (filters.patternType) params.set('patternType', requireIdentifier(filters.patternType, 'patternType'));
+    if (filters.refresh === false) params.set('refresh', 'false');
+    const query = params.toString();
+    return requestJson(`${baseUrl}/api/operators/creator-intelligence/content-patterns${query ? `?${query}` : ''}`, undefined, 'Erro ao carregar padrões de conteúdo');
+  },
+
+  async getSubjectPerformance(type, projectId) {
+    if (!['game', 'topic'].includes(type)) throw new TypeError('type must be game or topic');
+    const params = new URLSearchParams({ type });
+    if (projectId !== undefined) params.set('projectId', requireIdentifier(projectId, 'projectId'));
+    return requestJson(`${baseUrl}/api/operators/creator-intelligence/subject-performance?${params}`, undefined, 'Erro ao carregar performance por assunto');
+  },
 });

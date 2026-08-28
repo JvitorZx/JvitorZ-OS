@@ -35,6 +35,8 @@ const CHANNEL_OPERATOR_VIEWS = new Map([
   ['retention', 'Retenção'],
   ['long-form', 'Long-form'],
   ['shorts', 'Shorts'],
+  ['trends', 'Tendências'],
+  ['series', 'Séries'],
 ]);
 
 const renderAnalyticsNavigation = (active = 'overview') => html`
@@ -48,6 +50,8 @@ const renderAnalyticsNavigation = (active = 'overview') => html`
       ['audience', '/analytics/audience', 'Audience'],
       ['traffic', '/analytics/traffic', 'Traffic Sources'],
       ['outcomes', '/analytics/outcomes', 'Outcomes'],
+      ['trends', '/analytics/trends', 'Trends'],
+      ['series', '/analytics/series', 'Series'],
     ].map(([id, route, label]) => `<a href="#${route}"${id === active ? ' aria-current="page"' : ''}>${label}</a>`).join('')}
   </nav>
 `;
@@ -290,6 +294,137 @@ const renderAudience = (active) => {
     <section class="performance-section"><h3>Termos de busca disponíveis</h3><div data-audience-search></div></section>
     <section class="performance-section"><h3>Leitura operacional</h3><div data-audience-insights></div></section>
   ` });
+};
+
+const renderTemporalIntelligence = (active) => createPanel({
+  eyebrow: 'Analytics',
+  title: active === 'trends' ? 'Tendências do canal' : 'Saúde das séries',
+  className: 'analytics-panel temporal-intelligence-workspace',
+  body: html`
+    <span data-temporal-view="${active}" hidden></span>
+    ${renderAnalyticsNavigation(active)}
+    <div class="performance-feedback" data-temporal-feedback role="status" aria-live="polite" hidden></div>
+    ${active === 'trends' ? html`
+      <section class="performance-toolbar" aria-label="Janela de tendências">
+        <label><span>Comparação</span><select data-trend-days><option value="7">7d vs 7d anteriores</option><option value="28" selected>28d vs 28d anteriores</option></select></label>
+        <button class="button" type="button" data-temporal-refresh>Atualizar análise</button>
+      </section>
+      <div class="performance-columns">
+        <section class="performance-section"><h3>Mudanças detectadas</h3><div data-trend-list></div></section>
+        <section class="performance-section"><h3>Evidência da tendência</h3><div data-trend-detail><p class="performance-empty">Selecione uma tendência.</p></div></section>
+      </div>
+      <section class="performance-section"><h3>Padrões editoriais associados</h3><div data-pattern-list></div></section>
+    ` : html`
+      <section class="performance-toolbar" aria-label="Gerenciamento mínimo de séries">
+        <form class="performance-sync-form" data-series-create-form>
+          <label><span>Nome</span><input type="text" maxlength="160" data-series-name required></label>
+          <label><span>Jogo</span><input type="text" maxlength="160" data-series-game></label>
+          <label><span>Tema</span><input type="text" maxlength="160" data-series-topic></label>
+          <button class="button" type="submit" data-series-create>Criar série</button>
+        </form>
+      </section>
+      <div class="performance-columns">
+        <section class="performance-section"><h3>Séries identificadas</h3><div data-series-list></div></section>
+        <section class="performance-section"><h3>Detalhe e episódios</h3><div data-series-detail><p class="performance-empty">Selecione uma série.</p></div>
+          <form class="performance-sync-form" data-series-link-form hidden>
+            <label><span>ID do snapshot</span><input type="text" data-series-snapshot required></label>
+            <button class="button secondary" type="submit" data-series-link>Associar vídeo</button>
+          </form>
+        </section>
+      </div>
+    `}
+  `,
+});
+
+export const createTemporalIntelligenceController = ({ api }) => {
+  let mountedPanel = null; let generation = 0; let detailRequest = 0; let selectedSeriesId = null; let busy = false;
+  const mount = (root) => {
+    const panel = root?.querySelector?.('.temporal-intelligence-workspace');
+    if (!panel || panel === mountedPanel) return;
+    mountedPanel = panel; const token = ++generation; const view = panel.querySelector('[data-temporal-view]')?.dataset.temporalView;
+    const feedback = panel.querySelector('[data-temporal-feedback]');
+    const isCurrent = () => mountedPanel === panel && generation === token;
+    const show = (message = '', variant = '') => { if (!isCurrent()) return; feedback.textContent = message; feedback.hidden = !message; feedback.className = `performance-feedback ${variant}`.trim(); };
+    const listText = (target, values, empty, formatter, attributes = null) => {
+      if (!values.length) return replaceWithEmpty(target, empty);
+      const list = document.createElement('ul');
+      list.append(...values.map((value) => {
+        const item = document.createElement('li');
+        if (attributes) {
+          const button = document.createElement('button'); button.type = 'button'; button.className = 'operator-card-action';
+          Object.assign(button.dataset, attributes(value)); button.textContent = formatter(value); item.append(button);
+        } else item.textContent = formatter(value);
+        return item;
+      }));
+      target.replaceChildren(list);
+    };
+    const renderTrendDetail = (trend) => {
+      const target = panel.querySelector('[data-trend-detail]');
+      const quality = trend?.quality && typeof trend.quality === 'object' ? trend.quality : {};
+      const current = trend?.currentWindow && typeof trend.currentWindow === 'object' ? trend.currentWindow : {};
+      const previous = trend?.previousWindow && typeof trend.previousWindow === 'object' ? trend.previousWindow : {};
+      target.replaceChildren(
+        createTextElement('h4', `${trend.subject} · ${trend.metric}`),
+        createTextElement('p', `${trend.classification} · confiança ${Math.round(Number(trend.confidence ?? 0) * 100)}%`),
+        createTextElement('p', `${current.label ?? 'janela atual'}: ${formatPerformanceValue(current.value)} (${current.sampleSize ?? 0}) · ${previous.label ?? 'anterior'}: ${formatPerformanceValue(previous.value)} (${previous.sampleSize ?? 0})`),
+        createTextElement('p', `Qualidade ${quality.state ?? 'MISSING'} · ${quality.freshness ?? 'MISSING'}`),
+      );
+    };
+    const renderSeriesDetail = (entry) => {
+      const target = panel.querySelector('[data-series-detail]'); const health = entry.health ?? {}; const definition = entry.series ?? {};
+      target.replaceChildren(
+        createTextElement('h4', definition.name ?? 'Série'),
+        createTextElement('p', `${health.health ?? 'INSUFFICIENT_DATA'} · tendência ${health.trend ?? 'INSUFFICIENT_DATA'} · confiança ${Math.round(Number(health.confidence ?? 0) * 100)}%`),
+        createTextElement('p', `Amostra: ${health.sampleSize ?? 0} vídeo(s). ${health.reasons?.[0] ?? ''}`),
+      );
+      const episodes = document.createElement('ul');
+      for (const link of definition.videoLinks ?? []) {
+        const item = document.createElement('li'); item.append(createTextElement('span', `${link.sourceSnapshot?.title ?? link.videoId} · ${link.origin}`));
+        const remove = document.createElement('button'); remove.type = 'button'; remove.className = 'operator-card-action'; remove.textContent = 'Remover vínculo';
+        remove.dataset.unlinkVideo = link.videoId; remove.dataset.seriesId = definition.id; item.append(remove); episodes.append(item);
+      }
+      if (!(definition.videoLinks ?? []).length) episodes.append(createTextElement('li', 'Nenhum vídeo associado.'));
+      target.append(episodes); panel.querySelector('[data-series-link-form]').hidden = false;
+    };
+    const loadTrends = async () => {
+      const days = Number(panel.querySelector('[data-trend-days]')?.value ?? 28);
+      const [trends, patterns] = await Promise.all([api.listTrends({ days }), api.listContentPatterns()]);
+      if (!isCurrent()) return;
+      listText(panel.querySelector('[data-trend-list]'), trends, 'Ainda não há amostra suficiente para tendências.',
+        (item) => `${item.subject} · ${item.metric} · ${item.classification} · ${Math.round(Number(item.confidence ?? 0) * 100)}%`,
+        (item) => ({ trendId: item.id }));
+      listText(panel.querySelector('[data-pattern-list]'), patterns, 'Nenhum padrão recorrente com metadata disponível.',
+        (item) => `${item.subject}: ${item.classification} · amostra ${item.sampleSize}. ${item.summary}`);
+      show();
+    };
+    const loadSeries = async () => {
+      const entries = await api.listSeries(); if (!isCurrent()) return;
+      listText(panel.querySelector('[data-series-list]'), entries, 'Nenhuma série identificada.',
+        (entry) => `${entry.series.name} · ${entry.health.health} · ${entry.health.sampleSize} vídeo(s)`,
+        (entry) => ({ seriesId: entry.series.id }));
+      if (selectedSeriesId && !entries.some((entry) => entry.series.id === selectedSeriesId)) selectedSeriesId = null;
+      show();
+    };
+    const refresh = async () => { if (busy) return; busy = true; show('Atualizando análise...'); try { await (view === 'trends' ? loadTrends() : loadSeries()); } catch { show('Não foi possível carregar a inteligência temporal.', 'error'); } finally { busy = false; } };
+    const click = async (event) => {
+      const trendButton = event.target?.closest?.('[data-trend-id]');
+      if (trendButton) { const request = ++detailRequest; try { const trend = await api.getTrend(trendButton.dataset.trendId); if (isCurrent() && request === detailRequest) renderTrendDetail(trend); } catch { show('Não foi possível abrir a tendência.', 'error'); } return; }
+      const seriesButton = event.target?.closest?.('[data-series-id]');
+      if (seriesButton && !seriesButton.dataset.unlinkVideo) { selectedSeriesId = seriesButton.dataset.seriesId; const request = ++detailRequest; try { const entry = await api.getSeries(selectedSeriesId); if (isCurrent() && request === detailRequest && selectedSeriesId === seriesButton.dataset.seriesId) renderSeriesDetail(entry); } catch { show('Não foi possível abrir a série.', 'error'); } return; }
+      const unlink = event.target?.closest?.('[data-unlink-video]');
+      if (unlink && !busy) { busy = true; try { await api.unlinkSeriesVideo(unlink.dataset.seriesId, unlink.dataset.unlinkVideo); if (!isCurrent()) return; renderSeriesDetail(await api.getSeries(unlink.dataset.seriesId)); await loadSeries(); show('Vínculo removido.', 'success'); } catch { show('Não foi possível remover o vínculo.', 'error'); } finally { busy = false; } }
+    };
+    const create = async (event) => { event.preventDefault(); if (busy) return; busy = true; const button = panel.querySelector('[data-series-create]'); button.disabled = true; try { const created = await api.createSeries({ name: panel.querySelector('[data-series-name]').value, game: panel.querySelector('[data-series-game]').value, topic: panel.querySelector('[data-series-topic]').value }); if (!isCurrent()) return; selectedSeriesId = created.id; await loadSeries(); renderSeriesDetail(await api.getSeries(created.id)); show('Série criada.', 'success'); } catch { show('Não foi possível criar a série.', 'error'); } finally { busy = false; if (isCurrent()) button.disabled = false; } };
+    const link = async (event) => { event.preventDefault(); if (busy || !selectedSeriesId) return; busy = true; const button = panel.querySelector('[data-series-link]'); button.disabled = true; try { await api.linkSeriesVideo(selectedSeriesId, panel.querySelector('[data-series-snapshot]').value); if (!isCurrent()) return; renderSeriesDetail(await api.getSeries(selectedSeriesId)); await loadSeries(); show('Vídeo associado.', 'success'); } catch { show('Não foi possível associar o vídeo.', 'error'); } finally { busy = false; if (isCurrent()) button.disabled = false; } };
+    panel.addEventListener('click', click);
+    panel.querySelector('[data-temporal-refresh]')?.addEventListener('click', refresh);
+    panel.querySelector('[data-series-create-form]')?.addEventListener('submit', create);
+    panel.querySelector('[data-series-link-form]')?.addEventListener('submit', link);
+    panel._temporalCleanup = () => { panel.removeEventListener('click', click); panel.querySelector('[data-temporal-refresh]')?.removeEventListener('click', refresh); panel.querySelector('[data-series-create-form]')?.removeEventListener('submit', create); panel.querySelector('[data-series-link-form]')?.removeEventListener('submit', link); };
+    refresh();
+  };
+  const unmount = () => { mountedPanel?._temporalCleanup?.(); mountedPanel = null; generation += 1; detailRequest += 1; selectedSeriesId = null; busy = false; };
+  return { mount, unmount };
 };
 
 export const createAudienceController = ({ api }) => {
@@ -861,15 +996,17 @@ export const analyticsModule = {
   label: 'Analytics',
   render(_data, context = {}) {
     const view = context.route?.subpath || 'overview';
-    return CHANNEL_OPERATOR_VIEWS.has(view) ? renderChannelOperator(view) : ['audience', 'traffic'].includes(view) ? renderAudience(view) : renderAnalytics(view);
+    return ['trends', 'series'].includes(view) ? renderTemporalIntelligence(view) : CHANNEL_OPERATOR_VIEWS.has(view) ? renderChannelOperator(view) : ['audience', 'traffic'].includes(view) ? renderAudience(view) : renderAnalytics(view);
   },
   createController(context) {
     const overview = createAnalyticsController(context);
     const channelOperator = createChannelOperatorController(context);
     const audience = createAudienceController(context);
+    const temporal = createTemporalIntelligenceController(context);
     return {
       mount(root) {
-        if (root?.querySelector?.('.channel-operator-workspace')) channelOperator.mount(root);
+        if (root?.querySelector?.('.temporal-intelligence-workspace')) temporal.mount(root);
+        else if (root?.querySelector?.('.channel-operator-workspace')) channelOperator.mount(root);
         else if (root?.querySelector?.('.audience-workspace')) audience.mount(root);
         else overview.mount(root);
       },
@@ -877,6 +1014,7 @@ export const analyticsModule = {
         overview.unmount();
         channelOperator.unmount();
         audience.unmount();
+        temporal.unmount();
       },
     };
   },

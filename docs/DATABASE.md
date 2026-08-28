@@ -209,3 +209,11 @@ A migration aditiva `20260827223500_audience_traffic_intelligence` cria `Audienc
 `AudienceSnapshot.ingestionKey` impede duplicação por fonte, projeto, dimensão, segmento, formato e período. Recoleta atualiza a linha. `AudienceSyncState` registra sync parcial/ausente/temporariamente indisponível sem apagar o last-known-good. Termos de busca suprimidos não são persistidos como dados inventados.
 
 Antes da aplicação local foi criado backup fora do repositório e conferido por hash. A migration passou em SQLite real e em teste isolado com `foreign_key_check` e `integrity_check`.
+
+## Trends, Series e Content Patterns
+
+A migration `20260901120000_trends_series_patterns` é aditiva e cria `TrendSignal`, `SeriesDefinition`, `VideoSeriesLink` e `ContentPattern`, com índices de consulta, chaves de derivação e relações opcionais com `Project`. `VideoSeriesLink` referencia `VideoPerformanceSnapshot` sem copiar métricas.
+
+Antes de aplicar a migration ao SQLite local foi criado backup fora do repositório e validado por SHA-256. Depois da aplicação, `PRAGMA integrity_check` retornou `ok`, `foreign_key_check` não encontrou violações e as contagens das 18 migrations e de todas as tabelas legadas permaneceram idênticas; a nova migration passou a ser a 19ª. O smoke derivou somente dados novos nas tabelas da Sprint 34.
+
+Os testes aplicam a migration em SQLite isolado e não usam `backend/prisma/dev.db`. A ausência de metadados de jogo/série e a baixa cobertura temporal permanecem dados ausentes, sem preenchimento artificial.

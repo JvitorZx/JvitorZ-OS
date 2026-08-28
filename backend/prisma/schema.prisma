@@ -32,6 +32,9 @@ model Project {
   videoPerformanceSnapshots VideoPerformanceSnapshot[]
   videoReachSnapshots VideoReachSnapshot[]
   audienceSnapshots   AudienceSnapshot[]
+  trendSignals        TrendSignal[]
+  seriesDefinitions   SeriesDefinition[]
+  contentPatterns     ContentPattern[]
   editorialDecisions EditorialDecision[]
   orchestrationExecutions OrchestrationExecution[]
   createdAt        DateTime           @default(now())
@@ -355,6 +358,7 @@ model VideoPerformanceSnapshot {
   decisionOutcomeSnapshots   EditorialDecisionOutcome[]
   outcomeReviewPreviousSnapshots EditorialDecisionOutcomeReview[] @relation("OutcomeReviewPreviousSnapshot")
   outcomeReviewCurrentSnapshots  EditorialDecisionOutcomeReview[] @relation("OutcomeReviewCurrentSnapshot")
+  seriesLinks                    VideoSeriesLink[]
   createdAt                  DateTime           @default(now())
   updatedAt                  DateTime           @updatedAt
 
@@ -363,6 +367,92 @@ model VideoPerformanceSnapshot {
   @@index([game])
   @@index([series])
   @@index([format])
+}
+
+model TrendSignal {
+  id             String   @id @default(cuid())
+  projectId      String?
+  project        Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  key            String   @unique
+  subject        String
+  subjectType    String
+  metric         String
+  classification String
+  currentWindow  Json
+  previousWindow Json
+  delta          Float?
+  sampleSize     Int
+  confidence     Float
+  evidence       Json
+  quality        Json
+  detectedAt     DateTime
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([projectId, subjectType, detectedAt])
+  @@index([classification, detectedAt])
+}
+
+model SeriesDefinition {
+  id            String            @id @default(cuid())
+  projectId     String?
+  project       Project?          @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  key           String            @unique
+  name          String
+  normalizedKey String
+  game          String?
+  topic         String?
+  status        String            @default("ACTIVE")
+  metadata      Json?
+  videoLinks    VideoSeriesLink[]
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+
+  @@index([projectId, normalizedKey])
+  @@index([status, updatedAt])
+}
+
+model VideoSeriesLink {
+  id               String                   @id @default(cuid())
+  seriesId         String
+  series           SeriesDefinition         @relation(fields: [seriesId], references: [id], onDelete: Cascade)
+  sourceSnapshotId String
+  sourceSnapshot   VideoPerformanceSnapshot @relation(fields: [sourceSnapshotId], references: [id], onDelete: Restrict)
+  videoId          String
+  origin           String
+  confidence       Float
+  evidence         Json?
+  createdAt        DateTime                 @default(now())
+  updatedAt        DateTime                 @updatedAt
+
+  @@unique([seriesId, videoId])
+  @@index([videoId])
+  @@index([sourceSnapshotId])
+}
+
+model ContentPattern {
+  id             String   @id @default(cuid())
+  projectId      String?
+  project        Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  key            String   @unique
+  subject        String
+  patternType    String
+  classification String
+  game           String?
+  topic          String?
+  format         String?
+  series         String?
+  summary        String
+  sampleSize     Int
+  confidence     Float
+  evidence       Json
+  quality        Json
+  detectedAt     DateTime
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([projectId, patternType, detectedAt])
+  @@index([classification, detectedAt])
 }
 
 model VideoReachSnapshot {

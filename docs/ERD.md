@@ -313,3 +313,16 @@ AudienceSyncState
 ```
 
 `AudienceSyncState` é global por provider e não possui FK. `AudienceSnapshot.projectId` usa `ON DELETE SET NULL`, preservando a evidência agregada. A análise cruza formatos apenas em leitura e nunca transforma país em idioma ou origem em causalidade.
+
+## Trends, Series e Patterns
+
+```text
+Project 1 ─── N TrendSignal
+Project 1 ─── N SeriesDefinition
+Project 1 ─── N ContentPattern
+
+SeriesDefinition 1 ─── N VideoSeriesLink
+VideoPerformanceSnapshot 1 ─── N VideoSeriesLink
+```
+
+`TrendSignal.key` identifica uma derivação temporal sem alterar a evidência de origem. `VideoSeriesLink` possui unicidade por série e snapshot, registra modo de vínculo e pode ser removido sem remover vídeo ou série. `ContentPattern.key` torna a associação derivada atualizável e mantém amostra, recência e evidências explícitas.

@@ -20,9 +20,10 @@ export const classifyOrchestrationIntent = (value: string): OrchestrationIntent 
   if (/retenc|pessoas.*ficando|assistem.*video|consumo.*video/.test(text)) return 'retention_analysis';
   if (/videos? longos?|long.form|vod/.test(text)) return 'long_form_analysis';
   if (/shorts?/.test(text)) return 'shorts_analysis';
+  if (/o que.*(crescendo|subindo|caindo)|tendenc|qual formato.*resultado|forza.*piorando/.test(text)) return 'trend_analysis';
   if (/ultimo teste|deu certo|funcionou|resultado|outcome|foi fraco/.test(text)) return 'outcome_status';
   if (/como esta.*canal|estado.*canal|status.*canal|saude.*canal/.test(text)) return 'channel_status';
-  if (/serie.*vale|vale.*serie|continuar.*serie/.test(text)) return 'series_viability';
+  if (/serie.*vale|vale.*serie|continuar.*serie|ainda vale/.test(text)) return 'series_viability';
   if (/o que.*gravar|vale gravar|jogo.*testar|proximo video/.test(text)) return 'next_content';
   return 'general_operations';
 };
@@ -64,8 +65,10 @@ const TEMPLATES: Record<OrchestrationIntent, { objective: string; steps: StepTem
     steps: [
       ['performance', 'performance.read', [], 'read'],
       ['analytics', 'analytics.read', ['performance'], 'read'],
-      ['outcomes', 'decision-outcomes.read', ['analytics'], 'read'],
-      ['decision', 'creator-intelligence.decide', ['analytics', 'outcomes'], 'write'],
+      ['series', 'channel-operator.series', ['analytics'], 'read'],
+      ['trends', 'channel-operator.trends', ['analytics'], 'read'],
+      ['outcomes', 'decision-outcomes.read', ['series'], 'read'],
+      ['decision', 'creator-intelligence.decide', ['analytics', 'series', 'trends', 'outcomes'], 'write'],
       ['response', 'planner.respond', ['decision'], 'read'],
     ],
   },
@@ -121,6 +124,14 @@ const TEMPLATES: Record<OrchestrationIntent, { objective: string; steps: StepTem
       ['long-form', 'channel-operator.long-form', [], 'read'],
       ['shorts', 'channel-operator.shorts', [], 'read'],
       ['response', 'planner.respond', ['long-form', 'shorts'], 'read'],
+    ],
+  },
+  trend_analysis: {
+    objective: 'Explicar o que está crescendo, caindo ou estável sem prever resultados futuros.',
+    steps: [
+      ['trends', 'channel-operator.trends', [], 'read'],
+      ['series', 'channel-operator.series', [], 'read'],
+      ['response', 'planner.respond', ['trends', 'series'], 'read'],
     ],
   },
   general_operations: {

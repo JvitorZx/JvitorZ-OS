@@ -1110,3 +1110,31 @@ Limites preservados:
 - sem pesquisa web, vidIQ, redesign amplo ou novos operadores.
 
 Próxima camada recomendada: usar Audience Intelligence no ciclo editorial e de experimentos, vinculando mudanças de mix de distribuição a hipóteses testáveis sem transformar associação em causa.
+
+## Sprint 34 — Trends, Series & Content Pattern Intelligence — CONCLUÍDA
+
+**Objetivo:** transformar snapshots de performance e audiência em leitura temporal explícita, saúde de séries e associações reutilizáveis pelo Planner, Gerente, Supervisor e Analytics.
+
+Entregas:
+
+- domínio central de tendências com `RISING`, `DECLINING`, `STABLE`, `VOLATILE` e `INSUFFICIENT_DATA`;
+- janelas equivalentes de 7 e 28 dias, comparação N versus N e confiança baseada em volume, comparabilidade, qualidade e consistência;
+- persistência de `TrendSignal`, `SeriesDefinition`, `VideoSeriesLink` e `ContentPattern`;
+- importação de séries apenas por metadado explícito, associação manual reversível e autoassociação somente com correspondência exata de alta confiança;
+- saúde de série com `STRONG`, `HEALTHY`, `DECLINING`, `VOLATILE`, `DORMANT` e `INSUFFICIENT_DATA`;
+- padrões por jogo, formato, série e tópico como associação observada, nunca causalidade;
+- operadores read-only Trends e Series integrados ao Gerente, Planner, Supervisor e catálogo;
+- UI operacional mínima em Analytics para tendências, padrões, criação/abertura de séries e vínculo de vídeos;
+- API estrita, migration aditiva, testes SQLite isolados e regressão integral sem rede externa.
+
+Smoke local em 27/08/2026: 39 snapshots persistidos produziram 33 sinais de tendência, todos honestamente `INSUFFICIENT_DATA` porque o histórico cobre apenas dois dias; 19 padrões foram derivados; não houve séries nem agrupamentos por jogo porque esses metadados não existem nos snapshots locais. O banco passou em `integrity_check` e `foreign_key_check`, e todas as contagens legadas foram preservadas.
+
+Limites preservados:
+
+- tendência exige períodos comparáveis e não prevê performance futura;
+- `DORMANT` significa inatividade, não fracasso;
+- país, origem de tráfego e correlação temporal não provam causalidade;
+- nenhuma série, jogo ou tópico é inferido por similaridade textual fraca;
+- sem pesquisa web, vidIQ, scheduler novo, automação recorrente ou redesign amplo.
+
+Próxima camada recomendada: acumular histórico comparável e enriquecer metadados editoriais explícitos antes de usar tendências em automações ou previsões.

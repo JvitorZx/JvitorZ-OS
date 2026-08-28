@@ -120,7 +120,7 @@ export class SupervisorModule {
     try { running = await this.automationRunRepository.countByStatuses(['PENDING', 'RUNNING']); } catch { running = 0; }
     let governance = { healthy: 0, degraded: 0, blocked: 0, failing: 0, disabled: 0, quotasReached: 0, pausedByFailure: 0, approvalsPending: 0, retriesPending: 0 };
     try { governance = await this.automationDiagnosticsService.getSummary(); } catch { /* Local diagnostics must not break Dashboard. */ }
-    let channelOperators: Array<{ id: string; status: string; confidence: number; sampleSize: number; missingData: string[]; summary: string }> = [];
+    let channelOperators: Array<{ id: string; status: string; confidence: number; sampleSize: number; missingData: string[]; summary: string; signals: string[] }> = [];
     try {
       channelOperators = (await this.channelOperatorService.list()).map((operator) => ({
         id: operator.id,
@@ -129,6 +129,7 @@ export class SupervisorModule {
         sampleSize: operator.sampleSize,
         missingData: operator.missingData,
         summary: operatorSummary(operator),
+        signals: (operator.signals ?? []).map(({ summary }) => summary).slice(0, 5),
       }));
     } catch { /* Specialized read models must not break the Supervisor. */ }
     const byId = new Map(channelOperators.map((operator) => [operator.id, operator]));
@@ -164,6 +165,11 @@ export class SupervisorModule {
       orchestrationReviews,
       automations: { ...automations, running, runtime: automationRuntimeHealth, governance },
       channelOperators,
+      temporalIntelligence: {
+        trends: byId.get('trends') ?? null,
+        series: byId.get('series') ?? null,
+        highlights: [...(byId.get('trends')?.signals ?? []), ...(byId.get('series')?.signals ?? [])].slice(0, 6),
+      },
       audience,
     };
   }

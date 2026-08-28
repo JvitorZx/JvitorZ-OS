@@ -78,6 +78,8 @@ before(async () => {
     new VideoReachSnapshotRepository(client),
     undefined,
     new AudienceSnapshotRepository(client),
+    { list: async () => [] },
+    { list: async () => [] },
   );
   const app = express();
   app.use(express.json());
@@ -110,7 +112,7 @@ const request = async (path) => {
 describe('specialized channel operators', { concurrency: false }, () => {
   test('returns the complete neutral contract without data fabrication', async () => {
     const analyses = await service.list();
-    assert.deepEqual(analyses.map(({ id }) => id), ['ctr', 'retention', 'long-form', 'shorts']);
+    assert.deepEqual(analyses.map(({ id }) => id), ['ctr', 'retention', 'long-form', 'shorts', 'trends', 'series']);
     for (const analysis of analyses) {
       assert.equal(analysis.status, 'NOT_CONFIGURED');
       assert.equal(analysis.sampleSize, 0);
@@ -219,7 +221,7 @@ describe('channel operator HTTP contracts', { concurrency: false }, () => {
     const list = await request('/');
     const item = await request('/ctr');
     assert.equal(list.status, 200);
-    assert.equal(list.body.length, 4);
+    assert.equal(list.body.length, 6);
     assert.equal(item.status, 200);
     assert.equal(item.body.id, 'ctr');
   });
