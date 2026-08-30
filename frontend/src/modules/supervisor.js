@@ -26,6 +26,8 @@ export const supervisorModule = {
     const risks = Array.isArray(editorial.risks) ? editorial.risks : [];
     const opportunities = Array.isArray(editorial.opportunities) ? editorial.opportunities : [];
     const actions = Array.isArray(editorial.actions) ? editorial.actions : [];
+    const insufficientDecisions = editorial.insufficientData ?? 0;
+    const conflictingDecisions = editorial.conflictingSignals ?? 0;
     const outcomeReviews = data.supervisor?.outcomeReviews ?? {};
     const orchestrationReviews = data.supervisor?.orchestrationReviews ?? {};
     const automations = data.supervisor?.automations ?? {};
@@ -141,6 +143,7 @@ export const supervisorModule = {
           </section>
           <section>
             <h3>Riscos</h3>
+            <p>Dados insuficientes: ${escapeHtml(insufficientDecisions)} · Sinais conflitantes: ${escapeHtml(conflictingDecisions)}</p>
             ${renderItems(risks, 'Nenhum risco editorial registrado.')}
           </section>
           <section>

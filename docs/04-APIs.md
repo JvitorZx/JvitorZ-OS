@@ -553,17 +553,56 @@ Gera e persiste uma decisão editorial. O body aceita apenas:
   "projectId": "project-optional",
   "conversationId": "conversation-optional",
   "ideaIds": ["idea-a", "idea-b"],
-  "videoId": "video-optional"
+  "videoId": "video-optional",
+  "candidates": [
+    { "key": "game-a", "label": "Jogo A", "type": "GAME", "game": "Jogo A" }
+  ]
 }
 ```
 
-Somente `question` é obrigatória. Retorna `201` ao criar, `200` quando o mesmo estado de evidências já produziu a decisão, `400` para payload inválido, `404` para conversa/ideia inexistente ou `500` seguro.
+Somente `question` é obrigatória. `candidates` aceita no máximo 20 itens com tipo `IDEA`, `SERIES`, `GAME`, `FORMAT` ou `TOPIC`; chaves devem ser únicas. Retorna `201` ao criar, `200` quando o mesmo estado de evidências já produziu a decisão, `400` para payload inválido, `404` para conversa/ideia inexistente ou `500` seguro.
 
-A resposta contém o registro persistido, incluindo `recommendation`, `alternatives`, `score`, `confidence`, `classification`, `evidence`, `risks`, `missingData`, `nextAction` e vínculos opcionais.
+A resposta contém o registro persistido, incluindo `recommendation`, `alternatives`, `category`, `candidateType`, `candidateKey`, `score`, `confidence`, `opportunityScore`, evidências favoráveis/contrárias, restrições, riscos, dados ausentes, próxima ação e vínculos opcionais.
+
+`score` é um ranking relativo e não prevê views. `confidence` representa cobertura e qualidade dos dados, não probabilidade de sucesso.
 
 ### `GET /api/operators/creator-intelligence/editorial-decisions`
 
 Lista decisões mais recentes primeiro. Aceita somente `projectId`, `conversationId` e `limit` opcional de 1 a 50. Retorna `200`, `400` ou `500` seguro.
+
+### `POST /api/operators/creator-intelligence/editorial-decisions/compare`
+
+Compara de 2 a 20 candidatos e persiste a decisão resultante. Body estrito:
+
+```json
+{
+  "question": "Qual jogo apresenta a melhor oportunidade agora?",
+  "projectId": "project-optional",
+  "conversationId": "conversation-optional",
+  "candidates": [
+    { "key": "city-car", "label": "City Car Driving", "type": "GAME", "game": "City Car Driving" },
+    { "key": "forza", "label": "Forza", "type": "GAME", "game": "Forza" }
+  ]
+}
+```
+
+Retorna `201` ao criar ou `200` para o mesmo snapshot de evidências. Empates são resolvidos deterministicamente pela chave do candidato. Retorna `400`, `404` ou `500` sanitizado.
+
+### `GET /api/operators/creator-intelligence/editorial-decisions/current`
+
+Retorna a decisão mais recente no escopo opcional de `projectId`/`conversationId`. Retorna `200`, `400`, `404` ou `500` seguro.
+
+### `GET /api/operators/creator-intelligence/editorial-decisions/:id/evidence`
+
+Retorna categoria, score, confiança, evidências classificadas, evidências favoráveis/contrárias, riscos estruturados, restrições, dados ausentes e o snapshot do `OpportunityScore`. Retorna `200`, `400`, `404` ou `500` seguro.
+
+### `GET /api/operators/creator-intelligence/editorial-opportunities`
+
+Lista decisões `PRIORITIZE`, `CONTINUE` ou `TEST`, mais recentes primeiro. Aceita `projectId`, `conversationId` e `limit` de 1 a 50. Retorna `200`, `400` ou `500` seguro.
+
+### `GET /api/operators/creator-intelligence/editorial-risks`
+
+Lista decisões com riscos ou categoria `PAUSE`, `REEVALUATE` e `INSUFFICIENT_DATA`. Aceita os mesmos filtros de oportunidades e retorna `200`, `400` ou `500` seguro.
 
 ### `GET /api/operators/creator-intelligence/editorial-decisions/:id`
 

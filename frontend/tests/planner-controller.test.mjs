@@ -1441,9 +1441,14 @@ test('renders persisted editorial intelligence inline and in conversation memory
   const decision = {
     id: 'decision-1',
     recommendation: '<b>Teste a ideia A</b>',
+    category: 'PRIORITIZE',
+    score: 81,
     confidence: 0.78,
+    favorableEvidence: [{ summary: 'Série crescente' }],
+    contraryEvidence: [{ summary: 'Amostra curta' }],
     evidence: [{ classification: 'fact', summary: '<img src=x onerror=alert(1)>' }],
     risks: ['Amostra pequena'],
+    constraints: [{ summary: 'Validar custo de produção' }],
     missingData: ['CTR'],
     nextAction: 'Criar uma pauta controlada.',
   };
@@ -1459,8 +1464,15 @@ test('renders persisted editorial intelligence inline and in conversation memory
   const operator = dom.chatBody.children.at(-1);
   const inline = operator.children[0].children.find((child) => child.className === 'planner-decision-inline');
   assert.ok(inline);
+  assert.match(inline.children[0].textContent, /PRIORITIZE.*Score 81\/100.*Confiança 78%/);
   assert.equal(inline.children[1].textContent, '<b>Teste a ideia A</b>');
-  const evidenceItem = inline.children.find((child) => child.tagName === 'UL')?.children[0];
+  assert.ok(inline.children.some((child) => child.textContent === 'Evidências favoráveis'));
+  assert.ok(inline.children.some((child) => child.textContent === 'Evidências contrárias'));
+  assert.ok(inline.children.some((child) => child.textContent === 'Restrições'));
+  const evidenceItem = inline.children
+    .filter((child) => child.tagName === 'UL')
+    .flatMap((child) => child.children)
+    .find((child) => child.textContent.startsWith('Fato:'));
   assert.equal(evidenceItem.textContent, 'Fato: <img src=x onerror=alert(1)>');
   assert.equal(dom.editorialDecisionList.children.length, 1);
   assert.equal(dom.editorialDecisionList.children[0].dataset.editorialDecisionId, 'decision-1');

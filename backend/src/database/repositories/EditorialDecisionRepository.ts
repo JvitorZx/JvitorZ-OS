@@ -11,6 +11,13 @@ export interface CreateEditorialDecisionData {
   score: number | null;
   confidence: number;
   classification: string;
+  category: string;
+  candidateType: string | null;
+  candidateKey: string | null;
+  opportunityScore: Prisma.InputJsonValue;
+  favorableEvidence: Prisma.InputJsonValue;
+  contraryEvidence: Prisma.InputJsonValue;
+  constraints: Prisma.InputJsonValue;
   evidence: Prisma.InputJsonValue;
   risks: Prisma.InputJsonValue;
   missingData: Prisma.InputJsonValue;
@@ -39,11 +46,17 @@ export class EditorialDecisionRepository {
   async findAll(filters: {
     projectId?: string | null;
     conversationId?: string | null;
+    categories?: string[];
+    candidateType?: string;
+    candidateKey?: string;
     limit?: number;
   } = {}): Promise<EditorialDecision[]> {
     const where: Prisma.EditorialDecisionWhereInput = {};
     if ('projectId' in filters) where.projectId = filters.projectId;
     if ('conversationId' in filters) where.conversationId = filters.conversationId;
+    if (filters.categories?.length) where.category = { in: filters.categories };
+    if (filters.candidateType) where.candidateType = filters.candidateType;
+    if (filters.candidateKey) where.candidateKey = filters.candidateKey;
     return this.delegate.findMany({
       where,
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],

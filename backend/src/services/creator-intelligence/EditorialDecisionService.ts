@@ -1,18 +1,33 @@
 import { createHash } from 'crypto';
 import type {
+  ContentPattern,
   EditorialDecision,
+  PerformanceSignal,
   Prisma,
+  TrendSignal,
   VideoPerformanceSnapshot,
 } from '@prisma/client';
 import { DatabaseService } from '../../database/DatabaseService';
 import { ConversationRepository } from '../../database/repositories/ConversationRepository';
+import { DecisionHistoryRepository } from '../../database/repositories/DecisionHistoryRepository';
 import { EditorialDecisionRepository } from '../../database/repositories/EditorialDecisionRepository';
 import { PerformanceSignalRepository } from '../../database/repositories/PerformanceSignalRepository';
 import { VideoPerformanceSnapshotRepository } from '../../database/repositories/VideoPerformanceSnapshotRepository';
 import type { RankedIdeaEvaluation } from '../../domains/creator-intelligence/types';
+import {
+  EDITORIAL_CANDIDATE_TYPES,
+  OpportunityScoringService,
+  type DecisionConstraint,
+  type DecisionEvidence,
+  type DecisionRisk,
+  type EditorialCandidate,
+  type OpportunityFactor,
+  type RankedEditorialCandidate,
+} from '../../domains/editorial-decision';
 import { CreatorIntelligenceService } from './CreatorIntelligenceService';
 import { ChannelOperatorService } from '../channel-operators';
-import { SeriesIntelligenceService, TrendIntelligenceService } from '../trend-intelligence';
+import type { ChannelOperatorAnalysis } from '../../domains/channel-operators/types';
+import { ContentPatternIntelligenceService, SeriesIntelligenceService, TrendIntelligenceService } from '../trend-intelligence';
 
 export const EDITORIAL_DECISION_INTENTS = [
   'next_content',
@@ -32,6 +47,7 @@ export interface GenerateEditorialDecisionInput {
   conversationId?: string | null;
   ideaIds?: readonly string[];
   videoId?: string | null;
+  candidates?: readonly EditorialCandidate[];
 }
 
 export interface EditorialEvidenceItem {
@@ -103,9 +119,9 @@ export const classifyEditorialIntent = (
   if (ideaCount > 1 || /qual dessas|compar|melhor ideia/.test(text)) return 'compare_ideas';
   if (/por que|porque|foi fraco|desempenho|performance|ultimo teste|deu certo|ainda funciona/.test(text)) return 'diagnose_performance';
   if (/tendenc|crescendo|subindo|caindo|qual formato.*resultado|qual serie.*(forte|caindo)/.test(text)) return 'trend_analysis';
-  if (/continuar.*serie|vale.*serie|essa serie/.test(text)) return 'continue_series';
-  if (/o que.*mudar|melhorar|proximo video/.test(text)) return 'improve_next';
-  if (/o que.*gravar|vale gravar|jogo.*testar|vale testar|gravar agora/.test(text)) return 'next_content';
+  if (/continuar.*serie|vale.*serie|essa serie|pausar.*serie|risco.*serie/.test(text)) return 'continue_series';
+  if (/o que.*mudar|melhorar|proximo video|onde.*risco|deve.*paus/.test(text)) return 'improve_next';
+  if (/o que.*gravar|vale gravar|jogo.*testar|vale testar|gravar agora|maior oportunidade|qual jogo|qual formato|maior confianca/.test(text)) return 'next_content';
   return 'general_editorial';
 };
 
@@ -173,6 +189,165 @@ const recommendationText = (
   };
 };
 
+const normalizeCandidate = (candidate: EditorialCandidate): EditorialCandidate => {
+  const key = candidate.key?.trim();
+  const label = candidate.label?.trim();
+  if (!key || !label || key.length > 160 || label.length > 200) {
+    throw new EditorialDecisionValidationError('candidate key and label are required and bounded');
+  }
+  if (!EDITORIAL_CANDIDATE_TYPES.includes(candidate.type)) {
+    throw new EditorialDecisionValidationError('invalid candidate type');
+  }
+  const optional = (value: string | undefined) => value?.trim() || undefined;
+  return {
+    key,
+    label,
+    type: candidate.type,
+    ideaId: optional(candidate.ideaId),
+    game: optional(candidate.game),
+    topic: optional(candidate.topic),
+    format: optional(candidate.format),
+    seriesId: optional(candidate.seriesId),
+  };
+};
+
+const candidateTerms = (candidate: EditorialCandidate): string[] => [
+  candidate.key,
+  candidate.label,
+  candidate.game,
+  candidate.topic,
+  candidate.format,
+  candidate.seriesId,
+].flatMap((value) => value ? [searchable(value)] : []);
+
+const matchesCandidate = (candidate: EditorialCandidate, value: string): boolean =>
+  candidateTerms(candidate).includes(searchable(value));
+
+const trendValue = (classification: string): number | null => ({
+  RISING: 80,
+  DECLINING: 25,
+  STABLE: 55,
+  VOLATILE: 42,
+  INSUFFICIENT_DATA: null,
+}[classification] ?? null);
+
+const seriesValue = (health: string): number | null => ({
+  STRONG: 85,
+  HEALTHY: 65,
+  DECLINING: 28,
+  VOLATILE: 40,
+  DORMANT: 30,
+  INSUFFICIENT_DATA: null,
+}[health] ?? null);
+
+const patternValue = (classification: string): number | null => ({
+  STRONG: 78,
+  NEUTRAL: 52,
+  WEAK: 30,
+  INSUFFICIENT_DATA: null,
+}[classification] ?? null);
+
+const operatorValue = (analysis: ChannelOperatorAnalysis | null): number | null => {
+  if (!analysis || analysis.sampleSize === 0 || analysis.status === 'NOT_CONFIGURED') return null;
+  const positive = analysis.signals.filter(({ direction }) => direction === 'positive').length;
+  const negative = analysis.signals.filter(({ direction }) => direction === 'negative').length;
+  if (positive > negative) return 68;
+  if (negative > positive) return 32;
+  return 50;
+};
+
+const factor = (
+  id: OpportunityFactor['id'],
+  value: number | null,
+  confidence: number,
+  quality: string,
+  source: string,
+  summary: string,
+  classification: OpportunityFactor['classification'] = 'fact',
+): OpportunityFactor => ({ id, value, confidence, quality, source, summary, classification });
+
+interface OpportunitySourceBundle {
+  ranking: RankedIdeaEvaluation[];
+  signals: PerformanceSignal[];
+  trends: TrendSignal[];
+  series: Array<{ series: { id: string; name: string }; health: { health: string; confidence: number; missingData?: string[]; reasons?: string[] } }>;
+  patterns: ContentPattern[];
+  ctr: ChannelOperatorAnalysis | null;
+  retention: ChannelOperatorAnalysis | null;
+  longForm: ChannelOperatorAnalysis | null;
+  shorts: ChannelOperatorAnalysis | null;
+}
+
+const factorsForCandidate = (
+  candidate: EditorialCandidate,
+  sources: OpportunitySourceBundle,
+): { factors: OpportunityFactor[]; constraints: DecisionConstraint[]; risks: DecisionRisk[] } => {
+  const factors: OpportunityFactor[] = [];
+  const evaluation = sources.ranking.find(({ ideaId }) => ideaId === candidate.ideaId || ideaId === candidate.key);
+  if (evaluation) {
+    factors.push(factor('HISTORICAL_PERFORMANCE', evaluation.score, evaluation.confidence, 'GOOD',
+      `idea-ranking:${evaluation.ideaId}`, evaluation.rationale, 'inference'));
+    factors.push(factor('EDITORIAL_FIT', evaluation.score, evaluation.confidence, 'AVAILABLE',
+      `idea-evaluation:${evaluation.ideaId}`, evaluation.rankingRationale, 'inference'));
+  }
+  const matchedTrend = sources.trends.filter(({ subject }) => matchesCandidate(candidate, subject))
+    .sort((left, right) => right.confidence - left.confidence || left.id.localeCompare(right.id))[0];
+  if (matchedTrend) factors.push(factor('TREND', trendValue(matchedTrend.classification), matchedTrend.confidence,
+    (matchedTrend.quality as { state?: string })?.state ?? 'PARTIAL', `trend:${matchedTrend.id}`,
+    `${matchedTrend.subject}: ${matchedTrend.classification} na janela comparável.`, 'fact'));
+  const matchedSeries = sources.series.find(({ series }) => series.id === candidate.seriesId || matchesCandidate(candidate, series.name));
+  if (matchedSeries) factors.push(factor('SERIES_HEALTH', seriesValue(matchedSeries.health.health), matchedSeries.health.confidence,
+    matchedSeries.health.health === 'INSUFFICIENT_DATA' ? 'PARTIAL' : 'GOOD', `series:${matchedSeries.series.id}`,
+    `${matchedSeries.series.name}: saúde ${matchedSeries.health.health}.`, 'inference'));
+  const matchedPattern = sources.patterns.filter(({ subject }) => matchesCandidate(candidate, subject))
+    .sort((left, right) => right.confidence - left.confidence || left.id.localeCompare(right.id))[0];
+  if (matchedPattern) factors.push(factor('HISTORICAL_PERFORMANCE', patternValue(matchedPattern.classification), matchedPattern.confidence,
+    (matchedPattern.quality as { state?: string })?.state ?? 'PARTIAL', `content-pattern:${matchedPattern.id}`,
+    matchedPattern.summary, 'inference'));
+  const formatAnalysis = candidate.format && /short/i.test(candidate.format) ? sources.shorts
+    : candidate.format ? sources.longForm : null;
+  if (formatAnalysis) {
+    factors.push(factor('FORMAT_FIT', operatorValue(formatAnalysis), formatAnalysis.confidence,
+      formatAnalysis.quality?.state ?? formatAnalysis.status, `channel-operator:${formatAnalysis.id}`,
+      formatAnalysis.signals[0]?.summary ?? `${formatAnalysis.name}: ${formatAnalysis.sampleSize} itens comparáveis.`, 'inference'));
+    factors.push(factor('AUDIENCE_RESPONSE', operatorValue(formatAnalysis), formatAnalysis.confidence,
+      formatAnalysis.quality?.state ?? formatAnalysis.status, `channel-operator:${formatAnalysis.id}:audience`,
+      formatAnalysis.insights[0] ?? 'Resposta de audiência por formato ainda é limitada.', 'inference'));
+  }
+  for (const [id, analysis] of [['CTR', sources.ctr], ['RETENTION', sources.retention]] as const) {
+    if (!analysis) continue;
+    factors.push(factor(id, operatorValue(analysis), analysis.confidence, analysis.quality?.state ?? analysis.status,
+      `channel-operator:${analysis.id}`, analysis.signals[0]?.summary ?? `${analysis.name}: ${analysis.sampleSize} itens comparáveis.`, 'inference'));
+  }
+  const candidateSignal = (metric: string): PerformanceSignal | undefined => sources.signals
+    .filter((signal) => {
+      if (signal.metric !== metric) return false;
+      if (candidate.ideaId && signal.videoIdeaId === candidate.ideaId) return true;
+      const scoped = [signal.game, signal.series, signal.format].some(Boolean);
+      if (!scoped) return true;
+      return (!signal.game || Boolean(candidate.game && searchable(signal.game) === searchable(candidate.game)))
+        && (!signal.series || Boolean(candidate.seriesId && searchable(signal.series) === searchable(candidate.seriesId)))
+        && (!signal.format || Boolean(candidate.format && searchable(signal.format) === searchable(candidate.format)));
+    })
+    .sort((left, right) => right.confidence - left.confidence
+      || right.measuredAt.getTime() - left.measuredAt.getTime()
+      || left.id.localeCompare(right.id))[0];
+  for (const [id, metric] of [['WATCH_TIME', 'watch_time_performance'], ['SUBSCRIBER_GAIN', 'subscriber_conversion']] as const) {
+    const signal = candidateSignal(metric);
+    if (!signal) continue;
+    factors.push(factor(id, signal.value, signal.confidence,
+      signal.classification === 'real' ? 'GOOD' : 'AVAILABLE', `performance-signal:${signal.id}`,
+      `${metric}: score relativo ${signal.value}/100 contra a baseline interna.`, 'fact'));
+  }
+  const constraints: DecisionConstraint[] = [
+    ...(evaluation?.missingData ?? []).map((item) => ({ code: `MISSING_${String(item).toUpperCase()}`, summary: String(item) })),
+  ];
+  const risks: DecisionRisk[] = [
+    ...(evaluation?.risks ?? []).map((summary, index) => ({ code: `IDEA_RISK_${index + 1}`, severity: 'MEDIUM' as const, summary, source: `idea:${evaluation?.ideaId ?? candidate.key}` })),
+  ];
+  return { factors, constraints, risks };
+};
+
 export class EditorialDecisionService {
   private decisionRepository?: EditorialDecisionRepository;
   private conversationRepository?: ConversationRepository;
@@ -181,6 +356,8 @@ export class EditorialDecisionService {
   private readonly channelOperators: Pick<ChannelOperatorService, 'run'>;
   private readonly trendIntelligence: Pick<TrendIntelligenceService, 'list'>;
   private readonly seriesIntelligence: Pick<SeriesIntelligenceService, 'list'>;
+  private readonly contentPatterns: Pick<ContentPatternIntelligenceService, 'list'>;
+  private readonly opportunityScoring: OpportunityScoringService;
 
   constructor(
     private readonly intelligence = new CreatorIntelligenceService(),
@@ -191,6 +368,8 @@ export class EditorialDecisionService {
     channelOperators: Pick<ChannelOperatorService, 'run'> = new ChannelOperatorService(),
     trendIntelligence: Pick<TrendIntelligenceService, 'list'> = new TrendIntelligenceService(),
     seriesIntelligence: Pick<SeriesIntelligenceService, 'list'> = new SeriesIntelligenceService(),
+    contentPatterns: Pick<ContentPatternIntelligenceService, 'list'> = new ContentPatternIntelligenceService(),
+    opportunityScoring = new OpportunityScoringService(),
   ) {
     this.decisionRepository = decisionRepository;
     this.conversationRepository = conversationRepository;
@@ -199,11 +378,13 @@ export class EditorialDecisionService {
     this.channelOperators = channelOperators;
     this.trendIntelligence = trendIntelligence;
     this.seriesIntelligence = seriesIntelligence;
+    this.contentPatterns = contentPatterns;
+    this.opportunityScoring = opportunityScoring;
   }
 
   private get decisions(): EditorialDecisionRepository {
     if (!this.decisionRepository) {
-      this.decisionRepository = new EditorialDecisionRepository(DatabaseService.client);
+      this.decisionRepository = new DecisionHistoryRepository(DatabaseService.client);
     }
     return this.decisionRepository;
   }
@@ -244,10 +425,16 @@ export class EditorialDecisionService {
 
     const ideaIds = [...new Set((input.ideaIds ?? []).map((id) => id.trim()).filter(Boolean))];
     if (ideaIds.length > 20) throw new EditorialDecisionValidationError('ideaIds accepts at most 20 ids');
+    const suppliedCandidates = (input.candidates ?? []).map(normalizeCandidate);
+    if (suppliedCandidates.length > 20) throw new EditorialDecisionValidationError('candidates accepts at most 20 items');
+    if (new Set(suppliedCandidates.map(({ key }) => key)).size !== suppliedCandidates.length) {
+      throw new EditorialDecisionValidationError('candidate keys must be unique');
+    }
     const videoId = input.videoId?.trim() || null;
-    const intent = classifyEditorialIntent(question, ideaIds.length);
+    const intent = classifyEditorialIntent(question, Math.max(ideaIds.length, suppliedCandidates.length));
     const normalizedQuestionKey = searchable(question).replace(/\s+/g, ' ').trim();
-    const [context, recommendation, baseline, allSignals, learnings, allSnapshots, previousEditorialDecisions, ctrAnalysis, temporalTrends, seriesAnalyses] = await Promise.all([
+    const [context, recommendation, baseline, allSignals, learnings, allSnapshots, previousEditorialDecisions,
+      ctrAnalysis, retentionAnalysis, longFormAnalysis, shortsAnalysis, temporalTrends, seriesAnalyses, contentPatterns] = await Promise.all([
       this.intelligence.buildContext(projectId),
       ideaIds.length > 0
         ? this.intelligence.rankIdeas(ideaIds).then((ranking) => ({ recommendation: ranking[0] ?? null, ranking }))
@@ -261,13 +448,49 @@ export class EditorialDecisionService {
         limit: 5,
       }),
       this.channelOperators.run('ctr', projectId).catch(() => null),
+      this.channelOperators.run('retention', projectId).catch(() => null),
+      this.channelOperators.run('long-form', projectId).catch(() => null),
+      this.channelOperators.run('shorts', projectId).catch(() => null),
       this.trendIntelligence.list({ projectId, days: 28 }).catch(() => []),
       this.seriesIntelligence.list(projectId).catch(() => []),
+      this.contentPatterns.list({ projectId }).catch(() => []),
     ]);
     const snapshots = videoId ? allSnapshots.filter((snapshot) => snapshot.videoId === videoId) : allSnapshots;
     const ranking = recommendation.ranking.slice(0, 5);
-    const top = ranking[0];
+    const top = suppliedCandidates.length > 0 ? undefined : ranking[0];
     const latest = snapshots[0];
+    const candidates = suppliedCandidates.length > 0
+      ? suppliedCandidates
+      : ranking.length > 0
+        ? ranking.map((item) => {
+          const idea = context.ideas.find(({ id }) => id === item.ideaId);
+          return normalizeCandidate({
+            key: item.ideaId,
+            label: idea?.premise || idea?.theme || item.ideaId,
+            type: 'IDEA',
+            ideaId: item.ideaId,
+            game: idea?.game ?? undefined,
+            format: idea?.format ?? undefined,
+          });
+        })
+        : intent === 'continue_series' && seriesAnalyses.length > 0
+          ? seriesAnalyses.map(({ series }) => normalizeCandidate({ key: series.id, label: series.name, type: 'SERIES', seriesId: series.id }))
+          : [normalizeCandidate({ key: 'current-opportunity', label: 'Oportunidade editorial atual', type: 'TOPIC' })];
+    const opportunityRanking = this.opportunityScoring.rank(candidates.map((candidate) => ({
+      candidate,
+      ...factorsForCandidate(candidate, {
+        ranking,
+        signals: allSignals,
+        trends: temporalTrends,
+        series: seriesAnalyses,
+        patterns: contentPatterns,
+        ctr: ctrAnalysis,
+        retention: retentionAnalysis,
+        longForm: longFormAnalysis,
+        shorts: shortsAnalysis,
+      }),
+    })));
+    const topOpportunity = opportunityRanking[0];
 
     const evidence: EditorialEvidenceItem[] = [];
     if (baseline.views.median !== null) {
@@ -363,7 +586,12 @@ export class EditorialDecisionService {
       });
     }
 
-    const text = recommendationText(intent, top, latest);
+    const text = suppliedCandidates.length > 0 && topOpportunity
+      ? {
+        recommendation: `${topOpportunity.candidate.label} apresenta a maior oportunidade relativa entre os candidatos avaliados (${topOpportunity.opportunity.category}, ${topOpportunity.opportunity.value}/100).`,
+        nextAction: `Valide os dados ausentes de ${topOpportunity.candidate.label} e execute um teste proporcional à confiança disponível.`,
+      }
+      : recommendationText(intent, top, latest);
     const missingData = new Set<string>(top?.missingData ?? []);
     if (baseline.views.sampleSize === 0) missingData.add('baseline de performance');
     if (allSignals.length === 0) missingData.add('sinais de performance');
@@ -379,17 +607,12 @@ export class EditorialDecisionService {
       ...(ctrAnalysis?.quality && ctrAnalysis.quality.state !== 'GOOD' ? [`Qualidade de alcance: ${ctrAnalysis.quality.state}.`] : []),
       'Desempenho histórico não garante resultado futuro.',
     ])];
-    const confidence = confidenceAverage([
+    const legacyConfidence = confidenceAverage([
       ...(top ? [top.confidence] : []),
       ...evidence.filter(({ classification }) => classification !== 'recommendation').map(({ confidence: value }) => value),
     ]);
-    const alternatives = ranking.slice(1, 4).map((item) => ({
-      ideaId: item.ideaId,
-      rank: item.rank,
-      score: item.score,
-      confidence: item.confidence,
-      rationale: item.rationale,
-    }));
+    const opportunityHasEvidence = topOpportunity?.opportunity.components.some(({ value }) => value !== null) ?? false;
+    const confidence = opportunityHasEvidence ? topOpportunity!.opportunity.confidence : legacyConfidence;
     const dedupeKey = decisionFingerprint({
       projectId,
       conversationId,
@@ -402,6 +625,7 @@ export class EditorialDecisionService {
       previousDecisions: context.previousDecisions.slice(0, 10).map(({ id, score }) => [id, score]),
       previousEditorialDecisions: relevantEditorialHistory.map(({ id, updatedAt }) => [id, updatedAt]),
       ranking: ranking.map(({ ideaId, score }) => [ideaId, score]),
+      opportunityRanking: opportunityRanking.map(({ candidate, opportunity }) => [candidate.key, opportunity.value, opportunity.category, opportunity.confidence]),
       trends: relevantTrends.map(({ id, detectedAt, classification }) => [id, detectedAt, classification]),
       series: seriesAnalyses.slice(0, 10).map(({ series, health }) => [series.id, health.health, health.sampleSize]),
     });
@@ -409,6 +633,27 @@ export class EditorialDecisionService {
     if (existing) return { decision: existing, created: false };
 
     try {
+      const legacyAlternatives = ranking.slice(1, 4).map((item) => ({
+        ideaId: item.ideaId,
+        rank: item.rank,
+        score: item.score,
+        confidence: item.confidence,
+        rationale: item.rationale,
+        opportunity: opportunityRanking.find(({ candidate }) => candidate.ideaId === item.ideaId)?.opportunity,
+      }));
+      const candidateAlternatives = opportunityRanking.slice(1, 4).map(({ rank, candidate, opportunity }) => ({
+        rank,
+        candidateKey: candidate.key,
+        label: candidate.label,
+        type: candidate.type,
+        score: opportunity.value,
+        confidence: opportunity.confidence,
+        category: opportunity.category,
+        rationale: opportunity.rationale,
+      }));
+      const persistedAlternatives = suppliedCandidates.length > 0 || ranking.length === 0
+        ? candidateAlternatives
+        : legacyAlternatives;
       const decision = await this.decisions.create({
         projectId,
         conversationId,
@@ -416,10 +661,17 @@ export class EditorialDecisionService {
         question,
         intent,
         recommendation: text.recommendation,
-        alternatives: alternatives as unknown as Prisma.InputJsonValue,
-        score: top?.score ?? null,
+        alternatives: persistedAlternatives as unknown as Prisma.InputJsonValue,
+        score: opportunityHasEvidence ? topOpportunity!.opportunity.value : top?.score ?? null,
         confidence,
         classification: 'recommendation',
+        category: topOpportunity?.opportunity.category ?? 'INSUFFICIENT_DATA',
+        candidateType: topOpportunity?.candidate.type ?? null,
+        candidateKey: topOpportunity?.candidate.key ?? null,
+        opportunityScore: topOpportunity!.opportunity as unknown as Prisma.InputJsonValue,
+        favorableEvidence: (topOpportunity?.opportunity.favorableEvidence ?? []) as unknown as Prisma.InputJsonValue,
+        contraryEvidence: (topOpportunity?.opportunity.contraryEvidence ?? []) as unknown as Prisma.InputJsonValue,
+        constraints: (topOpportunity?.opportunity.constraints ?? []) as unknown as Prisma.InputJsonValue,
         evidence: evidence as unknown as Prisma.InputJsonValue,
         risks: risks as Prisma.InputJsonValue,
         missingData: [...missingData] as Prisma.InputJsonValue,
@@ -449,6 +701,86 @@ export class EditorialDecisionService {
       ...('conversationId' in input ? { conversationId: input.conversationId?.trim() || null } : {}),
       limit,
     });
+  }
+
+  async compareCandidates(input: {
+    question?: string;
+    projectId?: string | null;
+    conversationId?: string | null;
+    candidates: readonly EditorialCandidate[];
+  }): Promise<EditorialDecisionResult> {
+    if (!Array.isArray(input.candidates) || input.candidates.length < 2 || input.candidates.length > 20) {
+      throw new EditorialDecisionValidationError('candidates must contain between 2 and 20 items');
+    }
+    return this.generate({
+      question: input.question?.trim() || 'Qual destes candidatos apresenta a melhor oportunidade editorial agora?',
+      projectId: input.projectId,
+      conversationId: input.conversationId,
+      candidates: input.candidates,
+    });
+  }
+
+  async getCurrent(input: { projectId?: string | null; conversationId?: string | null } = {}): Promise<EditorialDecision | null> {
+    return (await this.decisions.findAll({
+      ...('projectId' in input ? { projectId: input.projectId?.trim() || null } : {}),
+      ...('conversationId' in input ? { conversationId: input.conversationId?.trim() || null } : {}),
+      limit: 1,
+    }))[0] ?? null;
+  }
+
+  async listOpportunities(input: { projectId?: string | null; conversationId?: string | null; limit?: number } = {}): Promise<EditorialDecision[]> {
+    const limit = input.limit ?? 20;
+    if (!Number.isInteger(limit) || limit < 1 || limit > 50) {
+      throw new EditorialDecisionValidationError('limit must be an integer from 1 to 50');
+    }
+    return this.decisions.findAll({
+      ...('projectId' in input ? { projectId: input.projectId?.trim() || null } : {}),
+      ...('conversationId' in input ? { conversationId: input.conversationId?.trim() || null } : {}),
+      categories: ['PRIORITIZE', 'CONTINUE', 'TEST'],
+      limit,
+    });
+  }
+
+  async listRisks(input: { projectId?: string | null; conversationId?: string | null; limit?: number } = {}): Promise<EditorialDecision[]> {
+    const limit = input.limit ?? 20;
+    if (!Number.isInteger(limit) || limit < 1 || limit > 50) {
+      throw new EditorialDecisionValidationError('limit must be an integer from 1 to 50');
+    }
+    const rows = await this.decisions.findAll({
+      ...('projectId' in input ? { projectId: input.projectId?.trim() || null } : {}),
+      ...('conversationId' in input ? { conversationId: input.conversationId?.trim() || null } : {}),
+      limit: 50,
+    });
+    return rows.filter((decision) => (Array.isArray(decision.risks) && decision.risks.length > 0)
+      || ['PAUSE', 'REEVALUATE', 'INSUFFICIENT_DATA'].includes(decision.category)).slice(0, limit);
+  }
+
+  async getEvidence(id: string) {
+    const decision = await this.getById(id);
+    if (!decision) return null;
+    const opportunity = decision.opportunityScore && typeof decision.opportunityScore === 'object'
+      && !Array.isArray(decision.opportunityScore)
+      ? decision.opportunityScore as Record<string, Prisma.JsonValue>
+      : null;
+    const structuredRisks = jsonArray<DecisionRisk>(opportunity?.risks ?? []);
+    const legacyRisks = jsonArray<unknown>(decision.risks).flatMap((risk, index) => (
+      typeof risk === 'string'
+        ? [{ code: `LEGACY_RISK_${index + 1}`, severity: 'MEDIUM' as const, summary: risk }]
+        : []
+    ));
+    return {
+      decisionId: decision.id,
+      category: decision.category,
+      score: decision.score,
+      confidence: decision.confidence,
+      evidence: jsonArray<EditorialEvidenceItem>(decision.evidence),
+      favorableEvidence: jsonArray<DecisionEvidence>(decision.favorableEvidence),
+      contraryEvidence: jsonArray<DecisionEvidence>(decision.contraryEvidence),
+      risks: structuredRisks.length > 0 ? structuredRisks : legacyRisks,
+      constraints: jsonArray<DecisionConstraint>(decision.constraints),
+      missingData: jsonArray<string>(decision.missingData),
+      opportunityScore: decision.opportunityScore,
+    };
   }
 
   async getById(id: string): Promise<EditorialDecision | null> {
@@ -493,4 +825,7 @@ export const parseEditorialDecisionArrays = (decision: EditorialDecision) => ({
   evidence: jsonArray<EditorialEvidenceItem>(decision.evidence),
   risks: jsonArray<string>(decision.risks),
   missingData: jsonArray<string>(decision.missingData),
+  favorableEvidence: jsonArray<DecisionEvidence>(decision.favorableEvidence),
+  contraryEvidence: jsonArray<DecisionEvidence>(decision.contraryEvidence),
+  constraints: jsonArray<DecisionConstraint>(decision.constraints),
 });

@@ -230,16 +230,20 @@ export class PlannerService {
         projectId: conversation.projectId,
         conversationId: conversation.id,
       });
-      const { evidence, risks, missingData } = parseEditorialDecisionArrays(decision);
+      const { evidence, risks, missingData, favorableEvidence, contraryEvidence, constraints } = parseEditorialDecisionArrays(decision);
       const confidence = Math.round(decision.confidence * 100);
       const evidenceClassification = evidence[0]
         ? ({ fact: 'Fato', inference: 'Inferência', recommendation: 'Recomendação' } as const)[evidence[0].classification]
         : null;
       const lines = [
         decision.recommendation,
+        `Decisão: ${decision.category}${decision.score === null ? '' : ` · score ${decision.score}/100`}.`,
         `Confiança: ${confidence}%.`,
         evidence[0] ? `${evidenceClassification} principal: ${evidence[0].summary}` : null,
+        favorableEvidence[0]?.summary ? `Evidência favorável: ${favorableEvidence[0].summary}` : null,
+        contraryEvidence[0]?.summary ? `Evidência contrária: ${contraryEvidence[0].summary}` : null,
         risks[0] ? `Risco: ${risks[0]}` : null,
+        constraints[0]?.summary ? `Restrição: ${constraints[0].summary}` : null,
         missingData[0] ? `Dado ausente: ${missingData[0]}` : null,
         `Próxima ação: ${decision.nextAction}`,
       ].filter((line): line is string => Boolean(line));

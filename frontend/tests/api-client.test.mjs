@@ -662,6 +662,59 @@ describe('Editorial Decision API client', { concurrency: false }, () => {
     }
   });
 
+  test('uses centralized opportunity ranking, current, evidence and risk contracts', async () => {
+    const originalFetch = globalThis.fetch;
+    const calls = [];
+    globalThis.fetch = async (...args) => {
+      calls.push(args);
+      return response(200, []);
+    };
+    try {
+      const api = createApiClient(baseUrl);
+      const comparison = { candidates: [
+        { key: 'a', label: 'A', type: 'GAME' },
+        { key: 'b', label: 'B', type: 'GAME' },
+      ] };
+      await api.compareEditorialCandidates(comparison);
+      await api.getCurrentEditorialDecision({ projectId: 'project/1' });
+      await api.getEditorialDecisionEvidence('decision/1');
+      await api.listEditorialOpportunities({ conversationId: 'conversation/1', limit: 4 });
+      await api.listEditorialRisks({ limit: 3 });
+
+      assert.deepEqual(calls[0], [
+        `${baseUrl}/api/operators/creator-intelligence/editorial-decisions/compare`,
+        {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify(comparison),
+        },
+      ]);
+      assert.equal(calls[1][0], `${baseUrl}/api/operators/creator-intelligence/editorial-decisions/current?projectId=project%2F1`);
+      assert.equal(calls[2][0], `${baseUrl}/api/operators/creator-intelligence/editorial-decisions/decision%2F1/evidence`);
+      assert.equal(calls[3][0], `${baseUrl}/api/operators/creator-intelligence/editorial-opportunities?conversationId=conversation%2F1&limit=4`);
+      assert.equal(calls[4][0], `${baseUrl}/api/operators/creator-intelligence/editorial-risks?limit=3`);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  test('rejects invalid opportunity view parameters before network access', async () => {
+    const originalFetch = globalThis.fetch;
+    let calls = 0;
+    globalThis.fetch = async () => { calls += 1; return response(200, {}); };
+    try {
+      const api = createApiClient(baseUrl);
+      await assert.rejects(api.compareEditorialCandidates(null), TypeError);
+      await assert.rejects(api.getCurrentEditorialDecision([]), TypeError);
+      await assert.rejects(api.getEditorialDecisionEvidence(' '), TypeError);
+      await assert.rejects(api.listEditorialOpportunities({ limit: 0 }), TypeError);
+      await assert.rejects(api.listEditorialRisks({ conversationId: '' }), TypeError);
+      assert.equal(calls, 0);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
   test('rejects invalid editorial parameters before network and preserves safe status', async () => {
     const originalFetch = globalThis.fetch;
     let calls = 0;

@@ -114,7 +114,11 @@ const baseSchema = `
     "operatorMessageId" TEXT, "outcomeSnapshotId" TEXT, "dedupeKey" TEXT NOT NULL UNIQUE,
     "question" TEXT NOT NULL, "intent" TEXT NOT NULL, "recommendation" TEXT NOT NULL,
     "alternatives" JSONB NOT NULL, "score" REAL, "confidence" REAL NOT NULL,
-    "classification" TEXT NOT NULL DEFAULT 'recommendation', "evidence" JSONB NOT NULL,
+    "classification" TEXT NOT NULL DEFAULT 'recommendation',
+    "category" TEXT NOT NULL DEFAULT 'INSUFFICIENT_DATA', "candidateType" TEXT, "candidateKey" TEXT,
+    "opportunityScore" JSONB, "favorableEvidence" JSONB NOT NULL DEFAULT '[]',
+    "contraryEvidence" JSONB NOT NULL DEFAULT '[]', "constraints" JSONB NOT NULL DEFAULT '[]',
+    "evidence" JSONB NOT NULL,
     "risks" JSONB NOT NULL, "missingData" JSONB NOT NULL, "nextAction" TEXT NOT NULL,
     "outcome" JSONB, "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" DATETIME NOT NULL

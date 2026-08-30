@@ -1138,3 +1138,31 @@ Limites preservados:
 - sem pesquisa web, vidIQ, scheduler novo, automação recorrente ou redesign amplo.
 
 Próxima camada recomendada: acumular histórico comparável e enriquecer metadados editoriais explícitos antes de usar tendências em automações ou previsões.
+
+## Sprint 35 — Editorial Decision Engine & Opportunity Ranking — CONCLUÍDA
+
+**Objetivo:** transformar performance, alcance, audiência, qualidade, tendências, séries e padrões persistidos em decisões editoriais concretas, comparáveis e rastreáveis.
+
+Entregas:
+
+- domínio neutro com candidatos editoriais, evidências favoráveis/contrárias, riscos, restrições e `OpportunityScore`;
+- categorias `PRIORITIZE`, `CONTINUE`, `TEST`, `HOLD`, `PAUSE`, `REEVALUATE` e `INSUFFICIENT_DATA`;
+- score relativo ponderado com dez fatores e peso individual máximo de 15%;
+- confiança reduzida por baixa cobertura e por dados `PARTIAL`, `STALE`, `INCONSISTENT`, `MISSING` ou `ERROR`;
+- comparação determinística de ideias, jogos, formatos, séries e tópicos, preservando empates por chave estável;
+- consumo dos serviços existentes de baseline, sinais, memória, CTR, retenção, formatos, trends, series e content patterns, sem recalcular Analytics;
+- `DecisionHistoryRepository` e extensão aditiva de `EditorialDecision`, preservando o histórico e o ciclo de outcomes já existente;
+- endpoints para decisão atual, comparação, histórico, evidências, oportunidades e riscos;
+- Planner com categoria, score, confiança, evidências e restrições; Gerente consumindo a capability consolidada; Supervisor sinalizando conflito e insuficiência;
+- UI mínima sobre a workspace e lifecycle existentes, sem duplicação de páginas ou listeners;
+- migration aditiva e testes determinísticos em SQLite isolado, sem rede externa.
+
+Limites preservados:
+
+- `OpportunityScore` é ranking relativo, não previsão de views;
+- confiança mede cobertura e qualidade da evidência, não probabilidade de sucesso;
+- associação histórica, temporal ou de audiência não demonstra causalidade;
+- dados ausentes permanecem explícitos e podem produzir `INSUFFICIENT_DATA`;
+- nenhuma nova integração externa, scraping, automação recorrente ou redesign foi introduzido.
+
+Próximo checkpoint: **SPRINT 36 — NÃO INICIADA**.

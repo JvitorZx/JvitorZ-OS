@@ -130,6 +130,14 @@ A migration `20260831200000_live_channel_snapshot` cria a tabela e o índice por
 
 A migration `20260824213000_performance_intelligence` cria snapshots, preserva sinais anteriores e adiciona série, confiança, chave e relação de origem. Os testes aplicam a migration em SQLite em memória.
 
+## EditorialDecision e Opportunity Ranking
+
+`EditorialDecision` continua sendo o histórico persistente e append-only das decisões editoriais. A Sprint 35 acrescenta `category`, identidade opcional do candidato, snapshot estruturado `opportunityScore`, evidências favoráveis/contrárias e restrições. O `dedupeKey` permanece a garantia contra cópia do mesmo estado de evidência; dados novos produzem uma nova decisão, sem sobrescrever a anterior.
+
+`DecisionHistoryRepository` encapsula decisão atual, histórico, oportunidades e riscos. O repository não calcula métricas: recebe a decisão consolidada do serviço e preserva a ordem `createdAt DESC, id DESC`.
+
+A migration `20260902100000_editorial_opportunity_ranking` é aditiva e compatível com SQLite. Registros anteriores recebem `category = INSUFFICIENT_DATA`, arrays vazios para os novos campos e mantêm integralmente recomendação, evidências, outcomes e vínculos existentes.
+
 ## EditorialDecisionVideoLink e EditorialDecisionOutcome
 
 `EditorialDecisionVideoLink` liga uma decisão a um `videoId` derivado de um `VideoPerformanceSnapshot` real. A unicidade `(decisionId, videoId)` impede duplicação sequencial e concorrente. O snapshot de origem usa `ON DELETE RESTRICT`, preservando a prova do vínculo; remover a decisão remove seus vínculos em cascata.
@@ -156,6 +164,7 @@ A migration `20260825233000_decision_outcome_loop` apenas adiciona coluna, tabel
 - `backend/src/database/repositories/ConversationLibraryItemRepository.ts`: persistência atômica e consulta dos vínculos de memória.
 - `backend/src/database/repositories/VideoPerformanceSnapshotRepository.ts`: snapshots idempotentes e consultas determinísticas.
 - `backend/src/database/repositories/PerformanceSignalRepository.ts`: sinais históricos e substituição dos derivados por snapshot.
+- `backend/src/database/repositories/DecisionHistoryRepository.ts`: histórico e consultas operacionais de decisões editoriais.
 - `backend/src/database/repositories/EditorialDecisionVideoLinkRepository.ts`: vínculos persistentes entre decisão e vídeo.
 - `backend/src/database/repositories/EditorialDecisionOutcomeRepository.ts`: avaliações idempotentes e consultas por escopo.
 - `backend/src/database/repositories/EditorialDecisionOutcomeReviewRepository.ts`: histórico e deduplicação das revisões.

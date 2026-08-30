@@ -167,9 +167,15 @@ describe('controlled OrchestratorService', () => {
 
 test('real registry exposes only available capabilities and delegates Supervisor', async () => {
   let supervisorCalls = 0;
+  const editorialDecision = {
+    id: 'decision-1', intent: 'next_content', recommendation: 'Priorize A.', nextAction: 'Teste A.',
+    category: 'PRIORITIZE', score: 81, confidence: 0.72, candidateType: 'GAME', candidateKey: 'game-a',
+    evidence: [{ classification: 'fact', summary: 'Histórico real.' }], risks: [], missingData: [],
+    favorableEvidence: [], contraryEvidence: [], constraints: [],
+  };
   const dependencies = {
     intelligence: { listPerformanceRecords: async () => [], listPerformanceSignals: async () => [], getPerformanceBaseline: async () => ({}) },
-    editorial: { generate: async () => { throw new Error('not used'); } }, outcomes: { listOutcomes: async () => [] },
+    editorial: { generate: async () => ({ decision: editorialDecision }) }, outcomes: { listOutcomes: async () => [] },
     refresh: { listStates: async () => [], refreshAvailable: async () => ({ reviewed: 0, unchanged: 0, skipped: 0, failed: 0, results: [] }) },
     supervisor: { getSupervisorOverview: async () => { supervisorCalls += 1; return { youtubeAnalytics: { state: 'connected' }, outcomeReviews: { reviewAvailable: 0 }, editorial: { risks: [], actions: [] } }; } },
     library: { listItems: async () => [] }, youtube: { sync: async () => ({ created: 0, updated: 0 }) },
@@ -178,6 +184,11 @@ test('real registry exposes only available capabilities and delegates Supervisor
   assert.equal(registry.list().every(({ availability }) => availability === 'available'), true);
   const output = await registry.get('supervisor.read').execute({ request: { intent: 'status' }, plan: {}, results: new Map() });
   assert.equal(output.data.youtubeAnalytics, 'connected'); assert.equal(supervisorCalls, 1);
+  const decisionOutput = await registry.get('creator-intelligence.decide').execute({ request: { intent: 'O que gravar?' }, plan: {}, results: new Map() });
+  assert.deepEqual(decisionOutput.data, {
+    decisionId: 'decision-1', intent: 'next_content', category: 'PRIORITIZE', score: 81,
+    confidence: 0.72, candidateType: 'GAME', candidateKey: 'game-a',
+  });
 });
 
 test('Planner remains the message owner while orchestration supplies editorial context', async () => {

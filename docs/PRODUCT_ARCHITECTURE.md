@@ -311,18 +311,25 @@ Planner ou API
   -> EditorialDecisionService
     -> CreatorIntelligenceService
       -> ideias + baseline + sinais + ChannelMemory + snapshots
-    -> EditorialDecisionRepository
+    -> operadores CTR / Retenção / Long-form / Shorts
+    -> Trends + Series + Content Patterns
+    -> OpportunityScoringService
+    -> DecisionHistoryRepository
       -> Prisma -> SQLite
   -> resposta operator persistida / Supervisor
 ```
 
-O serviço classifica a intenção, carrega apenas o contexto necessário e produz recomendação principal, alternativas, score relativo, confiança, evidências classificadas, riscos, dados ausentes e próxima ação. A classificação separa `fact`, `inference` e `recommendation`; nenhuma camada calcula previsão exata de views.
+O serviço classifica a intenção, carrega apenas o contexto necessário e produz recomendação principal, alternativas, categoria, score relativo, confiança, evidências classificadas, riscos, restrições, dados ausentes e próxima ação. A classificação separa `fact`, `inference` e `recommendation`; nenhuma camada calcula previsão exata de views.
+
+`OpportunityScoringService` é um domínio puro e determinístico. Seus fatores são performance histórica, tendência, saúde de série, aderência de formato, retenção, CTR, watch time, inscritos, resposta de audiência e aderência editorial. Os pesos somam 100% e nenhum fator excede 15%. Qualidade e freshness reduzem peso e confiança; cobertura pequena ou conflito relevante leva a `INSUFFICIENT_DATA` ou `REEVALUATE` em vez de certeza artificial.
+
+O score só ordena oportunidades dentro da evidência disponível. Ele não estima resultado futuro. Confiança expressa cobertura e qualidade das fontes, não probabilidade de sucesso. Evidência favorável e contrária mantém fonte, classificação e confiança para auditoria.
 
 `PlannerService` recebe o serviço editorial por injeção. Quando a última mensagem do usuário é uma pergunta editorial reconhecida, a decisão é gerada antes da resposta, persistida e vinculada à mensagem `operator`. Conversas gerais continuam no `LanguageProvider`, mantendo OpenAI e Creator Intelligence desacoplados.
 
-O hash das entradas e do estado das evidências evita decisões duplicadas para a mesma situação. O modelo `EditorialDecision` pode apontar para conversa e mensagem `operator`; o contrato legado de resultado permanece compatível, enquanto o ciclo operacional usa entidades próprias de vínculo e avaliação.
+O hash das entradas e do estado das evidências evita decisões duplicadas para a mesma situação. `DecisionHistoryRepository` mantém consultas de decisão atual, oportunidades, riscos e histórico em ordem determinística. O modelo `EditorialDecision` é append-only para cada novo estado de evidência, pode apontar para conversa e mensagem `operator` e preserva o contrato de resultados das Sprints 23–24.
 
-O Planner renderiza explicação e confiança com DOM textual seguro e ignora respostas obsoletas após troca de conversa ou unmount. O Supervisor agrega decisões recentes em prioridades, riscos, oportunidades e ações, sem transformar ausência de dados em estado operacional falso.
+O Planner renderiza categoria, score, explicação, confiança, evidências favoráveis/contrárias e restrições com DOM textual seguro, ignorando respostas obsoletas após troca de conversa ou unmount. O Gerente usa `creator-intelligence.decide` em vez de reconstruir Analytics. O Supervisor agrega prioridades, riscos, oportunidades, conflitos e insuficiência sem disparar side effects ou transformar ausência de dados em estado falso.
 
 ## Decision Outcome Loop
 

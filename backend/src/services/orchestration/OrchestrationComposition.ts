@@ -135,7 +135,15 @@ export const createDefaultCapabilityRegistry = (
       risks: parsed.risks,
       missingData: parsed.missingData,
       confidence: decision.confidence,
-      data: { decisionId: decision.id, intent: decision.intent },
+      data: {
+        decisionId: decision.id,
+        intent: decision.intent,
+        category: decision.category,
+        score: decision.score,
+        confidence: decision.confidence,
+        candidateType: decision.candidateType,
+        candidateKey: decision.candidateKey,
+      },
     };
   });
 

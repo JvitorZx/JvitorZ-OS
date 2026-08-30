@@ -318,6 +318,32 @@ O endpoint legado de resultado permanece disponível para compatibilidade. O flu
 
 O Dashboard solicita o overview existente. `SupervisorModule` consulta até cinco decisões recentes e devolve prioridades, riscos, oportunidades e ações. Falha local dessa consulta resulta em coleção vazia e não derruba o Dashboard nem ativa recursos não implementados.
 
+## Opportunity Ranking — Sprint 35
+
+```text
+Analytics + Reach + Audience + Data Quality
+  + PerformanceSignal + ChannelMemory
+  + Trends + Series + ContentPattern
+    -> EditorialDecisionService
+      -> candidatos normalizados
+      -> OpportunityScoringService
+        -> componentes ponderados + cobertura + qualidade
+        -> categoria + score + confiança
+        -> evidência favorável/contrária + riscos + restrições
+      -> DecisionHistoryRepository
+        -> EditorialDecision append-only
+          -> Planner / Gerente / Supervisor / API
+```
+
+1. O serviço reutiliza read models e operadores existentes; não recalcula Analytics nem consulta uma nova rede.
+2. Cada candidato recebe apenas sinais compatíveis com sua ideia, jogo, formato, série ou escopo global.
+3. Valores ausentes não viram zero: permanecem componentes sem valor e reduzem cobertura.
+4. Qualidade parcial, stale ou inconsistente reduz peso e confiança; sinais fortes em direções opostas geram `REEVALUATE`.
+5. O ranking é determinístico e o snapshot completo do cálculo é persistido antes de chegar à UI.
+6. O Planner mostra a decisão na conversa; o Gerente consome a capability consolidada; o Supervisor apenas resume estado e alertas.
+
+O `OpportunityScore` não prevê views. A confiança não é probabilidade de sucesso. Associação entre métrica e candidato é evidência para uma decisão revisável, não prova de causalidade.
+
 ## Decision Outcome Loop — Sprint 23
 
 ```text

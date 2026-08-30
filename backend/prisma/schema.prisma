@@ -549,6 +549,13 @@ model EditorialDecision {
   score             Float?
   confidence        Float
   classification    String                    @default("recommendation")
+  category          String                    @default("INSUFFICIENT_DATA")
+  candidateType     String?
+  candidateKey      String?
+  opportunityScore  Json?
+  favorableEvidence Json                      @default("[]")
+  contraryEvidence  Json                      @default("[]")
+  constraints       Json                      @default("[]")
   evidence          Json
   risks             Json
   missingData       Json
@@ -560,6 +567,8 @@ model EditorialDecision {
 
   @@index([projectId, createdAt])
   @@index([conversationId, createdAt])
+  @@index([category, createdAt])
+  @@index([candidateType, candidateKey])
   @@index([outcomeSnapshotId])
 }
 

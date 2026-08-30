@@ -41,6 +41,23 @@ const requireIdentifier = (value, name) => {
   return value.trim();
 };
 
+const listEditorialDecisionView = (baseUrl, path, filters, errorMessage) => {
+  if (!filters || typeof filters !== 'object' || Array.isArray(filters)) {
+    throw new TypeError('editorial decision filters must be an object');
+  }
+  const params = new URLSearchParams();
+  if (filters.projectId !== undefined) params.set('projectId', requireIdentifier(filters.projectId, 'projectId'));
+  if (filters.conversationId !== undefined) params.set('conversationId', requireIdentifier(filters.conversationId, 'conversationId'));
+  if (filters.limit !== undefined) {
+    if (!Number.isInteger(filters.limit) || filters.limit < 1 || filters.limit > 50) {
+      throw new TypeError('limit must be an integer from 1 to 50');
+    }
+    params.set('limit', String(filters.limit));
+  }
+  const query = params.toString();
+  return requestJson(`${baseUrl}/api/operators/creator-intelligence/${path}${query ? `?${query}` : ''}`, undefined, errorMessage);
+};
+
 export const createApiClient = (baseUrl) => ({
   async getIntegrationStatus() {
     return requestJson(`${baseUrl}/api/integrations/status`, undefined, 'Erro ao consultar integracoes');
@@ -611,6 +628,53 @@ export const createApiClient = (baseUrl) => ({
       undefined,
       'Erro ao carregar decisoes editoriais',
     );
+  },
+
+  async compareEditorialCandidates(input) {
+    if (!input || typeof input !== 'object' || Array.isArray(input)) {
+      throw new TypeError('editorial candidate comparison input must be an object');
+    }
+    return requestJson(
+      `${baseUrl}/api/operators/creator-intelligence/editorial-decisions/compare`,
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(input),
+      },
+      'Erro ao comparar oportunidades editoriais',
+    );
+  },
+
+  async getCurrentEditorialDecision(filters = {}) {
+    if (!filters || typeof filters !== 'object' || Array.isArray(filters)) {
+      throw new TypeError('current editorial decision filters must be an object');
+    }
+    const params = new URLSearchParams();
+    if (filters.projectId !== undefined) params.set('projectId', requireIdentifier(filters.projectId, 'projectId'));
+    if (filters.conversationId !== undefined) params.set('conversationId', requireIdentifier(filters.conversationId, 'conversationId'));
+    const query = params.toString();
+    return requestJson(
+      `${baseUrl}/api/operators/creator-intelligence/editorial-decisions/current${query ? `?${query}` : ''}`,
+      undefined,
+      'Erro ao carregar decisão editorial atual',
+    );
+  },
+
+  async getEditorialDecisionEvidence(decisionId) {
+    const id = requireIdentifier(decisionId, 'decisionId');
+    return requestJson(
+      `${baseUrl}/api/operators/creator-intelligence/editorial-decisions/${encodeURIComponent(id)}/evidence`,
+      undefined,
+      'Erro ao carregar evidências editoriais',
+    );
+  },
+
+  async listEditorialOpportunities(filters = {}) {
+    return listEditorialDecisionView(baseUrl, 'editorial-opportunities', filters, 'Erro ao carregar oportunidades editoriais');
+  },
+
+  async listEditorialRisks(filters = {}) {
+    return listEditorialDecisionView(baseUrl, 'editorial-risks', filters, 'Erro ao carregar riscos editoriais');
   },
 
   async getEditorialDecision(decisionId) {

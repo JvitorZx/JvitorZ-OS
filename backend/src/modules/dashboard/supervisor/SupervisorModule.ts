@@ -81,9 +81,17 @@ export class SupervisorModule {
     } catch {
       // Outcome review is a local operational section and must not break the Dashboard.
     }
-    const risks = [...new Set(recentDecisions.flatMap((decision) => (
-      Array.isArray(decision.risks) ? decision.risks.filter((risk): risk is string => typeof risk === 'string') : []
-    )))].slice(0, 5);
+    const risks = [...new Set(recentDecisions.flatMap((decision) => {
+      const legacy = Array.isArray(decision.risks) ? decision.risks.filter((risk): risk is string => typeof risk === 'string') : [];
+      const opportunity = decision.opportunityScore && typeof decision.opportunityScore === 'object' && !Array.isArray(decision.opportunityScore)
+        ? decision.opportunityScore as Record<string, unknown> : null;
+      const structured = Array.isArray(opportunity?.risks) ? opportunity.risks.flatMap((risk) => {
+        if (!risk || typeof risk !== 'object' || Array.isArray(risk)) return [];
+        const summary = (risk as Record<string, unknown>).summary;
+        return typeof summary === 'string' ? [summary] : [];
+      }) : [];
+      return [...legacy, ...structured];
+    }))].slice(0, 5);
     const opportunities = recentDecisions.flatMap((decision) => {
       if (!Array.isArray(decision.alternatives)) return [];
       return decision.alternatives.flatMap((alternative) => {
@@ -91,9 +99,11 @@ export class SupervisorModule {
         if (!alternative || typeof alternative !== 'object' || Array.isArray(alternative)) return [];
         const value = alternative as Record<string, unknown>;
         const ideaId = typeof value.ideaId === 'string' ? value.ideaId : null;
+        const candidateKey = typeof value.candidateKey === 'string' ? value.candidateKey : null;
+        const label = typeof value.label === 'string' ? value.label : candidateKey;
         const rationale = typeof value.rationale === 'string' ? value.rationale : null;
-        if (!ideaId || !rationale) return [];
-        return [`Ideia ${ideaId}: ${rationale}`];
+        if (!rationale || (!ideaId && !label)) return [];
+        return [ideaId ? `Ideia ${ideaId}: ${rationale}` : `${label}: ${rationale}`];
       });
     }).slice(0, 5);
     let orchestrationReviews = {
@@ -152,14 +162,21 @@ export class SupervisorModule {
         decisions: recentDecisions.map((decision) => ({
           id: decision.id,
           recommendation: decision.recommendation,
+          category: decision.category,
+          score: decision.score,
           confidence: decision.confidence,
+          candidateType: decision.candidateType,
+          candidateKey: decision.candidateKey,
           nextAction: decision.nextAction,
           createdAt: decision.createdAt,
         })),
-        priorities: recentDecisions.slice(0, 3).map(({ recommendation }) => recommendation),
+        priorities: recentDecisions.filter(({ category }) => ['PRIORITIZE', 'CONTINUE', 'TEST'].includes(category))
+          .slice(0, 3).map(({ recommendation }) => recommendation),
         risks,
         opportunities,
         actions: recentDecisions.slice(0, 3).map(({ nextAction }) => nextAction),
+        insufficientData: recentDecisions.filter(({ category }) => category === 'INSUFFICIENT_DATA').length,
+        conflictingSignals: recentDecisions.filter((decision) => decision.category === 'REEVALUATE').length,
       },
       outcomeReviews,
       orchestrationReviews,

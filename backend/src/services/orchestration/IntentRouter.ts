@@ -23,8 +23,8 @@ export const classifyOrchestrationIntent = (value: string): OrchestrationIntent 
   if (/o que.*(crescendo|subindo|caindo)|tendenc|qual formato.*resultado|forza.*piorando/.test(text)) return 'trend_analysis';
   if (/ultimo teste|deu certo|funcionou|resultado|outcome|foi fraco/.test(text)) return 'outcome_status';
   if (/como esta.*canal|estado.*canal|status.*canal|saude.*canal/.test(text)) return 'channel_status';
-  if (/serie.*vale|vale.*serie|continuar.*serie|ainda vale/.test(text)) return 'series_viability';
-  if (/o que.*gravar|vale gravar|jogo.*testar|proximo video/.test(text)) return 'next_content';
+  if (/serie.*vale|vale.*serie|continuar.*serie|ainda vale|pausar.*serie|risco.*serie/.test(text)) return 'series_viability';
+  if (/o que.*gravar|vale gravar|jogo.*testar|proximo video|maior oportunidade|qual jogo|qual formato|maior confianca/.test(text)) return 'next_content';
   return 'general_operations';
 };
 

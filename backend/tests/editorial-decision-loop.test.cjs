@@ -5,6 +5,9 @@ const { after, before, beforeEach, describe, test } = require('node:test');
 const Database = require('better-sqlite3');
 const express = require('express');
 
+require('./editorial-opportunity-ranking.test.cjs');
+require('./editorial-opportunity-migration.test.cjs');
+
 process.env.DATABASE_URL = ':memory:';
 
 const { DatabaseService } = require('../dist/database/DatabaseService');
@@ -28,6 +31,10 @@ const {
 const migrationSql = readFileSync(path.resolve(
   __dirname,
   '../prisma/migrations/20260825220000_editorial_decision_loop/migration.sql',
+), 'utf8');
+const opportunityMigrationSql = readFileSync(path.resolve(
+  __dirname,
+  '../prisma/migrations/20260902100000_editorial_opportunity_ranking/migration.sql',
 ), 'utf8');
 
 let client;
@@ -156,6 +163,9 @@ before(async () => {
   for (const statement of migrationSql.split(';').map((part) => part.trim()).filter(Boolean)) {
     await client.$executeRawUnsafe(statement);
   }
+  for (const statement of opportunityMigrationSql.split(';').map((part) => part.replace(/^--.*$/gm, '').trim()).filter(Boolean)) {
+    await client.$executeRawUnsafe(statement);
+  }
   conversations = new ConversationRepository(client);
   messages = new MessageRepository(client);
   decisions = new EditorialDecisionRepository(client);
@@ -234,6 +244,18 @@ describe('EditorialDecisionService', { concurrency: false }, () => {
     assert.ok(result.decision.risks.includes('Desempenho histórico não garante resultado futuro.'));
     assert.ok(result.decision.missingData.includes('esforço real'));
     assert.equal((await decisions.findById(result.decision.id)).question, 'O que vale gravar agora?');
+  });
+
+  test('uses persisted watch-time and subscriber signals in the opportunity score', async () => {
+    intelligence.performanceSignals = [
+      { id: 'watch-signal', metric: 'watch_time_performance', value: 74, source: 'youtube-analytics', confidence: 0.9, measuredAt: new Date() },
+      { id: 'subscriber-signal', metric: 'subscriber_conversion', value: 66, source: 'youtube-analytics', confidence: 0.8, measuredAt: new Date() },
+    ];
+    const { decision } = await service.generate({ question: 'O que vale gravar agora?' });
+    const components = decision.opportunityScore.components;
+    assert.equal(components.find(({ id }) => id === 'WATCH_TIME').value, 74);
+    assert.equal(components.find(({ id }) => id === 'SUBSCRIBER_GAIN').value, 66);
+    assert.ok(components.find(({ id }) => id === 'WATCH_TIME').source.startsWith('performance-signal:'));
   });
 
   test('keeps partial and absent data explicit without predicting views', async () => {
@@ -352,6 +374,20 @@ describe('EditorialDecisionService', { concurrency: false }, () => {
     assert.deepEqual(overview.editorial.opportunities, ['Ideia idea-b: Alternativa com formato conhecido.']);
     assert.ok(overview.editorial.actions.length > 0);
   });
+
+  test('Supervisor exposes non-idea candidate alternatives without rebuilding the ranking', async () => {
+    await service.compareCandidates({ candidates: [
+      { key: 'game-a', label: 'Game A', type: 'GAME' },
+      { key: 'game-b', label: 'Game B', type: 'GAME' },
+    ] });
+    const supervisor = new SupervisorModule(
+      { async getStatus() { return { state: 'connected', lastSyncAt: null, lastErrorType: null }; } },
+      service,
+    );
+    const overview = await supervisor.getSupervisorOverview();
+    assert.match(overview.editorial.opportunities[0], /^Game B:/);
+    assert.equal(overview.editorial.insufficientData, 1);
+  });
 });
 
 describe('Editorial decision HTTP API', { concurrency: false }, () => {
@@ -375,6 +411,50 @@ describe('Editorial decision HTTP API', { concurrency: false }, () => {
       method: 'POST', body: JSON.stringify({ question: 'Pergunta', arbitrary: 'content' }),
     });
     assert.equal(invalid.status, 400);
+  });
+
+  test('compares candidates and exposes current decision, evidence, opportunities and risks', async () => {
+    const compared = await request('/editorial-decisions/compare', {
+      method: 'POST',
+      body: JSON.stringify({
+        candidates: [
+          { key: 'game-b', label: 'Game B', type: 'GAME', game: 'Game B' },
+          { key: 'game-a', label: 'Game A', type: 'GAME', game: 'Game A' },
+        ],
+      }),
+    });
+    assert.equal(compared.status, 201);
+    assert.equal(compared.body.candidateKey, 'game-a');
+    assert.equal(compared.body.category, 'INSUFFICIENT_DATA');
+    assert.equal(compared.body.alternatives[0].candidateKey, 'game-b');
+
+    const current = await request('/editorial-decisions/current');
+    assert.equal(current.status, 200);
+    assert.equal(current.body.id, compared.body.id);
+
+    const evidence = await request(`/editorial-decisions/${compared.body.id}/evidence`);
+    assert.equal(evidence.status, 200);
+    assert.equal(evidence.body.decisionId, compared.body.id);
+    assert.ok(Array.isArray(evidence.body.risks));
+    assert.ok(evidence.body.risks.every(({ summary }) => typeof summary === 'string'));
+
+    const opportunities = await request('/editorial-opportunities');
+    assert.equal(opportunities.status, 200);
+    assert.deepEqual(opportunities.body, []);
+    const risks = await request('/editorial-risks');
+    assert.equal(risks.status, 200);
+    assert.equal(risks.body.length, 1);
+  });
+
+  test('rejects malformed candidate comparisons and unknown decision-view filters', async () => {
+    const invalidCandidate = await request('/editorial-decisions/compare', {
+      method: 'POST',
+      body: JSON.stringify({ candidates: [{ key: 'a', label: 'A', type: 'GAME', unknown: true }] }),
+    });
+    assert.equal(invalidCandidate.status, 400);
+    assert.equal((await request('/editorial-decisions/current?limit=1')).status, 400);
+    assert.equal((await request('/editorial-opportunities?unknown=true')).status, 400);
+    assert.equal((await request('/editorial-risks?limit=0')).status, 400);
   });
 
   test('returns safe 404 statuses for missing future outcome resources', async () => {
@@ -414,6 +494,7 @@ describe('Editorial decision migration', () => {
         CREATE TABLE "VideoPerformanceSnapshot" ("id" TEXT NOT NULL PRIMARY KEY);
         INSERT INTO "Conversation" ("id") VALUES ('conversation-existing');
         ${migrationSql}
+        ${opportunityMigrationSql}
       `);
       assert.equal(database.prepare('SELECT COUNT(*) count FROM "Conversation"').get().count, 1);
       const insert = database.prepare(`

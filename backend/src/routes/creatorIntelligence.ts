@@ -1,4 +1,4 @@
-import { Router, type Response } from 'express';
+import { Router, type Request, type Response } from 'express';
 import {
   CreatorIntelligenceService,
   CreatorIntelligenceValidationError,
@@ -11,6 +11,7 @@ import {
   EditorialDecisionSnapshotNotFoundError,
   EditorialDecisionValidationError,
 } from '../services/creator-intelligence/EditorialDecisionService';
+import { EDITORIAL_CANDIDATE_TYPES, type EditorialCandidate } from '../domains/editorial-decision';
 import {
   DecisionOutcomeDecisionNotFoundError,
   DecisionOutcomeLinkConflictError,
@@ -69,6 +70,30 @@ const isOptionalNumber = (value: unknown): value is number | undefined =>
 const isEmptyBody = (body: unknown): boolean =>
   body === undefined || (isObjectBody(body) && Object.keys(body).length === 0);
 
+const CANDIDATE_FIELDS = ['key', 'label', 'type', 'ideaId', 'game', 'topic', 'format', 'seriesId'] as const;
+const isEditorialCandidate = (value: unknown): value is EditorialCandidate => isObjectBody(value)
+  && hasOnlyFields(value, CANDIDATE_FIELDS)
+  && typeof value.key === 'string'
+  && typeof value.label === 'string'
+  && typeof value.type === 'string'
+  && EDITORIAL_CANDIDATE_TYPES.includes(value.type as EditorialCandidate['type'])
+  && ['ideaId', 'game', 'topic', 'format', 'seriesId'].every((field) => isOptionalString(value[field]));
+
+const decisionFilters = (query: Record<string, unknown>) => {
+  if (!Object.keys(query).every((field) => ['projectId', 'conversationId', 'limit'].includes(field))) return null;
+  const projectId = typeof query.projectId === 'string' ? query.projectId : undefined;
+  const conversationId = typeof query.conversationId === 'string' ? query.conversationId : undefined;
+  const limit = query.limit === undefined ? undefined : Number(query.limit);
+  if ((query.projectId !== undefined && projectId === undefined)
+    || (query.conversationId !== undefined && conversationId === undefined)
+    || (query.limit !== undefined && !Number.isInteger(limit))) return null;
+  return {
+    ...(projectId !== undefined ? { projectId } : {}),
+    ...(conversationId !== undefined ? { conversationId } : {}),
+    ...(limit !== undefined ? { limit } : {}),
+  };
+};
+
 const sendSafeError = (res: Response): void => {
   res.status(500).json({ error: 'Creator intelligence operation failed' });
 };
@@ -83,7 +108,7 @@ export const createCreatorIntelligenceRouter = (
   const router = Router();
 
   router.post('/editorial-decisions', async (req, res) => {
-    const fields = ['question', 'projectId', 'conversationId', 'ideaIds', 'videoId'];
+    const fields = ['question', 'projectId', 'conversationId', 'ideaIds', 'videoId', 'candidates'];
     if (!isObjectBody(req.body) || !hasOnlyFields(req.body, fields)) {
       return res.status(400).json({ error: 'invalid editorial decision payload' });
     }
@@ -96,6 +121,9 @@ export const createCreatorIntelligenceRouter = (
       || (body.ideaIds !== undefined && (
         !Array.isArray(body.ideaIds) || !body.ideaIds.every((id) => typeof id === 'string')
       ))
+      || (body.candidates !== undefined && (
+        !Array.isArray(body.candidates) || !body.candidates.every(isEditorialCandidate)
+      ))
     ) {
       return res.status(400).json({ error: 'invalid editorial decision payload' });
     }
@@ -106,6 +134,7 @@ export const createCreatorIntelligenceRouter = (
         conversationId: body.conversationId,
         videoId: body.videoId,
         ideaIds: body.ideaIds as string[] | undefined,
+        candidates: body.candidates as EditorialCandidate[] | undefined,
       });
       return res.status(result.created ? 201 : 200).json(result.decision);
     } catch (error) {
@@ -125,26 +154,10 @@ export const createCreatorIntelligenceRouter = (
   });
 
   router.get('/editorial-decisions', async (req, res) => {
-    if (!Object.keys(req.query).every((field) => ['projectId', 'conversationId', 'limit'].includes(field))) {
-      return res.status(400).json({ error: 'invalid editorial decision filters' });
-    }
-    const projectId = typeof req.query.projectId === 'string' ? req.query.projectId : undefined;
-    const conversationId = typeof req.query.conversationId === 'string'
-      ? req.query.conversationId : undefined;
-    const limit = req.query.limit === undefined ? undefined : Number(req.query.limit);
-    if (
-      (req.query.projectId !== undefined && projectId === undefined)
-      || (req.query.conversationId !== undefined && conversationId === undefined)
-      || (req.query.limit !== undefined && !Number.isInteger(limit))
-    ) {
-      return res.status(400).json({ error: 'invalid editorial decision filters' });
-    }
+    const filters = decisionFilters(req.query);
+    if (!filters) return res.status(400).json({ error: 'invalid editorial decision filters' });
     try {
-      return res.status(200).json(await editorialDecisionService.list({
-        ...(projectId !== undefined ? { projectId } : {}),
-        ...(conversationId !== undefined ? { conversationId } : {}),
-        ...(limit !== undefined ? { limit } : {}),
-      }));
+      return res.status(200).json(await editorialDecisionService.list(filters));
     } catch (error) {
       if (error instanceof EditorialDecisionValidationError) {
         return res.status(400).json({ error: error.message });
@@ -152,6 +165,75 @@ export const createCreatorIntelligenceRouter = (
       const name = error instanceof Error ? error.name : 'UnknownError';
       console.error(`Failed to list editorial decisions (${name})`);
       return res.status(500).json({ error: 'Failed to list editorial decisions' });
+    }
+  });
+
+  router.post('/editorial-decisions/compare', async (req, res) => {
+    const fields = ['question', 'projectId', 'conversationId', 'candidates'];
+    if (!isObjectBody(req.body) || !hasOnlyFields(req.body, fields)
+      || !Array.isArray(req.body.candidates) || !req.body.candidates.every(isEditorialCandidate)
+      || !isOptionalString(req.body.question) || !isOptionalString(req.body.projectId)
+      || !isOptionalString(req.body.conversationId)) {
+      return res.status(400).json({ error: 'invalid editorial candidate comparison payload' });
+    }
+    try {
+      const result = await editorialDecisionService.compareCandidates({
+        question: req.body.question,
+        projectId: req.body.projectId,
+        conversationId: req.body.conversationId,
+        candidates: req.body.candidates,
+      });
+      return res.status(result.created ? 201 : 200).json(result.decision);
+    } catch (error) {
+      if (error instanceof EditorialDecisionConversationNotFoundError) return res.status(404).json({ error: 'Conversation not found' });
+      if (error instanceof EditorialDecisionValidationError) return res.status(400).json({ error: error.message });
+      const name = error instanceof Error ? error.name : 'UnknownError';
+      console.error(`Failed to compare editorial candidates (${name})`);
+      return res.status(500).json({ error: 'Failed to compare editorial candidates' });
+    }
+  });
+
+  router.get('/editorial-decisions/current', async (req, res) => {
+    const filters = decisionFilters(req.query);
+    if (!filters || filters.limit !== undefined) return res.status(400).json({ error: 'invalid current decision filters' });
+    try {
+      const decision = await editorialDecisionService.getCurrent(filters);
+      return decision ? res.status(200).json(decision) : res.status(404).json({ error: 'Editorial decision not found' });
+    } catch (error) {
+      const name = error instanceof Error ? error.name : 'UnknownError';
+      console.error(`Failed to read current editorial decision (${name})`);
+      return res.status(500).json({ error: 'Failed to read current editorial decision' });
+    }
+  });
+
+  const listDecisionView = async (req: Request, res: Response, view: 'opportunities' | 'risks') => {
+    const filters = decisionFilters(req.query);
+    if (!filters) return res.status(400).json({ error: `invalid editorial ${view} filters` });
+    try {
+      const rows = view === 'opportunities'
+        ? await editorialDecisionService.listOpportunities(filters)
+        : await editorialDecisionService.listRisks(filters);
+      return res.status(200).json(rows);
+    } catch (error) {
+      if (error instanceof EditorialDecisionValidationError) return res.status(400).json({ error: error.message });
+      const name = error instanceof Error ? error.name : 'UnknownError';
+      console.error(`Failed to list editorial ${view} (${name})`);
+      return res.status(500).json({ error: `Failed to list editorial ${view}` });
+    }
+  };
+  router.get('/editorial-opportunities', (req, res) => listDecisionView(req, res, 'opportunities'));
+  router.get('/editorial-risks', (req, res) => listDecisionView(req, res, 'risks'));
+
+  router.get('/editorial-decisions/:id/evidence', async (req, res) => {
+    const id = req.params.id?.trim();
+    if (!id) return res.status(400).json({ error: 'id is required' });
+    try {
+      const evidence = await editorialDecisionService.getEvidence(id);
+      return evidence ? res.status(200).json(evidence) : res.status(404).json({ error: 'Editorial decision not found' });
+    } catch (error) {
+      const name = error instanceof Error ? error.name : 'UnknownError';
+      console.error(`Failed to read editorial decision evidence (${name})`);
+      return res.status(500).json({ error: 'Failed to read editorial decision evidence' });
     }
   });
 

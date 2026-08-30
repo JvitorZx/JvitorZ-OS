@@ -170,8 +170,10 @@ EditorialDecision
 ├── outcomeSnapshotId -> VideoPerformanceSnapshot.id (contrato legado)
 ├── dedupeKey (único)
 ├── question, intent, recommendation, alternatives
-├── score, confidence, classification, evidence
-├── risks, missingData, nextAction, outcome
+├── score, confidence, classification, category
+├── candidateType, candidateKey, opportunityScore
+├── favorableEvidence, contraryEvidence, constraints
+├── evidence, risks, missingData, nextAction, outcome
 └── createdAt, updatedAt
 
 EditorialDecisionVideoLink

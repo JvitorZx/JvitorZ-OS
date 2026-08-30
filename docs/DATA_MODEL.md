@@ -185,6 +185,10 @@ Decisão editorial operacional persistida. Mantém o snapshot lógico usado para
 
 - `question` e `intent`: pergunta normalizada e intenção editorial reconhecida;
 - `recommendation`, `alternatives`, `score`, `confidence` e `nextAction`: saída operacional;
+- `category`: `PRIORITIZE`, `CONTINUE`, `TEST`, `HOLD`, `PAUSE`, `REEVALUATE` ou `INSUFFICIENT_DATA`;
+- `candidateType` e `candidateKey`: identidade neutra da oportunidade escolhida;
+- `opportunityScore`: snapshot estruturado dos componentes, pesos, qualidade, cobertura, justificativa e disclaimer;
+- `favorableEvidence`, `contraryEvidence` e `constraints`: justificativa auditável da classificação;
 - `classification`: natureza principal da saída, atualmente `recommendation`;
 - `evidence`: itens com classificação `fact`, `inference` ou `recommendation`, fonte, resumo e confiança;
 - `risks` e `missingData`: limitações explícitas;
@@ -199,7 +203,7 @@ Message 1 -> 0..1 EditorialDecision
 VideoPerformanceSnapshot 1 -> N EditorialDecision (resultado)
 ```
 
-As relações usam `ON DELETE SET NULL` para preservar a memória editorial quando uma origem opcional deixa de existir. A migration `20260825220000_editorial_decision_loop` é aditiva e cria tabela, índices, chaves estrangeiras e unicidade sem alterar registros anteriores.
+As relações usam `ON DELETE SET NULL` para preservar a memória editorial quando uma origem opcional deixa de existir. A migration `20260825220000_editorial_decision_loop` cria a estrutura original. A migration aditiva `20260902100000_editorial_opportunity_ranking` acrescenta os campos de ranking e índices por categoria/candidato; decisões anteriores permanecem válidas com categoria padrão `INSUFFICIENT_DATA`.
 
 ### EditorialDecisionVideoLink
 

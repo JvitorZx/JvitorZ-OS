@@ -403,7 +403,9 @@ export const createPlannerController = ({ api }) => {
       const confidence = Number.isFinite(decision.confidence)
         ? `${Math.round(decision.confidence * 100)}%`
         : 'indisponível';
-      summary.textContent = `Inteligência do canal · Confiança ${confidence}`;
+      const category = typeof decision.category === 'string' ? decision.category : 'RECOMMENDATION';
+      const score = Number.isFinite(decision.score) ? ` · Score ${Math.round(decision.score)}/100` : '';
+      summary.textContent = `Inteligência do canal · ${category}${score} · Confiança ${confidence}`;
       const recommendation = document.createElement('p');
       recommendation.className = 'planner-decision-recommendation';
       recommendation.textContent = decision.recommendation ?? 'Recomendação indisponível.';
@@ -415,12 +417,18 @@ export const createPlannerController = ({ api }) => {
         recommendation: 'Recomendação',
       };
       const groups = [
+        ['Evidências favoráveis', Array.isArray(decision.favorableEvidence)
+          ? decision.favorableEvidence.map((item) => item?.summary).filter(Boolean) : []],
+        ['Evidências contrárias', Array.isArray(decision.contraryEvidence)
+          ? decision.contraryEvidence.map((item) => item?.summary).filter(Boolean) : []],
         ['Por que', Array.isArray(decision.evidence) ? decision.evidence.map((item) => {
           if (!item?.summary) return null;
           const label = evidenceLabels[item.classification] ?? 'Evidência';
           return `${label}: ${item.summary}`;
         }).filter(Boolean) : []],
         ['Riscos', Array.isArray(decision.risks) ? decision.risks : []],
+        ['Restrições', Array.isArray(decision.constraints)
+          ? decision.constraints.map((item) => typeof item === 'string' ? item : item?.summary).filter(Boolean) : []],
         ['Dados ausentes', Array.isArray(decision.missingData) ? decision.missingData : []],
       ];
       for (const [title, items] of groups) {

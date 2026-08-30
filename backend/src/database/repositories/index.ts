@@ -3,6 +3,7 @@ export * from './PrismaRepository';
 export * from './UserRepository';
 export * from './ConversationRepository';
 export * from './EditorialDecisionRepository';
+export * from './DecisionHistoryRepository';
 export * from './EditorialDecisionVideoLinkRepository';
 export * from './EditorialDecisionOutcomeRepository';
 export * from './EditorialDecisionOutcomeReviewRepository';

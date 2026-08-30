@@ -235,7 +235,7 @@ Sistema
 
 Fundação editorial compartilhada pelo Planner. Registra ideias, reúne evidências internas, calcula ranking relativo, persiste decisões e mantém aprendizados revisáveis do canal. O sistema diferencia dados reais, inferências, recomendações e lacunas desconhecidas; não prevê views.
 
-O domínio aceita dados manuais persistidos e dados reais obtidos pelo `YouTubeAnalyticsPerformanceProvider`. vidIQ, tendências e pesquisa web permanecem providers futuros e não são simulados.
+O domínio aceita dados manuais persistidos e dados reais obtidos pelos providers oficiais de Analytics, Reach e Audience. Tendências, séries e padrões são derivados somente do histórico persistido. vidIQ e pesquisa web permanecem providers futuros e não são simulados.
 
 ## Performance Intelligence
 
@@ -245,7 +245,9 @@ O fluxo sustenta avaliação relativa de ideias e respostas explicáveis do Plan
 
 ### Editorial Decision Loop
 
-O Planner reconhece perguntas editoriais como escolha de pauta, comparação de ideias, diagnóstico de vídeo, continuidade de série e melhoria do próximo conteúdo. Nesses casos, consulta automaticamente a Creator Intelligence e persiste uma decisão com recomendação, alternativas, confiança, evidências, riscos, dados ausentes e próxima ação. Fatos, inferências e recomendações permanecem diferenciados, sem previsão exata de views.
+O Planner reconhece perguntas editoriais como escolha de pauta, comparação de ideias, diagnóstico de vídeo, continuidade de série e melhoria do próximo conteúdo. Nesses casos, consulta automaticamente a Creator Intelligence e persiste uma decisão com recomendação, categoria, alternativas, score relativo, confiança, evidências favoráveis e contrárias, riscos, restrições, dados ausentes e próxima ação. Fatos, inferências e recomendações permanecem diferenciados, sem previsão exata de views.
+
+O `OpportunityScore` combina fatores com pesos limitados e reduz confiança quando cobertura, freshness ou consistência são fracas. As categorias são `PRIORITIZE`, `CONTINUE`, `TEST`, `HOLD`, `PAUSE`, `REEVALUATE` e `INSUFFICIENT_DATA`. Score não é previsão; confiança não é probabilidade de sucesso.
 
 As decisões recentes também alimentam o Supervisor. Um vínculo opcional com snapshots de performance prepara o ciclo decisão -> vídeo publicado -> resultado -> aprendizado, mas publicação e sincronização recorrente continuam manuais.
 
