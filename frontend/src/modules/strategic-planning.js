@@ -51,6 +51,12 @@ const renderStrategicPlanning = () => createPanel({
         <div data-planning-detail><p class="performance-empty">Selecione um item da fila.</p></div>
       </aside>
     </div>
+    <section class="planning-execution-history" aria-labelledby="planning-execution-history-title">
+      <div class="planning-section-heading">
+        <div><p class="eyebrow">Auditoria</p><h3 id="planning-execution-history-title">Histórico de execução</h3></div>
+      </div>
+      <div data-planning-execution-history><p class="performance-empty">Nenhuma ação executada neste plano.</p></div>
+    </section>
   `,
 });
 
@@ -61,6 +67,9 @@ export const createStrategicPlanningController = ({ api }) => {
   let plan = null;
   let selectedItemId = null;
   let generating = false;
+  let executionHistory = [];
+  let historyRequest = 0;
+  const executionNotes = new Map();
   const pendingItems = new Set();
   let cleanup = () => {};
 
@@ -78,6 +87,7 @@ export const createStrategicPlanningController = ({ api }) => {
     const now = panel.querySelector('[data-planning-now]');
     const queue = panel.querySelector('[data-planning-queue]');
     const detail = panel.querySelector('[data-planning-detail]');
+    const history = panel.querySelector('[data-planning-execution-history]');
     if (![form, horizon, generateButton, feedback, meta, now, queue, detail].every(Boolean)) return;
 
     const setFeedback = (message = '', variant = '') => {
@@ -112,6 +122,21 @@ export const createStrategicPlanningController = ({ api }) => {
       else article.append(...sections);
       detail.replaceChildren(article);
     };
+    const renderHistory = () => {
+      if (!history) return;
+      if (!executionHistory.length) {
+        history.replaceChildren(text('p', 'Nenhuma ação executada neste plano.', 'performance-empty'));
+        return;
+      }
+      const list = document.createElement('ol'); list.className = 'planning-history-list';
+      for (const entry of executionHistory) {
+        const row = document.createElement('li');
+        row.append(text('strong', entry.itemTitle), text('span', `${entry.state} · ${new Date(entry.createdAt).toLocaleString('pt-BR')}`),
+          text('p', entry.reason || entry.action));
+        list.append(row);
+      }
+      history.replaceChildren(list);
+    };
     const actionBar = (item, index, allItems) => {
       const actions = document.createElement('div'); actions.className = 'planning-item-actions';
       const open = button('Detalhes', 'Abrir detalhes', { planningOpen: item.id }, 'button secondary'); actions.append(open);
@@ -119,9 +144,14 @@ export const createStrategicPlanningController = ({ api }) => {
       const down = button('↓', 'Mover para baixo', { planningMove: item.id, direction: 'down' });
       up.disabled = index === 0; down.disabled = index === allItems.length - 1; actions.append(up, down);
       if (!['COMPLETED', 'CANCELLED'].includes(item.status)) {
-        if (item.status !== 'PAUSED') actions.append(button('Ⅱ', 'Pausar item', { planningPause: item.id }));
+        if (item.executionState !== 'in_progress') actions.append(button('Iniciar', 'Iniciar execução', { planningExecution: item.id, state: 'in_progress' }, 'button secondary'));
+        if (item.executionState !== 'paused') actions.append(button('Ⅱ', 'Pausar item', { planningPause: item.id, planningExecution: item.id, state: 'paused' }));
         actions.append(button('✓', 'Marcar como concluído', { planningComplete: item.id }));
+        actions.append(button('Pular', 'Pular item', { planningExecution: item.id, state: 'skipped' }, 'button secondary'));
       }
+      const note = document.createElement('input'); note.type = 'text'; note.dataset.planningNote = item.id;
+      note.value = executionNotes.get(item.id) ?? ''; note.placeholder = 'Nota ou motivo (opcional)';
+      note.setAttribute('aria-label', `Nota de execução de ${item.title}`); note.maxLength = 500; actions.append(note);
       const select = document.createElement('select'); select.dataset.planningPriority = item.id;
       select.setAttribute('aria-label', `Prioridade de ${item.title}`);
       for (const priority of PRIORITIES) {
@@ -161,8 +191,9 @@ export const createStrategicPlanningController = ({ api }) => {
       if (!currentItem) now.replaceChildren(text('p', 'Nenhum item pronto agora. Consulte WAITING e BLOCKED.', 'performance-empty'));
       else {
         const article = document.createElement('article'); article.className = 'planning-now-content';
-        article.append(text('strong', currentItem.title), text('p', currentItem.rationale),
-          text('span', `${currentItem.priority} · ${currentItem.readiness}${currentItem.queue === 'BLOCKED' ? ' · bloqueado' : ''}`));
+        article.append(text('strong', currentItem.title), text('p', currentItem.executionAction || currentItem.rationale),
+          text('small', `Por quê: ${currentItem.rationale}`),
+          text('span', `${currentItem.priority} · ${currentItem.readiness}${currentItem.executionConfidence == null ? '' : ` · confiança ${Math.round(currentItem.executionConfidence * 100)}%`}${currentItem.queue === 'BLOCKED' ? ' · bloqueado' : ''}`));
         now.replaceChildren(article);
       }
       if (selectedItemId && !itemById(selectedItemId)) selectedItemId = null;
@@ -175,15 +206,29 @@ export const createStrategicPlanningController = ({ api }) => {
       if (stale || missing) setFeedback('Plano carregado em modo degradado: há dados stale ou ausentes.', 'warning');
       else setFeedback('');
     };
+    const loadHistory = async (planId) => {
+      if (!history || typeof api.listPlanningExecutionHistory !== 'function' || !planId) {
+        executionHistory = []; renderHistory(); return;
+      }
+      const request = ++historyRequest;
+      try {
+        const loaded = await api.listPlanningExecutionHistory({ planId, limit: 100 });
+        if (!current() || request !== historyRequest || plan?.id !== planId) return;
+        executionHistory = Array.isArray(loaded) ? loaded : []; renderHistory();
+      } catch {
+        if (!current() || request !== historyRequest || plan?.id !== planId) return;
+        setFeedback('O plano foi carregado, mas o histórico de execução está indisponível.', 'warning');
+      }
+    };
     const load = async () => {
       const request = ++loadRequest; panel.setAttribute('aria-busy', 'true');
       try {
         const loaded = await api.getCurrentContentPlan();
         if (!current() || request !== loadRequest) return;
-        plan = loaded; renderPlan(); qualityWarning();
+        plan = loaded; renderPlan(); qualityWarning(); loadHistory(plan.id);
       } catch (error) {
         if (!current() || request !== loadRequest) return;
-        if (error?.status === 404) { plan = null; renderPlan(); setFeedback(''); }
+        if (error?.status === 404) { plan = null; executionHistory = []; renderPlan(); renderHistory(); setFeedback(''); }
         else { plan = null; renderPlan(); setFeedback('Não foi possível carregar o planejamento. Tente novamente.', 'error'); }
       } finally { if (current() && request === loadRequest) panel.setAttribute('aria-busy', 'false'); }
     };
@@ -195,7 +240,7 @@ export const createStrategicPlanningController = ({ api }) => {
         const generated = await api.generateContentPlan({ horizon: horizon.value });
         if (!current() || request !== loadRequest) return;
         plan = generated; selectedItemId = generated.items?.find(({ queue: state }) => state === 'NEXT')?.id ?? null;
-        renderPlan(); qualityWarning();
+        executionHistory = []; renderPlan(); renderHistory(); qualityWarning(); loadHistory(plan.id);
       } catch { if (current()) setFeedback('Não foi possível gerar o plano. Tente novamente.', 'error'); }
       finally { if (current()) { setGenerating(false); renderQueue(); } }
     };
@@ -205,11 +250,23 @@ export const createStrategicPlanningController = ({ api }) => {
       try {
         const updated = await operation();
         if (!current()) return;
-        plan = { ...plan, items: plan.items.map((item) => item.id === id ? updated : item) };
+        if (updated?.plan) plan = updated.plan;
+        else plan = { ...plan, items: plan.items.map((item) => item.id === id ? updated : item) };
         selectedItemId = id; renderPlan(); qualityWarning();
+        if (updated?.event) {
+          executionHistory = [updated.event, ...executionHistory.filter((entry) => entry.id !== updated.event.id)];
+          renderHistory();
+        }
       } catch { if (current()) setFeedback('Não foi possível atualizar o item. Tente novamente.', 'error'); }
       finally { pendingItems.delete(id); if (current()) renderQueue(); }
     };
+    const transitionExecution = (id, state, reason) => updateItem(id, async () => {
+      if (typeof api.updatePlanningExecution === 'function') return api.updatePlanningExecution(id, { state, reason });
+      if (state === 'completed') return api.completePlannedContentItem(id, reason);
+      return api.updatePlannedContentItem(id, {
+        status: state === 'paused' ? 'PAUSED' : state === 'in_progress' ? 'IN_PROGRESS' : 'CANCELLED', reason,
+      });
+    });
     const reorder = async (id, direction) => {
       if (!plan || generating || pendingItems.size) return;
       const ordered = [...plan.items].sort((a, b) => a.position - b.position || a.id.localeCompare(b.id));
@@ -230,11 +287,17 @@ export const createStrategicPlanningController = ({ api }) => {
       const move = event.target.closest?.('[data-planning-move]');
       if (move) { reorder(move.dataset.planningMove, move.dataset.direction); return; }
       const complete = event.target.closest?.('[data-planning-complete]');
-      if (complete) updateItem(complete.dataset.planningComplete, () => api.completePlannedContentItem(complete.dataset.planningComplete, 'Conteúdo concluído pela interface.'));
+      if (complete) { transitionExecution(complete.dataset.planningComplete, 'completed', executionNotes.get(complete.dataset.planningComplete)?.trim() || 'Conteúdo concluído pela interface.'); return; }
       const pause = event.target.closest?.('[data-planning-pause]');
-      if (pause) updateItem(pause.dataset.planningPause, () => api.updatePlannedContentItem(pause.dataset.planningPause, { status: 'PAUSED', reason: 'Item pausado pela interface.' }));
+      if (pause) { transitionExecution(pause.dataset.planningPause, 'paused', executionNotes.get(pause.dataset.planningPause)?.trim() || 'Item pausado pela interface.'); return; }
+      const execution = event.target.closest?.('[data-planning-execution]');
+      if (execution) transitionExecution(execution.dataset.planningExecution, execution.dataset.state,
+        executionNotes.get(execution.dataset.planningExecution)?.trim()
+          || (execution.dataset.state === 'skipped' ? 'Item pulado pela interface.' : 'Execução iniciada pela interface.'));
     };
     const handleChange = (event) => {
+      const noteId = event.target?.dataset?.planningNote;
+      if (noteId) { executionNotes.set(noteId, event.target.value); return; }
       const id = event.target?.dataset?.planningPriority;
       if (id) updateItem(id, () => api.updatePlannedContentItem(id, { priority: event.target.value, reason: 'Prioridade alterada pela interface.' }));
     };
@@ -243,7 +306,7 @@ export const createStrategicPlanningController = ({ api }) => {
     load();
   };
 
-  const unmount = () => { cleanup(); cleanup = () => {}; mounted = null; generation += 1; loadRequest += 1; pendingItems.clear(); };
+  const unmount = () => { cleanup(); cleanup = () => {}; mounted = null; generation += 1; loadRequest += 1; historyRequest += 1; pendingItems.clear(); executionNotes.clear(); };
   return { mount, unmount };
 };
 

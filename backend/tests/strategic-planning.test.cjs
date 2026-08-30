@@ -112,6 +112,8 @@ describe('strategic planning persistence, API and integrations', { concurrency: 
     const fs = require('node:fs'); const path = require('node:path');
     const migration = fs.readFileSync(path.resolve(__dirname, '../prisma/migrations/20260904120000_strategic_content_planning/migration.sql'), 'utf8');
     for (const statement of migration.split(';').map((part) => part.replace(/^--.*$/gm, '').trim()).filter(Boolean)) await client.$executeRawUnsafe(statement);
+    const executionMigration = fs.readFileSync(path.resolve(__dirname, '../prisma/migrations/20260905100000_planning_execution_guidance/migration.sql'), 'utf8');
+    for (const statement of executionMigration.split(';').map((part) => part.replace(/^--.*$/gm, '').trim()).filter(Boolean)) await client.$executeRawUnsafe(statement);
     service = new StrategicPlanningService(
       new ContentPlanRepository(client), new PlannedContentItemRepository(client), new PlanningHistoryRepository(client),
       { list: async () => structuredClone(decisions) }, research, new StrategicPlanningRanker(), () => new Date('2026-09-04T12:00:00.000Z'),

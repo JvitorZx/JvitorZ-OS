@@ -191,14 +191,19 @@ export const createPlannerController = ({ api }) => {
     const loadStrategicPlan = async () => {
       if (!strategicPlan || typeof api.getCurrentContentPlan !== 'function') return;
       try {
-        const currentPlan = await api.getCurrentContentPlan();
+        const guidance = typeof api.getCurrentExecutionGuidance === 'function'
+          ? await api.getCurrentExecutionGuidance() : null;
+        const currentPlan = guidance ? null : await api.getCurrentContentPlan();
         if (!isCurrentMount()) return;
-        const next = currentPlan.items?.find((item) => item.queue === 'NEXT');
+        const next = guidance ?? currentPlan?.items?.find((item) => item.queue === 'NEXT');
         const link = document.createElement('a'); link.href = '#/planning'; link.textContent = 'Abrir planejamento';
         strategicPlan.replaceChildren(
           next ? Object.assign(document.createElement('strong'), { textContent: next.title })
             : Object.assign(document.createElement('p'), { textContent: 'Nenhum item pronto agora.' }),
-          Object.assign(document.createElement('small'), { textContent: `${currentPlan.horizon} · ${currentPlan.status}` }),
+          next?.action ? Object.assign(document.createElement('p'), { textContent: next.action }) : document.createTextNode(''),
+          Object.assign(document.createElement('small'), { textContent: guidance
+            ? `${guidance.horizon} · ${guidance.state}${guidance.confidence == null ? '' : ` · confiança ${Math.round(guidance.confidence * 100)}%`}`
+            : `${currentPlan.horizon} · ${currentPlan.status}` }),
           link,
         );
       } catch (error) {

@@ -75,7 +75,8 @@ export const createDefaultCapabilityRegistry = (
       projectId: request.projectId,
       horizon: 'TODAY',
     });
-    const next = plan.items.filter(({ queue }) => queue === 'NEXT');
+    const next = plan.items.filter(({ executionState, queue }) => executionState === 'in_progress' || queue === 'NEXT')
+      .sort((a, b) => (a.executionState === 'in_progress' ? -1 : 0) - (b.executionState === 'in_progress' ? -1 : 0));
     const waiting = plan.items.filter(({ queue }) => ['WAITING', 'BLOCKED'].includes(queue));
     const evidenceCounts = plan.items.map(({ evidence }) => Array.isArray(evidence) ? evidence.length : 0);
     return {
@@ -85,7 +86,7 @@ export const createDefaultCapabilityRegistry = (
       facts: [`Plano ${plan.id} (${plan.horizon}) com ${plan.items.length} item(ns).`],
       inferences: next.map(({ rationale }) => rationale).slice(0, 2),
       recommendations: [
-        ...next.map(({ title }) => `Gravar agora: ${title}.`),
+        ...next.map(({ executionAction }) => executionAction),
         ...plan.items.filter(({ queue }) => queue === 'LATER').slice(0, 2).map(({ title }) => `Depois: ${title}.`),
       ],
       risks: waiting.map(({ title, readiness }) => `${title}: ${readiness}.`).slice(0, 6),
@@ -93,8 +94,8 @@ export const createDefaultCapabilityRegistry = (
       confidence: evidenceCounts.length ? Math.min(1, evidenceCounts.reduce((sum, count) => sum + count, 0) / Math.max(1, plan.items.length * 3)) : 0,
       data: {
         planId: plan.id, generated, status: plan.status, horizon: plan.horizon,
-        items: plan.items.map(({ id, title, priority, readiness, queue, position, executionScore }) => ({
-          id, title, priority, readiness, queue, position, executionScore,
+        items: plan.items.map(({ id, title, priority, readiness, queue, position, executionScore, executionState, executionAction, executionConfidence }) => ({
+          id, title, priority, readiness, queue, position, executionScore, executionState, executionAction, executionConfidence,
         })),
       },
     };

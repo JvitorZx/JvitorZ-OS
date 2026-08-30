@@ -1246,4 +1246,27 @@ Limites preservados:
 - o plano não publica conteúdo, não altera o YouTube e não dispara automação irreversível;
 - disponibilidade real do criador não é inventada.
 
-Próximo checkpoint: **SPRINT 39 — NÃO INICIADA**.
+## Sprint 39 — Execução Orientada pelo Plano Estratégico — CONCLUÍDA
+
+**Objetivo:** conectar plano, próxima ação e execução em um ciclo operacional auditável, sem publicar ou alterar conteúdo externamente.
+
+Entregas:
+
+- `ExecutionGuidance` persistido por item, com ação objetiva, motivo, evidências e confiança reduzida por dados stale/missing;
+- estados `pending`, `in_progress`, `completed`, `skipped` e `paused` com transições validadas;
+- `PlanningExecutionEvent` append-only com snapshot do contexto estratégico existente no momento da ação;
+- promoção determinística do próximo item após concluir, pausar ou pular, preservando prioridade e reorder manual;
+- garantia persistente de no máximo uma execução ativa por plano;
+- endpoints de guidance atual, transição e histórico de execução;
+- workspace `#/planning` com orientação imediata, controles operacionais e histórico auditável;
+- Planner, Gerente e Supervisor consumindo os contratos existentes sem recalcular o ranking;
+- migration aditiva, testes SQLite isolados e regressão completa.
+
+Limites preservados:
+
+- execução significa registrar trabalho editorial interno; não publica, edita ou envia vídeos;
+- prioridade, confiança e guidance não garantem performance nem preveem views;
+- conclusão e skip não apagam o item; o histórico e o contexto permanecem auditáveis;
+- o vínculo com o resultado real futuro foi preparado, mas não automatizado nesta Sprint.
+
+Próximo checkpoint: **SPRINT 40 — NÃO INICIADA**.

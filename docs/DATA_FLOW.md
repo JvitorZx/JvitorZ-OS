@@ -695,4 +695,27 @@ DecisionHistory + ResearchOpportunity + Trends + Series
 
 A workspace carrega `GET /api/planning/current`, mostra estado vazio quando recebe `404` e mantém os dados válidos visíveis em modo degradado. Geração e mutações são bloqueadas por operação para evitar requests duplicadas. Tokens de montagem/request impedem que resposta tardia após navegação, troca ou unmount altere a tela atual.
 
+## Execução orientada pelo plano — Sprint 39
+
+```text
+ContentPlan + PlannedContentItem
+  -> StrategicPlanningService.getCurrentGuidance()
+  -> Planning workspace / Planner / Gerente / Supervisor
+
+Usuário inicia, conclui, pausa ou pula
+  -> POST /api/planning/items/:id/execution
+  -> StrategicPlanningService.transitionExecution()
+  -> PlanningExecutionRepository (transação)
+     -> atualiza estado do item
+     -> preserva prioridade e posição manual
+     -> recalcula somente NEXT/LATER/WAITING/BLOCKED/DONE
+     -> grava PlanningExecutionEvent + PlanningHistory
+  -> currentGuidance recalculado
+  -> workspace atualiza "O que fazer agora" e o histórico
+```
+
+O evento congela título, ação, motivo, confiança, evidências, riscos, dados ausentes e fontes vigentes no momento da transição. Concluir, pausar ou pular não apaga itens. Uma constraint parcial impede dois itens `in_progress` no mesmo plano, inclusive sob clientes concorrentes.
+
+Respostas tardias continuam protegidas pelo token de montagem/request do controller. A UI não calcula guidance nem promove itens por conta própria: aplica o plano persistido retornado pela API. O ciclo termina no registro interno da execução; publicação e resultado real futuro permanecem fora do fluxo atual.
+
 O Planner consulta somente o resumo do plano atual; o Gerente usa a capability registrada e pode solicitar geração quando não há plano; o Supervisor lê contagens e alertas de baixa confiança, excesso de experimentos, stale data, bloqueios e conflitos. A interpretação e o ranking permanecem no backend.

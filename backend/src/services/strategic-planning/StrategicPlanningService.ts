@@ -1,4 +1,4 @@
-import type { EditorialDecision, Prisma, ResearchOpportunity } from '@prisma/client';
+import { Prisma, type EditorialDecision, type ResearchOpportunity } from '@prisma/client';
 import { DatabaseService } from '../../database/DatabaseService';
 import {
   ContentPlanRepository,
@@ -7,12 +7,18 @@ import {
 import { PlannedContentItemRepository } from '../../database/repositories/PlannedContentItemRepository';
 import { PlanningHistoryRepository } from '../../database/repositories/PlanningHistoryRepository';
 import {
+  PlanningExecutionRepository,
+  PlanningExecutionTransitionConflict,
+} from '../../database/repositories/PlanningExecutionRepository';
+import {
   CONTENT_PLAN_STATUSES,
   EXECUTION_READINESS,
   PLANNING_EFFORTS,
   PLANNING_HORIZONS,
   PLANNING_PRIORITIES,
   StrategicPlanningRanker,
+  createExecutionGuidance,
+  PLANNING_EXECUTION_STATES,
   type ContentPlanStatus,
   type PlanningCandidate,
   type PlanningConstraint,
@@ -22,6 +28,7 @@ import {
   type PlanningHorizon,
   type PlanningPriority,
   type PlanningRisk,
+  type PlanningExecutionState,
 } from '../../domains/strategic-planning';
 import { EditorialDecisionService } from '../creator-intelligence/EditorialDecisionService';
 import { ResearchService } from '../research';
@@ -37,6 +44,9 @@ export class ContentPlanNotFoundError extends StrategicPlanningError {
 }
 export class PlannedContentItemNotFoundError extends StrategicPlanningError {
   constructor() { super('Planned content item not found'); this.name = 'PlannedContentItemNotFoundError'; }
+}
+export class PlanningExecutionConflictError extends StrategicPlanningError {
+  constructor() { super('Planning execution transition conflicts with the current state'); this.name = 'PlanningExecutionConflictError'; }
 }
 
 interface PlanningDecisionReader {
@@ -66,6 +76,11 @@ export interface UpdatePlanningItemInput {
   priority?: PlanningPriority;
   effort?: PlanningEffort;
   reason: string;
+}
+export interface TransitionPlanningExecutionInput {
+  state: PlanningExecutionState;
+  reason?: string;
+  note?: string;
 }
 
 const asJson = (value: unknown): Prisma.InputJsonValue => value as Prisma.InputJsonValue;
@@ -122,6 +137,9 @@ const effortFrom = (constraints: readonly PlanningConstraint[]): PlanningEffort 
 };
 
 export class StrategicPlanningService {
+  private readonly executionLocks = new Map<string, Promise<unknown>>();
+  private lastExecutionAt = 0;
+
   constructor(
     private readonly plans = new ContentPlanRepository(DatabaseService.client),
     private readonly items = new PlannedContentItemRepository(DatabaseService.client),
@@ -130,6 +148,7 @@ export class StrategicPlanningService {
     private readonly research: PlanningResearchReader = new ResearchService(),
     private readonly ranker = new StrategicPlanningRanker(),
     private readonly clock = () => new Date(),
+    private readonly execution = new PlanningExecutionRepository(DatabaseService.client),
   ) {}
 
   private async candidates(projectId: string | null, explicitConstraints: readonly PlanningConstraint[]): Promise<PlanningCandidate[]> {
@@ -226,7 +245,9 @@ export class StrategicPlanningService {
       source: asJson({ decisionIds: candidates.flatMap(({ sourceDecisionId }) => sourceDecisionId ? [sourceDecisionId] : []),
         researchOpportunityIds: candidates.flatMap(({ sourceResearchOpportunityId }) => sourceResearchOpportunityId ? [sourceResearchOpportunityId] : []) }),
       generatedAt,
-      items: ranked.candidates.map((candidate) => ({
+      items: ranked.candidates.map((candidate) => {
+        const guidance = createExecutionGuidance(candidate);
+        return ({
         sourceDecisionId: candidate.sourceDecisionId ?? null,
         sourceResearchOpportunityId: candidate.sourceResearchOpportunityId ?? null,
         researchHistoryId: null, seriesId: candidate.seriesId ?? null,
@@ -236,7 +257,9 @@ export class StrategicPlanningService {
         queue: candidate.queue, position: candidate.rank, executionScore: candidate.executionScore,
         manualPriority: false, evidence: asJson(candidate.evidence), risks: asJson(candidate.risks),
         constraints: asJson(candidate.constraints), missingData: asJson(candidate.missingData), dependencies: asJson(candidate.dependencies),
-      })),
+        executionState: guidance.state, executionAction: guidance.action,
+        executionConfidence: guidance.confidence, executionContext: asJson(guidance.context),
+      }); }),
     });
   }
 
@@ -272,6 +295,9 @@ export class StrategicPlanningService {
       status: readiness, priority, effort, readiness, queue: readiness === 'BLOCKED' ? 'BLOCKED' : plan.items.some(({ queue }) => queue === 'NEXT') ? 'LATER' : 'NEXT',
       position: plan.items.length + 1, executionScore: 0, manualPriority: true,
       evidence: asJson([]), risks: asJson([]), constraints: asJson(constraints), missingData: asJson([]), dependencies: asJson([]),
+      executionState: 'pending',
+      executionAction: readiness === 'BLOCKED' ? `Resolver os bloqueios antes de produzir: ${title}.` : `Preparar e iniciar a producao de: ${title}.`,
+      executionConfidence: null, executionContext: asJson({ manual: true, readiness, priority }),
     }, normalizeText(input.reason, 'reason', 500));
     await this.refreshPlanStatus(plan.id);
     return item;
@@ -282,15 +308,17 @@ export class StrategicPlanningService {
     if (!item) throw new PlannedContentItemNotFoundError();
     const reason = normalizeText(input.reason, 'reason', 500);
     const data: Prisma.PlannedContentItemUpdateInput = {};
-    if (input.status !== undefined) {
+    const executionState = input.status === 'IN_PROGRESS' ? 'in_progress'
+      : input.status === 'COMPLETED' ? 'completed'
+        : input.status === 'CANCELLED' ? 'skipped'
+          : input.status === 'PAUSED' ? 'paused'
+            : input.status === 'READY' ? 'pending' : null;
+    if (input.status !== undefined && executionState === null) {
       if (!CONTENT_PLAN_STATUSES.includes(input.status)) throw new StrategicPlanningValidationError('invalid status');
       data.status = input.status;
       if (input.status === 'BLOCKED') { data.readiness = 'BLOCKED'; data.queue = 'BLOCKED'; }
       if (input.status === 'NEEDS_RESEARCH') { data.readiness = 'NEEDS_RESEARCH'; data.queue = 'WAITING'; }
-      if (input.status === 'PAUSED' || input.status === 'DRAFT') data.queue = 'WAITING';
-      if (input.status === 'READY') { data.readiness = 'READY'; data.queue = 'LATER'; }
-      if (input.status === 'IN_PROGRESS') { data.readiness = 'READY'; data.queue = 'NEXT'; }
-      if (input.status === 'COMPLETED' || input.status === 'CANCELLED') { data.queue = 'DONE'; data.completedAt = input.status === 'COMPLETED' ? this.clock() : null; }
+      if (input.status === 'DRAFT') data.queue = 'WAITING';
     }
     if (input.priority !== undefined) {
       if (!PLANNING_PRIORITIES.includes(input.priority)) throw new StrategicPlanningValidationError('invalid priority');
@@ -300,14 +328,15 @@ export class StrategicPlanningService {
       if (!PLANNING_EFFORTS.includes(input.effort)) throw new StrategicPlanningValidationError('invalid effort');
       data.effort = input.effort;
     }
+    if (Object.keys(data).length) await this.items.updateWithHistory(item.id, data, 'ITEM_UPDATED', reason);
+    if (executionState) return (await this.transitionExecution(item.id, { state: executionState, reason })).item;
     if (!Object.keys(data).length) throw new StrategicPlanningValidationError('at least one item field is required');
-    const updated = await this.items.updateWithHistory(item.id, data, 'ITEM_UPDATED', reason);
     await this.refreshPlanStatus(item.planId);
-    return updated;
+    return (await this.items.findById(item.id))!;
   }
 
   async completeItem(id: string, reason = 'Conteudo marcado como concluido.') {
-    return this.updateItem(id, { status: 'COMPLETED', reason });
+    return (await this.transitionExecution(id, { state: 'completed', reason })).item;
   }
 
   async reorder(planId: string, orderedIds: readonly string[], reason: string) {
@@ -317,12 +346,15 @@ export class StrategicPlanningService {
       throw new StrategicPlanningValidationError('reorder must contain every plan item exactly once');
     }
     let nextAssigned = false;
+    const runningId = plan.items.find(({ executionState }) => executionState === 'in_progress')?.id ?? null;
     const ordered = orderedIds.map((id) => {
       const item = plan.items.find((candidate) => candidate.id === id)!;
-      const queue = ['COMPLETED', 'CANCELLED'].includes(item.status) ? 'DONE'
+      const queue = ['completed', 'skipped'].includes(item.executionState) || ['COMPLETED', 'CANCELLED'].includes(item.status) ? 'DONE'
+        : item.executionState === 'paused' || item.status === 'PAUSED' ? 'WAITING'
         : item.readiness === 'BLOCKED' ? 'BLOCKED'
           : item.readiness === 'NEEDS_RESEARCH' ? 'WAITING'
-            : !nextAssigned ? (nextAssigned = true, 'NEXT') : 'LATER';
+            : item.id === runningId ? (nextAssigned = true, 'NEXT')
+              : !runningId && !nextAssigned ? (nextAssigned = true, 'NEXT') : 'LATER';
       return { id, queue };
     });
     return this.items.reorder(plan.id, ordered, normalizeText(reason, 'reason', 500));
@@ -352,9 +384,68 @@ export class StrategicPlanningService {
     return this.history.findAll({ ...filters, ...(filters.planId ? { planId: normalizeId(filters.planId, 'plan id') } : {}), ...(filters.itemId ? { itemId: normalizeId(filters.itemId, 'item id') } : {}) });
   }
 
+  async getCurrentGuidance(filters: { projectId?: string | null; horizon?: PlanningHorizon } = {}) {
+    const plan = await this.getCurrent(filters);
+    return plan ? this.guidanceFromPlan(plan) : null;
+  }
+
+  async transitionExecution(id: string, input: TransitionPlanningExecutionInput) {
+    const itemId = normalizeId(id, 'item id');
+    if (!PLANNING_EXECUTION_STATES.includes(input.state)) throw new StrategicPlanningValidationError('invalid execution state');
+    const reason = input.reason === undefined ? null : normalizeText(input.reason, 'reason', 500);
+    const note = input.note === undefined ? null : normalizeText(input.note, 'note', 500);
+    return this.withExecutionLock(itemId, async () => {
+      const item = await this.items.findById(itemId);
+      if (!item) throw new PlannedContentItemNotFoundError();
+      const action = note ?? item.executionAction;
+      const event = input.state === 'in_progress' ? 'EXECUTION_STARTED'
+        : input.state === 'completed' ? 'EXECUTION_COMPLETED'
+          : input.state === 'skipped' ? 'EXECUTION_SKIPPED'
+            : input.state === 'paused' ? 'EXECUTION_PAUSED' : 'EXECUTION_RESET_PENDING';
+      const strategicContext = asJson({
+        planId: item.planId, itemId: item.id, title: item.title, rationale: item.rationale,
+        priority: item.priority, manualPriority: item.manualPriority, position: item.position,
+        queue: item.queue, readiness: item.readiness, effort: item.effort,
+        executionScore: item.executionScore, executionAction: item.executionAction,
+        executionConfidence: item.executionConfidence, executionContext: objectValue(item.executionContext),
+        evidence: jsonArray(item.evidence), risks: jsonArray(item.risks), constraints: jsonArray(item.constraints),
+        missingData: jsonArray(item.missingData), dependencies: jsonArray(item.dependencies),
+        sourceDecisionId: item.sourceDecisionId, sourceResearchOpportunityId: item.sourceResearchOpportunityId,
+      });
+      try {
+        const occurredAt = this.nextExecutionTime();
+        const transition = await this.execution.transition({
+          itemId, state: input.state, event, action, reason,
+          confidence: item.executionConfidence, strategicContext, occurredAt,
+        });
+        await this.refreshPlanStatus(item.planId);
+        const plan = await this.getById(item.planId);
+        return { ...transition, plan, currentGuidance: this.guidanceFromPlan(plan) };
+      } catch (error) {
+        if (error instanceof PlanningExecutionTransitionConflict
+          || (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002')) {
+          throw new PlanningExecutionConflictError();
+        }
+        throw error;
+      }
+    });
+  }
+
+  async listExecutionHistory(filters: { planId?: string; itemId?: string; limit?: number } = {}) {
+    if (filters.limit !== undefined && (!Number.isInteger(filters.limit) || filters.limit < 1 || filters.limit > 200)) {
+      throw new StrategicPlanningValidationError('invalid execution history limit');
+    }
+    return this.execution.findAll({
+      ...(filters.planId ? { planId: normalizeId(filters.planId, 'plan id') } : {}),
+      ...(filters.itemId ? { itemId: normalizeId(filters.itemId, 'item id') } : {}),
+      ...(filters.limit ? { limit: filters.limit } : {}),
+    });
+  }
+
   async getOperationalSummary(projectId?: string | null) {
     const plan = await this.getCurrent(projectId === undefined ? {} : { projectId });
-    if (!plan) return { planId: null, status: 'MISSING', horizon: null, total: 0, ready: 0, needsResearch: 0, blocked: 0, lowConfidence: 0, experiments: 0, stale: 0, conflicts: 0, alerts: [] as string[] };
+    if (!plan) return { planId: null, status: 'MISSING', horizon: null, total: 0, ready: 0, needsResearch: 0, blocked: 0, lowConfidence: 0, experiments: 0, stale: 0, conflicts: 0, inProgress: 0, paused: 0, completed: 0, skipped: 0, nextAction: null, executionConfidence: null, alerts: [] as string[] };
+    const guidance = this.guidanceFromPlan(plan);
     const summary = {
       planId: plan.id, status: plan.status, horizon: plan.horizon, total: plan.items.length,
       ready: plan.items.filter(({ readiness }) => readiness === 'READY').length,
@@ -364,6 +455,12 @@ export class StrategicPlanningService {
       experiments: plan.items.filter(({ priority }) => priority === 'EXPERIMENTAL').length,
       stale: plan.items.filter(({ evidence }) => jsonArray<PlanningEvidence>(evidence).some(({ freshness }) => freshness === 'STALE')).length,
       conflicts: plan.items.filter(({ risks }) => jsonArray<PlanningRisk>(risks).some(({ code }) => /CONFLICT/i.test(code))).length,
+      inProgress: plan.items.filter(({ executionState }) => executionState === 'in_progress').length,
+      paused: plan.items.filter(({ executionState }) => executionState === 'paused').length,
+      completed: plan.items.filter(({ executionState }) => executionState === 'completed').length,
+      skipped: plan.items.filter(({ executionState }) => executionState === 'skipped').length,
+      nextAction: guidance?.action ?? null,
+      executionConfidence: guidance?.confidence ?? null,
     };
     return {
       ...summary,
@@ -375,6 +472,37 @@ export class StrategicPlanningService {
         ...(summary.conflicts > 0 ? [`${summary.conflicts} conflito(s) de evidencia.`] : []),
       ],
     };
+  }
+
+  private guidanceFromPlan(plan: ContentPlanWithItems) {
+    const ordered = [...plan.items].sort((a, b) => a.position - b.position || a.id.localeCompare(b.id));
+    const item = ordered.find(({ executionState }) => executionState === 'in_progress')
+      ?? ordered.find(({ queue, executionState }) => queue === 'NEXT' && !['completed', 'skipped'].includes(executionState))
+      ?? ordered.find(({ queue, executionState }) => ['WAITING', 'BLOCKED'].includes(queue) && !['completed', 'skipped'].includes(executionState));
+    if (!item) return null;
+    return {
+      planId: plan.id, horizon: plan.horizon, planStatus: plan.status,
+      itemId: item.id, title: item.title, state: item.executionState, queue: item.queue,
+      action: item.executionAction, reason: item.rationale, priority: item.priority,
+      readiness: item.readiness, effort: item.effort, confidence: item.executionConfidence,
+      evidence: jsonArray(item.evidence).slice(0, 5), risks: jsonArray(item.risks).slice(0, 5),
+      missingData: jsonArray(item.missingData).slice(0, 10),
+      degraded: jsonArray<Record<string, unknown>>(item.evidence).some(({ freshness }) => freshness === 'STALE')
+        || jsonArray(item.missingData).length > 0,
+    };
+  }
+
+  private withExecutionLock<T>(itemId: string, operation: () => Promise<T>): Promise<T> {
+    const previous = this.executionLocks.get(itemId) ?? Promise.resolve();
+    const current = previous.catch(() => undefined).then(operation);
+    this.executionLocks.set(itemId, current);
+    return current.finally(() => { if (this.executionLocks.get(itemId) === current) this.executionLocks.delete(itemId); });
+  }
+
+  private nextExecutionTime(): Date {
+    const current = this.clock().getTime();
+    this.lastExecutionAt = Math.max(current, this.lastExecutionAt + 1);
+    return new Date(this.lastExecutionAt);
   }
 
   private async refreshPlanStatus(planId: string): Promise<void> {

@@ -157,7 +157,11 @@ export const supervisorModule = {
               <li>Testes: ${escapeHtml(planning.experiments ?? 0)}</li>
               <li>Dados stale: ${escapeHtml(planning.stale ?? 0)}</li>
               <li>Conflitos: ${escapeHtml(planning.conflicts ?? 0)}</li>
+              <li>Em execução: ${escapeHtml(planning.inProgress ?? 0)}</li>
+              <li>Pausados: ${escapeHtml(planning.paused ?? 0)}</li>
+              <li>Concluídos: ${escapeHtml(planning.completed ?? 0)} · Pulados: ${escapeHtml(planning.skipped ?? 0)}</li>
             </ul>
+            ${planning.nextAction ? `<p><strong>Próxima ação:</strong> ${escapeHtml(planning.nextAction)}${planning.executionConfidence == null ? '' : ` · ${escapeHtml(Math.round(planning.executionConfidence * 100))}%`}</p>` : ''}
             ${renderItems(planningAlerts, 'Nenhum alerta de planejamento ativo.')}
           </section>
           <section>

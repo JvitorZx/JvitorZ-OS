@@ -529,6 +529,7 @@ model ContentPlan {
   generatedAt DateTime
   items       PlannedContentItem[]
   history     PlanningHistory[]
+  executionHistory PlanningExecutionEvent[]
   createdAt   DateTime             @default(now())
   updatedAt   DateTime             @updatedAt
 
@@ -565,8 +566,15 @@ model PlannedContentItem {
   constraints                 Json
   missingData                 Json
   dependencies                Json
+  executionState              String                   @default("pending")
+  executionAction             String                   @default("Revisar item e preparar a proxima acao.")
+  executionConfidence         Float?
+  executionContext            Json                     @default("{}")
+  executionStartedAt          DateTime?
+  executionEndedAt            DateTime?
   completedAt                 DateTime?
   history                     PlanningHistory[]
+  executionHistory            PlanningExecutionEvent[]
   createdAt                   DateTime              @default(now())
   updatedAt                   DateTime              @updatedAt
 
@@ -575,6 +583,7 @@ model PlannedContentItem {
   @@index([status, priority, readiness])
   @@index([sourceDecisionId])
   @@index([sourceResearchOpportunityId])
+  @@index([planId, executionState, position])
 }
 
 model PlanningHistory {
@@ -592,6 +601,26 @@ model PlanningHistory {
   @@index([planId, createdAt])
   @@index([itemId, createdAt])
   @@index([event, createdAt])
+}
+
+model PlanningExecutionEvent {
+  id               String             @id @default(cuid())
+  planId           String
+  plan             ContentPlan        @relation(fields: [planId], references: [id], onDelete: Cascade)
+  itemId           String
+  item             PlannedContentItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  event            String
+  state            String
+  itemTitle        String
+  action           String
+  reason           String?
+  confidence       Float?
+  strategicContext Json
+  createdAt        DateTime           @default(now())
+
+  @@index([planId, createdAt])
+  @@index([itemId, createdAt])
+  @@index([state, createdAt])
 }
 
 model VideoReachSnapshot {

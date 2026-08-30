@@ -36,6 +36,10 @@ export interface CreateContentPlanData {
     constraints: Prisma.InputJsonValue;
     missingData: Prisma.InputJsonValue;
     dependencies: Prisma.InputJsonValue;
+    executionState: string;
+    executionAction: string;
+    executionConfidence: number | null;
+    executionContext: Prisma.InputJsonValue;
   }>;
 }
 

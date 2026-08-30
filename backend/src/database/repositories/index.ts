@@ -15,6 +15,7 @@ export * from './ResearchOpportunityRepository';
 export * from './ContentPlanRepository';
 export * from './PlannedContentItemRepository';
 export * from './PlanningHistoryRepository';
+export * from './PlanningExecutionRepository';
 export * from './LibraryItemRepository';
 export * from './ConversationLibraryItemRepository';
 export * from './VideoIdeaRepository';

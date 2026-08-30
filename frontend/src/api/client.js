@@ -234,6 +234,13 @@ export const createApiClient = (baseUrl) => ({
     return requestJson(`${baseUrl}/api/planning/current${params.size ? `?${params}` : ''}`, undefined, 'Erro ao carregar plano estrategico');
   },
 
+  async getCurrentExecutionGuidance(filters = {}) {
+    const params = new URLSearchParams();
+    if (filters.projectId !== undefined) params.set('projectId', requireIdentifier(filters.projectId, 'projectId'));
+    if (filters.horizon !== undefined) params.set('horizon', requireIdentifier(filters.horizon, 'horizon'));
+    return requestJson(`${baseUrl}/api/planning/current/guidance${params.size ? `?${params}` : ''}`, undefined, 'Erro ao carregar orientacao de execucao');
+  },
+
   async generateContentPlan(input = {}) {
     if (!input || typeof input !== 'object' || Array.isArray(input)) throw new TypeError('planning input must be an object');
     return requestJson(`${baseUrl}/api/planning/generate`, {
@@ -263,6 +270,14 @@ export const createApiClient = (baseUrl) => ({
     }, 'Erro ao concluir item planejado');
   },
 
+  async updatePlanningExecution(itemId, input) {
+    const id = requireIdentifier(itemId, 'itemId');
+    if (!input || typeof input !== 'object' || Array.isArray(input)) throw new TypeError('planning execution input must be an object');
+    return requestJson(`${baseUrl}/api/planning/items/${encodeURIComponent(id)}/execution`, {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(input),
+    }, 'Erro ao atualizar execucao do planejamento');
+  },
+
   async reorderContentPlan(planId, itemIds, reason) {
     const id = requireIdentifier(planId, 'planId');
     if (!Array.isArray(itemIds) || !itemIds.length) throw new TypeError('itemIds must be a non-empty array');
@@ -289,6 +304,17 @@ export const createApiClient = (baseUrl) => ({
       params.set('limit', String(filters.limit));
     }
     return requestJson(`${baseUrl}/api/planning/history${params.size ? `?${params}` : ''}`, undefined, 'Erro ao carregar historico do planejamento');
+  },
+
+  async listPlanningExecutionHistory(filters = {}) {
+    const params = new URLSearchParams();
+    if (filters.planId !== undefined) params.set('planId', requireIdentifier(filters.planId, 'planId'));
+    if (filters.itemId !== undefined) params.set('itemId', requireIdentifier(filters.itemId, 'itemId'));
+    if (filters.limit !== undefined) {
+      if (!Number.isInteger(filters.limit) || filters.limit < 1 || filters.limit > 200) throw new TypeError('limit must be an integer from 1 to 200');
+      params.set('limit', String(filters.limit));
+    }
+    return requestJson(`${baseUrl}/api/planning/execution-history${params.size ? `?${params}` : ''}`, undefined, 'Erro ao carregar historico de execucao');
   },
 
   async planOrchestration(input) {

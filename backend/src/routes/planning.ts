@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import {
   ContentPlanNotFoundError,
+  PlanningExecutionConflictError,
   PlannedContentItemNotFoundError,
   StrategicPlanningService,
   StrategicPlanningValidationError,
@@ -25,6 +26,7 @@ const sendError = (res: Parameters<Parameters<Router['get']>[1]>[1], error: unkn
   if (error instanceof ContentPlanNotFoundError || error instanceof PlannedContentItemNotFoundError) {
     return res.status(404).json({ error: error.message });
   }
+  if (error instanceof PlanningExecutionConflictError) return res.status(409).json({ error: error.message });
   const name = error instanceof Error ? error.name : 'UnknownError';
   console.error(`Strategic planning request failed (${name})`);
   return res.status(500).json({ error: 'Strategic planning request failed' });
@@ -34,6 +36,20 @@ export const createPlanningRouter = (
   service: StrategicPlanningService = new StrategicPlanningService(),
 ): Router => {
   const router = Router();
+
+  router.get('/current/guidance', async (req, res) => {
+    if (!hasOnly(req.query as Record<string, unknown>, ['projectId', 'horizon'])
+      || !optionalText(req.query.projectId) || !optionalText(req.query.horizon)) {
+      return res.status(400).json({ error: 'invalid planning query' });
+    }
+    try {
+      const guidance = await service.getCurrentGuidance({
+        ...('projectId' in req.query ? { projectId: req.query.projectId || null } : {}),
+        ...(req.query.horizon ? { horizon: req.query.horizon as never } : {}),
+      });
+      return guidance ? res.status(200).json(guidance) : res.status(404).json({ error: 'Content plan not found' });
+    } catch (error) { return sendError(res, error); }
+  });
 
   router.get('/current', async (req, res) => {
     if (!hasOnly(req.query as Record<string, unknown>, ['projectId', 'horizon'])
@@ -119,6 +135,23 @@ export const createPlanningRouter = (
     catch (error) { return sendError(res, error); }
   });
 
+  router.post('/items/:id/execution', async (req, res) => {
+    const id = req.params.id?.trim();
+    if (!id || !isObject(req.body) || !hasOnly(req.body, ['state', 'reason', 'note'])
+      || typeof req.body.state !== 'string'
+      || (req.body.reason !== undefined && typeof req.body.reason !== 'string')
+      || (req.body.note !== undefined && typeof req.body.note !== 'string')) {
+      return res.status(400).json({ error: 'invalid planning execution payload' });
+    }
+    try {
+      return res.status(200).json(await service.transitionExecution(id, {
+        state: req.body.state as never,
+        ...(req.body.reason !== undefined ? { reason: req.body.reason } : {}),
+        ...(req.body.note !== undefined ? { note: req.body.note } : {}),
+      }));
+    } catch (error) { return sendError(res, error); }
+  });
+
   router.post('/reorder', async (req, res) => {
     if (!isObject(req.body) || !hasOnly(req.body, ['planId', 'itemIds', 'reason'])
       || typeof req.body.planId !== 'string' || typeof req.body.reason !== 'string'
@@ -137,6 +170,21 @@ export const createPlanningRouter = (
     }
     try {
       return res.status(200).json(await service.listHistory({
+        ...(req.query.planId ? { planId: req.query.planId } : {}),
+        ...(req.query.itemId ? { itemId: req.query.itemId } : {}),
+        ...(req.query.limit ? { limit: Number(req.query.limit) } : {}),
+      }));
+    } catch (error) { return sendError(res, error); }
+  });
+
+  router.get('/execution-history', async (req, res) => {
+    if (!hasOnly(req.query as Record<string, unknown>, ['planId', 'itemId', 'limit'])
+      || !optionalText(req.query.planId) || !optionalText(req.query.itemId)
+      || (req.query.limit !== undefined && (typeof req.query.limit !== 'string' || !/^\d+$/.test(req.query.limit)))) {
+      return res.status(400).json({ error: 'invalid planning execution history query' });
+    }
+    try {
+      return res.status(200).json(await service.listExecutionHistory({
         ...(req.query.planId ? { planId: req.query.planId } : {}),
         ...(req.query.itemId ? { itemId: req.query.itemId } : {}),
         ...(req.query.limit ? { limit: Number(req.query.limit) } : {}),

@@ -1181,6 +1181,10 @@ Base: `/api/planning`. Todos os payloads e filtros são estritos. Validação re
 
 Retorna o plano atual mais recente. Filtros opcionais: `projectId` e `horizon` (`TODAY`, `NEXT_3_DAYS`, `NEXT_7_DAYS`, `NEXT_14_DAYS`). Retorna `200` ou `404` quando ainda não existe plano.
 
+### `GET /api/planning/current/guidance`
+
+Retorna somente a orientação operacional atual: item, estado de execução, ação, motivo, prioridade, readiness, esforço, confiança, evidências, riscos, dados ausentes e indicador degradado. Aceita os mesmos filtros de `current`. Retorna `200`, `400` ou `404`.
+
 ### `POST /api/planning/generate`
 
 Gera e persiste uma nova versão do plano. Body estrito:
@@ -1209,6 +1213,20 @@ Atualiza `status`, `priority` e/ou `effort` com `reason` obrigatório, retornand
 
 Marca o item como `COMPLETED`/`DONE`. Aceita body vazio, `{}` ou `{ "reason": "Conteúdo produzido" }`. Retorna `200` com o item persistido.
 
+### `POST /api/planning/items/:id/execution`
+
+Registra uma transição operacional. Body estrito:
+
+```json
+{
+  "state": "in_progress",
+  "reason": "Gravação iniciada",
+  "note": "Preparar captura e roteiro"
+}
+```
+
+`state` aceita `pending`, `in_progress`, `completed`, `skipped` ou `paused`; `reason` e `note` são opcionais. Retorna `200` com item, evento persistido quando houve mudança, plano recalculado e `currentGuidance`. Repetir o mesmo estado é idempotente. Transição terminal inválida ou tentativa concorrente de manter dois itens ativos retorna `409`; payload inválido retorna `400` e item ausente retorna `404`.
+
 ### `POST /api/planning/reorder`
 
 Reordena todos os itens do plano. Body estrito:
@@ -1226,6 +1244,10 @@ Retorna `200` com a ordem persistida. IDs ausentes, repetidos ou de outro plano 
 ### `GET /api/planning/history`
 
 Lista mudanças append-only. Aceita `planId`, `itemId` e `limit` numérico. Retorna `200` em ordem determinística.
+
+### `GET /api/planning/execution-history`
+
+Lista eventos de execução append-only, do mais recente para o mais antigo. Aceita `planId`, `itemId` e `limit` de 1 a 200. Cada evento inclui estado, ação, motivo opcional, confiança e snapshot estratégico. Retorna `200` ou `400`.
 
 ### `GET /api/planning/:id`
 

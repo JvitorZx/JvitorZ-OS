@@ -415,17 +415,23 @@ Versão persistida de um plano estratégico. Guarda `projectId` opcional, horizo
 
 ### PlannedContentItem
 
-Item ordenado do plano. Pode referenciar `EditorialDecision`, `ResearchOpportunity`, `ResearchHistory` e `SeriesDefinition`. Mantém candidato, título, justificativa, status, prioridade, esforço, readiness, fila, posição, score de execução, evidências, riscos, restrições, dados ausentes e dependências. A chave `(planId, candidateKey)` impede duplicação dentro da mesma versão.
+Item ordenado do plano. Pode referenciar `EditorialDecision`, `ResearchOpportunity`, `ResearchHistory` e `SeriesDefinition`. Mantém candidato, título, justificativa, status, prioridade, esforço, readiness, fila, posição, score de execução, evidências, riscos, restrições, dados ausentes e dependências. `executionState`, `executionAction`, `executionConfidence`, `executionContext`, `executionStartedAt` e `executionEndedAt` registram a orientação e o ciclo operacional sem alterar a decisão editorial. A chave `(planId, candidateKey)` impede duplicação dentro da mesma versão; um índice parcial permite no máximo um `in_progress` por plano.
 
 ### PlanningHistory
 
 Journal append-only por plano e, opcionalmente, item. Registra evento, motivo, snapshot anterior/posterior e timestamp para geração, criação manual, repriorização, mudança de status, reorder, pesquisa e conclusão.
+
+### PlanningExecutionEvent
+
+Journal append-only específico da execução. Registra plano/item, evento, estado, título, ação, motivo, confiança e `strategicContext`. Esse snapshot preserva o que foi recomendado e quais evidências, riscos e lacunas existiam quando a ação ocorreu, preparando comparação futura com resultado real sem prever views.
 
 ```text
 Project 1 -> N ContentPlan
 ContentPlan 1 -> N PlannedContentItem
 ContentPlan 1 -> N PlanningHistory
 PlannedContentItem 1 -> N PlanningHistory
+ContentPlan 1 -> N PlanningExecutionEvent
+PlannedContentItem 1 -> N PlanningExecutionEvent
 EditorialDecision 1 -> N PlannedContentItem
 ResearchOpportunity 1 -> N PlannedContentItem
 ResearchHistory 1 -> N PlannedContentItem

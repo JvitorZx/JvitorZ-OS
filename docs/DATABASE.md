@@ -234,3 +234,9 @@ A migration `20260904120000_strategic_content_planning` adiciona `ContentPlan`, 
 `ContentPlanRepository` consulta versões em ordem determinística; `PlannedContentItemRepository` encapsula criação, atualização, conclusão e reorder; `PlanningHistoryRepository` preserva o journal append-only. Rotas e frontend não acessam Prisma diretamente.
 
 Os testes de domínio e migration usam SQLite isolado. O `backend/prisma/dev.db` é somente o banco local de desenvolvimento, deve ser preservado e não faz parte das fixtures ou do commit da Sprint 38.
+
+### Execução do planejamento
+
+A migration `20260905100000_planning_execution_guidance` acrescenta guidance e timestamps operacionais a `PlannedContentItem` e cria `PlanningExecutionEvent`. A migration é aditiva: itens legados são mapeados de `IN_PROGRESS`, `PAUSED`, `COMPLETED` e `CANCELLED`; planos, prioridades, posições e evidências existentes são preservados.
+
+`PlanningExecutionRepository` executa a transição, a promoção da fila e os journals dentro de uma transação Prisma. O índice parcial `PlannedContentItem_one_in_progress_per_plan` impede duas execuções ativas no mesmo plano. Eventos usam `ON DELETE CASCADE` com plano/item e guardam o snapshot estratégico necessário para auditoria; não guardam segredo, credencial nem payload externo bruto.

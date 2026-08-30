@@ -273,6 +273,8 @@ Project 1 --- N ContentPlan
 ContentPlan 1 --- N PlannedContentItem
 ContentPlan 1 --- N PlanningHistory
 PlannedContentItem 1 --- N PlanningHistory
+ContentPlan 1 --- N PlanningExecutionEvent
+PlannedContentItem 1 --- N PlanningExecutionEvent
 
 EditorialDecision 1 --- N PlannedContentItem (opcional, ON DELETE SET NULL)
 ResearchOpportunity 1 --- N PlannedContentItem (opcional, ON DELETE SET NULL)
@@ -280,7 +282,7 @@ ResearchHistory 1 --- N PlannedContentItem (opcional, ON DELETE SET NULL)
 SeriesDefinition 1 --- N PlannedContentItem (opcional, ON DELETE SET NULL)
 ```
 
-`ContentPlan` é a versão do plano. `PlannedContentItem` usa `unique(planId, candidateKey)` e índice `(planId, position)` para a fila determinística. `PlanningHistory` referencia o plano obrigatoriamente e o item opcionalmente, preservando o evento mesmo quando uma referência de item for removida.
+`ContentPlan` é a versão do plano. `PlannedContentItem` usa `unique(planId, candidateKey)`, índice `(planId, position)` e índice parcial único por `planId` quando `executionState = in_progress`. `PlanningHistory` registra toda mudança do plano; `PlanningExecutionEvent` registra estado, ação, motivo, confiança e snapshot estratégico de cada transição operacional. Ambos são append-only no fluxo de aplicação.
 - `VideoPerformanceSnapshot.engagedViews` é opcional; permanece `null` quando o provider não a fornece e nunca é estimado.
 - `PerformanceSignal.key` torna sinais derivados idempotentes e sua relação registra a evidência de origem.
 - vínculos usam snapshots reais e são únicos por decisão/vídeo; outcomes são únicos por vínculo/snapshot.

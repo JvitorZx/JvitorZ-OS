@@ -528,6 +528,8 @@ O ranking é determinístico e considera evidência, confiança, freshness, saú
 
 Cada plano é uma nova versão persistida. Mudanças manuais de prioridade, status, posição e conclusão geram `PlanningHistory`; planos anteriores não são sobrescritos silenciosamente. A fila operacional usa `NEXT`, `LATER`, `WAITING`, `BLOCKED` e `DONE`, enquanto readiness usa `READY`, `NEEDS_RESEARCH` e `BLOCKED`.
 
-O frontend usa o client central e o lifecycle genérico da workspace. O controller monta uma vez, remove listeners no unmount, ignora respostas obsoletas e apresenta apenas a análise recebida do backend. Planner mostra o próximo item, Gerente consulta a capability de planning e Supervisor apresenta alertas operacionais; nenhum deles recalcula ranking.
+`ExecutionGuidance` transforma o primeiro item elegível em uma ação operacional explícita sem criar um segundo ranking. Cada item persiste estado (`pending`, `in_progress`, `completed`, `skipped`, `paused`), ação e confiança. `PlanningExecutionRepository` aplica transição, promoção do próximo item, `PlanningExecutionEvent` e `PlanningHistory` na mesma transação; uma constraint parcial limita cada plano a uma execução ativa. O snapshot do evento conserva o contexto estratégico do momento sem sobrescrever prioridade ou posição manual.
+
+O frontend usa o client central e o lifecycle genérico da workspace. O controller monta uma vez, remove listeners no unmount, ignora respostas obsoletas e apresenta apenas a análise recebida do backend. A workspace mostra ação atual e histórico auditável; Planner mostra guidance, Gerente consulta a capability de planning e Supervisor apresenta estado operacional e alertas. Nenhum deles recalcula ranking.
 
 Planning não publica, não prevê views e não garante performance. Dados stale/missing reduzem confiança e permanecem visíveis. A decisão editorial continua pertencendo ao `EditorialDecisionService`; Planning organiza a sequência de execução.
