@@ -22,6 +22,7 @@ import { AudienceIntelligenceService } from '../../../services/audience/Audience
 import { OrchestrationExecutionRepository } from '../../../database/repositories/OrchestrationExecutionRepository';
 import type { OrchestrationRequest, OrchestrationResult } from '../../../domains/orchestration';
 import { ResearchService } from '../../../services/research';
+import { StrategicPlanningService } from '../../../services/strategic-planning';
 
 const operatorSummary = (operator: { id: string; status: string; missingData: string[]; sampleSize: number }): string => {
   if (operator.status === 'AVAILABLE') {
@@ -48,6 +49,7 @@ export class SupervisorModule {
     private readonly audienceIntelligence: Pick<AudienceIntelligenceService, 'summary'> = new AudienceIntelligenceService(),
     private readonly orchestrationRepository = new OrchestrationExecutionRepository(DatabaseService.client),
     private readonly researchService: Pick<ResearchService, 'getOperationalSummary'> = new ResearchService(),
+    private readonly strategicPlanningService: Pick<StrategicPlanningService, 'getOperationalSummary'> = new StrategicPlanningService(),
   ) {}
 
   async getSupervisorOverview() {
@@ -178,6 +180,13 @@ export class SupervisorModule {
     };
     try { research = await this.researchService.getOperationalSummary(); }
     catch { /* Research is local and cannot break the Supervisor or Dashboard. */ }
+    let planning = {
+      planId: null as string | null, status: 'MISSING', horizon: null as string | null,
+      total: 0, ready: 0, needsResearch: 0, blocked: 0, lowConfidence: 0,
+      experiments: 0, stale: 0, conflicts: 0, alerts: [] as string[],
+    };
+    try { planning = await this.strategicPlanningService.getOperationalSummary(); }
+    catch { /* Strategic planning is local and cannot break the Supervisor or Dashboard. */ }
     const byId = new Map(channelOperators.map((operator) => [operator.id, operator]));
     const analyticsQuality = youtubeAnalytics.state === 'synchronized' || youtubeAnalytics.state === 'connected' ? 'GOOD'
       : youtubeAnalytics.lastSyncAt ? 'STALE' : youtubeAnalytics.state === 'temporary_error' ? 'ERROR' : 'MISSING';
@@ -190,6 +199,11 @@ export class SupervisorModule {
       { area: 'Pesquisa', state: research.quality, summary: research.totalResearches
         ? `${research.opportunities} oportunidade(s), freshness ${research.freshness}.`
         : 'Nenhuma pesquisa persistida ainda.' },
+      { area: 'Planejamento', state: planning.status === 'MISSING' ? 'MISSING'
+        : planning.blocked > 0 || planning.conflicts > 0 ? 'PARTIAL' : 'GOOD',
+      summary: planning.planId
+        ? `${planning.ready} prontos, ${planning.needsResearch} aguardando pesquisa e ${planning.blocked} bloqueados.`
+        : 'Nenhum plano estrategico ativo.' },
     ];
     return {
       alerts: dataQuality.filter(({ state }) => ['STALE', 'INCONSISTENT', 'ERROR'].includes(state)).map(({ area, summary }) => `${area}: ${summary}`),
@@ -228,6 +242,7 @@ export class SupervisorModule {
         highlights: [...(byId.get('trends')?.signals ?? []), ...(byId.get('series')?.signals ?? [])].slice(0, 6),
       },
       research,
+      planning,
       audience,
     };
   }

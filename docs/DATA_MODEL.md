@@ -406,3 +406,30 @@ ResearchHistory 1 -> N ResearchOpportunity
 ```
 
 Excluir um histórico remove somente suas oportunidades derivadas. Excluir um projeto preserva a pesquisa com `projectId = null`. Nenhuma tabela armazena token, credencial, payload bruto de provider ou previsão de views.
+
+## Strategic Planning
+
+### ContentPlan
+
+Versão persistida de um plano estratégico. Guarda `projectId` opcional, horizonte, status, resumo, balanceamento, restrições, riscos, fontes e `generatedAt`. A consulta atual seleciona a versão mais recente; gerar novamente não sobrescreve versões anteriores.
+
+### PlannedContentItem
+
+Item ordenado do plano. Pode referenciar `EditorialDecision`, `ResearchOpportunity`, `ResearchHistory` e `SeriesDefinition`. Mantém candidato, título, justificativa, status, prioridade, esforço, readiness, fila, posição, score de execução, evidências, riscos, restrições, dados ausentes e dependências. A chave `(planId, candidateKey)` impede duplicação dentro da mesma versão.
+
+### PlanningHistory
+
+Journal append-only por plano e, opcionalmente, item. Registra evento, motivo, snapshot anterior/posterior e timestamp para geração, criação manual, repriorização, mudança de status, reorder, pesquisa e conclusão.
+
+```text
+Project 1 -> N ContentPlan
+ContentPlan 1 -> N PlannedContentItem
+ContentPlan 1 -> N PlanningHistory
+PlannedContentItem 1 -> N PlanningHistory
+EditorialDecision 1 -> N PlannedContentItem
+ResearchOpportunity 1 -> N PlannedContentItem
+ResearchHistory 1 -> N PlannedContentItem
+SeriesDefinition 1 -> N PlannedContentItem
+```
+
+Campos JSON preservam a evidência estruturada já produzida pelos domínios de origem; não guardam token, segredo ou payload externo bruto. Excluir referências opcionais usa `SET NULL`, enquanto excluir um plano remove somente seus itens e histórico em cascade.

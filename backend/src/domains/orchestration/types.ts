@@ -26,6 +26,7 @@ export type ManagerIntent =
   | 'AUDIENCE_ANALYSIS'
   | 'TRAFFIC_ANALYSIS'
   | 'PLANNING'
+  | 'CONTENT_PLANNING'
   | 'OPPORTUNITY_DISCOVERY'
   | 'RESEARCH_DISCOVERY'
   | 'RISK_ANALYSIS'
@@ -50,6 +51,7 @@ export type OperatorCapability =
   | 'shared-memory'
   | 'supervision'
   | 'research'
+  | 'planning'
   | 'response';
 
 export type CapabilityAccess = 'read' | 'write' | 'external_side_effect';

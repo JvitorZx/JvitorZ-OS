@@ -42,6 +42,10 @@ export const plannerModule = {
         body: html`<div class="planner-editorial-decisions" data-editorial-decisions></div>`,
       },
       {
+        title: 'Plano estratégico',
+        body: html`<div class="planner-strategic-plan" data-planner-strategic-plan><p>Carregando plano atual...</p></div>`,
+      },
+      {
         title: 'Histórico',
         body: html`
           <button class="planner-new-conversation" type="button" data-new-conversation>Nova Conversa</button>
@@ -136,6 +140,7 @@ export const createPlannerController = ({ api }) => {
     const libraryMemoryToggle = panel.querySelector('[data-library-memory-toggle]');
     const activeMemoryList = panel.querySelector('[data-active-memory-list]');
     const editorialDecisionList = panel.querySelector('[data-editorial-decisions]');
+    const strategicPlan = panel.querySelector('[data-planner-strategic-plan]');
     const feedback = panel.querySelector('[data-planner-feedback]');
 
     if (
@@ -181,6 +186,27 @@ export const createPlannerController = ({ api }) => {
       if (!isCurrentMount()) return;
       feedback.textContent = message;
       feedback.hidden = !message;
+    };
+
+    const loadStrategicPlan = async () => {
+      if (!strategicPlan || typeof api.getCurrentContentPlan !== 'function') return;
+      try {
+        const currentPlan = await api.getCurrentContentPlan();
+        if (!isCurrentMount()) return;
+        const next = currentPlan.items?.find((item) => item.queue === 'NEXT');
+        const link = document.createElement('a'); link.href = '#/planning'; link.textContent = 'Abrir planejamento';
+        strategicPlan.replaceChildren(
+          next ? Object.assign(document.createElement('strong'), { textContent: next.title })
+            : Object.assign(document.createElement('p'), { textContent: 'Nenhum item pronto agora.' }),
+          Object.assign(document.createElement('small'), { textContent: `${currentPlan.horizon} · ${currentPlan.status}` }),
+          link,
+        );
+      } catch (error) {
+        if (!isCurrentMount()) return;
+        const message = document.createElement('p');
+        message.textContent = error?.status === 404 ? 'Nenhum plano ativo.' : 'Planejamento indisponível.';
+        strategicPlan.replaceChildren(message);
+      }
     };
 
     const clearLibraryFeedback = (feedbackToken) => {
@@ -770,6 +796,7 @@ export const createPlannerController = ({ api }) => {
     });
 
     updateBusy();
+    loadStrategicPlan();
     const hydrationPromise = (async () => {
       try {
         const history = await api.listConversations();

@@ -513,3 +513,21 @@ Planner / Gerente / Research workspace
 O provider inicial é inteiramente local e não faz rede. Ele normaliza apenas fatos e associações já persistidos. `OpportunityDiscoveryService` consolida candidatos, preserva conflitos, aponta content gaps e produz próxima investigação. O resultado não toma uma decisão nem recalcula `OpportunityScore`; a capability `research.discover` entrega candidatos e evidências ao `EditorialDecisionService`, que continua responsável pelo ranking editorial.
 
 Consultas idênticas usam cache por seis horas. Reexecuções criam histórico comparável; falha de provider pode devolver last-known-good somente como `STALE_FALLBACK`. Ausência total retorna indisponibilidade segura sem derrubar Dashboard, Planner ou Supervisor.
+
+## Strategic Content Planning
+
+`StrategicPlanningService` é a camada de aplicação entre evidência editorial e execução. Ele não substitui Research nem o Decision Engine: recebe decisões, oportunidades, tendências e séries já calculadas, normaliza candidatos e delega a ordenação ao `StrategicPlanningRanker`.
+
+```text
+Research -> EditorialDecision -> StrategicPlanning
+  -> ContentPlan + PlannedContentItem + PlanningHistory
+  -> Planning workspace / Planner / Gerente / Supervisor
+```
+
+O ranking é determinístico e considera evidência, confiança, freshness, saúde de série, esforço, restrições, dependências e dados ausentes. Repetição excessiva gera risco; somente uma restrição bloqueante ou dependência não satisfeita produz `BLOCKED`. O balanceamento reserva espaço para experimentos sem transformar hipótese em ordem de gravação.
+
+Cada plano é uma nova versão persistida. Mudanças manuais de prioridade, status, posição e conclusão geram `PlanningHistory`; planos anteriores não são sobrescritos silenciosamente. A fila operacional usa `NEXT`, `LATER`, `WAITING`, `BLOCKED` e `DONE`, enquanto readiness usa `READY`, `NEEDS_RESEARCH` e `BLOCKED`.
+
+O frontend usa o client central e o lifecycle genérico da workspace. O controller monta uma vez, remove listeners no unmount, ignora respostas obsoletas e apresenta apenas a análise recebida do backend. Planner mostra o próximo item, Gerente consulta a capability de planning e Supervisor apresenta alertas operacionais; nenhum deles recalcula ranking.
+
+Planning não publica, não prevê views e não garante performance. Dados stale/missing reduzem confiança e permanecem visíveis. A decisão editorial continua pertencendo ao `EditorialDecisionService`; Planning organiza a sequência de execução.

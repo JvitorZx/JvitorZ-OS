@@ -1172,3 +1172,63 @@ Listam ou abrem pesquisas persistidas. A listagem aceita `projectId` e `limit` (
 ### `POST /api/research/history/:id/refresh`
 
 Reexecuta uma pesquisa existente com body `{}` e cria uma observação comparável. Não transforma resultado stale em atual sem nova execução válida.
+
+## Strategic Planning
+
+Base: `/api/planning`. Todos os payloads e filtros são estritos. Validação retorna `400`, plano/item ausente retorna `404` e falha inesperada retorna `500` sanitizado.
+
+### `GET /api/planning/current`
+
+Retorna o plano atual mais recente. Filtros opcionais: `projectId` e `horizon` (`TODAY`, `NEXT_3_DAYS`, `NEXT_7_DAYS`, `NEXT_14_DAYS`). Retorna `200` ou `404` quando ainda não existe plano.
+
+### `POST /api/planning/generate`
+
+Gera e persiste uma nova versão do plano. Body estrito:
+
+```json
+{
+  "projectId": "opcional",
+  "horizon": "NEXT_7_DAYS",
+  "constraints": [
+    { "code": "availability", "summary": "Janela curta de gravação", "blocking": false }
+  ]
+}
+```
+
+Retorna `201` com `ContentPlan`, itens ordenados e histórico inicial. Um plano anterior não é sobrescrito.
+
+### `POST /api/planning/items`
+
+Adiciona um item manual a um plano existente. Exige `planId`, `title` e `reason`; aceita `candidateType`, `priority`, `effort` e `constraints`. Retorna `201`.
+
+### `PATCH /api/planning/items/:id`
+
+Atualiza `status`, `priority` e/ou `effort` com `reason` obrigatório, retornando `200`. O contrato alternativo `{ "requestResearch": true }` solicita pesquisa controlada para um item `NEEDS_RESEARCH`; ele não pode ser combinado com outros campos.
+
+### `POST /api/planning/items/:id/complete`
+
+Marca o item como `COMPLETED`/`DONE`. Aceita body vazio, `{}` ou `{ "reason": "Conteúdo produzido" }`. Retorna `200` com o item persistido.
+
+### `POST /api/planning/reorder`
+
+Reordena todos os itens do plano. Body estrito:
+
+```json
+{
+  "planId": "plan-id",
+  "itemIds": ["item-b", "item-a"],
+  "reason": "Ajuste editorial manual"
+}
+```
+
+Retorna `200` com a ordem persistida. IDs ausentes, repetidos ou de outro plano são rejeitados com `400`.
+
+### `GET /api/planning/history`
+
+Lista mudanças append-only. Aceita `planId`, `itemId` e `limit` numérico. Retorna `200` em ordem determinística.
+
+### `GET /api/planning/:id`
+
+Abre um plano persistido com itens e histórico. Retorna `200`, `400` para ID/query inválidos ou `404` quando ausente.
+
+O contrato expõe fatos e decisões já persistidos. Ele não publica conteúdo, não prevê views e não envia credenciais, stack ou payload bruto de integrações.

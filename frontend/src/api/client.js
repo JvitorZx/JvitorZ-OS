@@ -227,6 +227,70 @@ export const createApiClient = (baseUrl) => ({
     return requestJson(`${baseUrl}/api/manager/history/${encodeURIComponent(id)}/diagnostics`, undefined, 'Erro ao abrir diagnostico do Gerente');
   },
 
+  async getCurrentContentPlan(filters = {}) {
+    const params = new URLSearchParams();
+    if (filters.projectId !== undefined) params.set('projectId', requireIdentifier(filters.projectId, 'projectId'));
+    if (filters.horizon !== undefined) params.set('horizon', requireIdentifier(filters.horizon, 'horizon'));
+    return requestJson(`${baseUrl}/api/planning/current${params.size ? `?${params}` : ''}`, undefined, 'Erro ao carregar plano estrategico');
+  },
+
+  async generateContentPlan(input = {}) {
+    if (!input || typeof input !== 'object' || Array.isArray(input)) throw new TypeError('planning input must be an object');
+    return requestJson(`${baseUrl}/api/planning/generate`, {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(input),
+    }, 'Erro ao gerar plano estrategico');
+  },
+
+  async createPlannedContentItem(input) {
+    if (!input || typeof input !== 'object' || Array.isArray(input)) throw new TypeError('planning item input must be an object');
+    return requestJson(`${baseUrl}/api/planning/items`, {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(input),
+    }, 'Erro ao criar item planejado');
+  },
+
+  async updatePlannedContentItem(itemId, input) {
+    const id = requireIdentifier(itemId, 'itemId');
+    if (!input || typeof input !== 'object' || Array.isArray(input)) throw new TypeError('planning item update must be an object');
+    return requestJson(`${baseUrl}/api/planning/items/${encodeURIComponent(id)}`, {
+      method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify(input),
+    }, 'Erro ao atualizar item planejado');
+  },
+
+  async completePlannedContentItem(itemId, reason) {
+    const id = requireIdentifier(itemId, 'itemId');
+    return requestJson(`${baseUrl}/api/planning/items/${encodeURIComponent(id)}/complete`, {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(reason ? { reason } : {}),
+    }, 'Erro ao concluir item planejado');
+  },
+
+  async reorderContentPlan(planId, itemIds, reason) {
+    const id = requireIdentifier(planId, 'planId');
+    if (!Array.isArray(itemIds) || !itemIds.length) throw new TypeError('itemIds must be a non-empty array');
+    const normalized = itemIds.map((itemId) => requireIdentifier(itemId, 'itemId'));
+    const normalizedReason = String(reason ?? '').trim();
+    if (!normalizedReason) throw new TypeError('reason must be a non-empty string');
+    return requestJson(`${baseUrl}/api/planning/reorder`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ planId: id, itemIds: normalized, reason: normalizedReason }),
+    }, 'Erro ao reordenar plano estrategico');
+  },
+
+  async getContentPlan(planId) {
+    const id = requireIdentifier(planId, 'planId');
+    return requestJson(`${baseUrl}/api/planning/${encodeURIComponent(id)}`, undefined, 'Erro ao abrir plano estrategico');
+  },
+
+  async listPlanningHistory(filters = {}) {
+    const params = new URLSearchParams();
+    if (filters.planId !== undefined) params.set('planId', requireIdentifier(filters.planId, 'planId'));
+    if (filters.itemId !== undefined) params.set('itemId', requireIdentifier(filters.itemId, 'itemId'));
+    if (filters.limit !== undefined) {
+      if (!Number.isInteger(filters.limit) || filters.limit < 1 || filters.limit > 200) throw new TypeError('limit must be an integer from 1 to 200');
+      params.set('limit', String(filters.limit));
+    }
+    return requestJson(`${baseUrl}/api/planning/history${params.size ? `?${params}` : ''}`, undefined, 'Erro ao carregar historico do planejamento');
+  },
+
   async planOrchestration(input) {
     return requestJson(
       `${baseUrl}/api/orchestrator/plan`,

@@ -9,12 +9,14 @@ import { automationsModule } from './automations.js';
 import { homeModule } from './home.js';
 import { libraryModule } from './library.js';
 import { researchModule } from './research.js';
+import { strategicPlanningModule } from './strategic-planning.js';
 
 export const dashboardModules = [
   homeModule,
   channelModule,
   analyticsModule,
   plannerModule,
+  strategicPlanningModule,
   libraryModule,
   researchModule,
   managerModule,

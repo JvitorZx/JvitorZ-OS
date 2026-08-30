@@ -226,3 +226,11 @@ A migration `20260901120000_trends_series_patterns` é aditiva e cria `TrendSign
 Antes de aplicar a migration ao SQLite local foi criado backup fora do repositório e validado por SHA-256. Depois da aplicação, `PRAGMA integrity_check` retornou `ok`, `foreign_key_check` não encontrou violações e as contagens das 18 migrations e de todas as tabelas legadas permaneceram idênticas; a nova migration passou a ser a 19ª. O smoke derivou somente dados novos nas tabelas da Sprint 34.
 
 Os testes aplicam a migration em SQLite isolado e não usam `backend/prisma/dev.db`. A ausência de metadados de jogo/série e a baixa cobertura temporal permanecem dados ausentes, sem preenchimento artificial.
+
+## Strategic Planning
+
+A migration `20260904120000_strategic_content_planning` adiciona `ContentPlan`, `PlannedContentItem` e `PlanningHistory`, seus índices e relações opcionais com Project, EditorialDecision, ResearchOpportunity, ResearchHistory e SeriesDefinition. A mudança é aditiva e não reescreve conversas, dados do YouTube, decisões ou automações existentes.
+
+`ContentPlanRepository` consulta versões em ordem determinística; `PlannedContentItemRepository` encapsula criação, atualização, conclusão e reorder; `PlanningHistoryRepository` preserva o journal append-only. Rotas e frontend não acessam Prisma diretamente.
+
+Os testes de domínio e migration usam SQLite isolado. O `backend/prisma/dev.db` é somente o banco local de desenvolvimento, deve ser preservado e não faz parte das fixtures ou do commit da Sprint 38.

@@ -8,6 +8,10 @@ export const operatorRegistry = [
     responsibility: 'Transforma contexto, memória e performance em decisões editoriais.', source: 'Planner + OpenAI configurável',
   },
   {
+    id: 'strategic-planning', name: 'Planejamento Estratégico', route: '/planning', status: 'AVAILABLE',
+    responsibility: 'Organiza decisões e evidências em uma fila editorial executável.', source: 'StrategicPlanningService',
+  },
+  {
     id: 'research', name: 'Pesquisa e Oportunidades', route: '/research', status: 'AVAILABLE',
     responsibility: 'Descobre candidatos e evidências sem substituir a decisão editorial.', source: 'Research providers modulares',
   },

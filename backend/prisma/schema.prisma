@@ -38,6 +38,7 @@ model Project {
   editorialDecisions EditorialDecision[]
   orchestrationExecutions OrchestrationExecution[]
   researchHistories ResearchHistory[]
+  contentPlans     ContentPlan[]
   createdAt        DateTime           @default(now())
   updatedAt        DateTime           @updatedAt
 }
@@ -406,6 +407,7 @@ model SeriesDefinition {
   status        String            @default("ACTIVE")
   metadata      Json?
   videoLinks    VideoSeriesLink[]
+  plannedItems  PlannedContentItem[]
   createdAt     DateTime          @default(now())
   updatedAt     DateTime          @updatedAt
 
@@ -476,6 +478,7 @@ model ResearchHistory {
   researchedAt    DateTime
   validUntil      DateTime
   opportunities   ResearchOpportunity[]
+  requestedPlanningItems PlannedContentItem[] @relation("PlanningItemResearchExecution")
   createdAt       DateTime              @default(now())
   updatedAt       DateTime              @updatedAt
 
@@ -502,6 +505,7 @@ model ResearchOpportunity {
   risks             Json
   gaps              Json
   nextInvestigation String
+  plannedItems      PlannedContentItem[]
   createdAt         DateTime        @default(now())
   updatedAt         DateTime        @updatedAt
 
@@ -509,6 +513,85 @@ model ResearchOpportunity {
   @@index([researchHistoryId, rank])
   @@index([state, confidence, createdAt])
   @@index([subjectType, subject])
+}
+
+model ContentPlan {
+  id          String               @id @default(cuid())
+  projectId   String?
+  project     Project?             @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  horizon     String
+  status      String
+  summary     String
+  balance     Json
+  constraints Json
+  risks       Json
+  source      Json
+  generatedAt DateTime
+  items       PlannedContentItem[]
+  history     PlanningHistory[]
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+
+  @@index([projectId, generatedAt])
+  @@index([status, horizon, generatedAt])
+}
+
+model PlannedContentItem {
+  id                          String               @id @default(cuid())
+  planId                      String
+  plan                        ContentPlan          @relation(fields: [planId], references: [id], onDelete: Cascade)
+  sourceDecisionId            String?
+  sourceDecision              EditorialDecision?  @relation(fields: [sourceDecisionId], references: [id], onDelete: SetNull)
+  sourceResearchOpportunityId String?
+  sourceResearchOpportunity   ResearchOpportunity? @relation(fields: [sourceResearchOpportunityId], references: [id], onDelete: SetNull)
+  researchHistoryId           String?
+  researchHistory             ResearchHistory?    @relation("PlanningItemResearchExecution", fields: [researchHistoryId], references: [id], onDelete: SetNull)
+  seriesId                    String?
+  series                      SeriesDefinition?    @relation(fields: [seriesId], references: [id], onDelete: SetNull)
+  candidateKey                String
+  candidateType               String
+  title                       String
+  rationale                   String
+  status                      String
+  priority                    String
+  effort                      String
+  readiness                   String
+  queue                       String
+  position                    Int
+  executionScore              Float
+  manualPriority              Boolean              @default(false)
+  evidence                    Json
+  risks                       Json
+  constraints                 Json
+  missingData                 Json
+  dependencies                Json
+  completedAt                 DateTime?
+  history                     PlanningHistory[]
+  createdAt                   DateTime              @default(now())
+  updatedAt                   DateTime              @updatedAt
+
+  @@unique([planId, candidateKey])
+  @@index([planId, position])
+  @@index([status, priority, readiness])
+  @@index([sourceDecisionId])
+  @@index([sourceResearchOpportunityId])
+}
+
+model PlanningHistory {
+  id        String              @id @default(cuid())
+  planId    String
+  plan      ContentPlan         @relation(fields: [planId], references: [id], onDelete: Cascade)
+  itemId    String?
+  item      PlannedContentItem? @relation(fields: [itemId], references: [id], onDelete: SetNull)
+  event     String
+  reason    String
+  before    Json?
+  after     Json
+  createdAt DateTime            @default(now())
+
+  @@index([planId, createdAt])
+  @@index([itemId, createdAt])
+  @@index([event, createdAt])
 }
 
 model VideoReachSnapshot {
@@ -618,6 +701,7 @@ model EditorialDecision {
   nextAction        String
   outcome           Json?
   videoLinks        EditorialDecisionVideoLink[]
+  plannedItems      PlannedContentItem[]
   createdAt         DateTime                  @default(now())
   updatedAt         DateTime                  @updatedAt
 

@@ -674,3 +674,25 @@ Research separa `fact`, `inference` e `hypothesis`; cada evidência mantém font
 Uma consulta recente válida retorna `cache=HIT`. Uma reexecução explícita cria nova observação. Se todos os providers falharem, o último resultado válido pode ser devolvido como `STALE_FALLBACK`; sem histórico, a API retorna `503`. Pesquisa indisponível não derruba as demais capacidades.
 
 O Planner reconhece pedidos de investigação, delega ao Gerente e persiste apenas sua mensagem de resposta normal. Research produz candidatos; o Decision Engine decide. Uma oportunidade pode posteriormente alimentar Biblioteca e pautas pelos fluxos existentes, sem criar uma segunda biblioteca.
+
+## Strategic Planning — Sprint 38
+
+```text
+DecisionHistory + ResearchOpportunity + Trends + Series
+  -> StrategicPlanningService
+    -> StrategicPlanningRanker
+      -> ContentPlanRepository
+      -> PlannedContentItemRepository
+      -> PlanningHistoryRepository
+        -> Prisma -> SQLite
+          -> /api/planning
+            -> frontend API client
+              -> Planning workspace
+              -> Planner / Gerente / Supervisor
+```
+
+`POST /api/planning/generate` cria uma nova versão e preserva as anteriores. O ranker limita o plano pelo horizonte, mantém ordem estável para entradas equivalentes e explica prioridade, readiness, evidências, riscos, bloqueios e dados ausentes. Atualizações, conclusão e reorder persistem o item e adicionam um evento ao histórico; nenhuma operação reescreve silenciosamente o plano anterior.
+
+A workspace carrega `GET /api/planning/current`, mostra estado vazio quando recebe `404` e mantém os dados válidos visíveis em modo degradado. Geração e mutações são bloqueadas por operação para evitar requests duplicadas. Tokens de montagem/request impedem que resposta tardia após navegação, troca ou unmount altere a tela atual.
+
+O Planner consulta somente o resumo do plano atual; o Gerente usa a capability registrada e pode solicitar geração quando não há plano; o Supervisor lê contagens e alertas de baixa confiança, excesso de experimentos, stale data, bloqueios e conflitos. A interpretação e o ranking permanecem no backend.

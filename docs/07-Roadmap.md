@@ -1221,4 +1221,29 @@ Limites preservados:
 - sem scraping, upload, publicação, automação irreversível ou nova credencial;
 - resultados stale permanecem identificados e conflitos nunca são apagados.
 
-Próximo checkpoint: **SPRINT 38 — NÃO INICIADA**.
+## Sprint 38 — Strategic Content Planning — CONCLUÍDA
+
+**Objetivo:** transformar decisões editoriais e oportunidades persistidas em uma fila de execução clara, versionada e utilizável no JvitorZ OS.
+
+Entregas:
+
+- domínio `StrategicPlanning` com candidatos, evidências, riscos, restrições, dependências e readiness;
+- horizontes `TODAY`, `NEXT_3_DAYS`, `NEXT_7_DAYS` e `NEXT_14_DAYS`;
+- ranking determinístico que reutiliza Editorial Decision, Research, Trends e Series sem duplicar seus cálculos;
+- balanceamento entre conteúdo comprovado e experimental, com repetição tratada como risco e não como bloqueio automático;
+- fila editorial `NEXT`, `LATER`, `WAITING`, `BLOCKED` e `DONE`;
+- persistência versionada de `ContentPlan`, `PlannedContentItem` e `PlanningHistory`;
+- criação, consulta, conclusão, pausa, repriorização, reordenação e solicitação controlada de pesquisa;
+- integração com Planner, Gerente, Research e Supervisor;
+- workspace `#/planning` com bloco “O que fazer agora”, estados vazio/degradado, evidências e riscos;
+- API centralizada, migration aditiva e testes determinísticos em SQLite isolado.
+
+Limites preservados:
+
+- o planejamento organiza a execução; `EditorialDecisionService` continua sendo a fonte da decisão editorial;
+- prioridade e score não garantem performance e nunca representam previsão de views;
+- dados stale, missing ou de baixa confiança permanecem visíveis e reduzem readiness/confiança;
+- o plano não publica conteúdo, não altera o YouTube e não dispara automação irreversível;
+- disponibilidade real do criador não é inventada.
+
+Próximo checkpoint: **SPRINT 39 — NÃO INICIADA**.

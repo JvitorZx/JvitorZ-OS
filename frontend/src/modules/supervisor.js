@@ -40,6 +40,8 @@ export const supervisorModule = {
     const temporal = data.supervisor?.temporalIntelligence ?? {};
     const temporalHighlights = Array.isArray(temporal.highlights) ? temporal.highlights : [];
     const research = data.supervisor?.research ?? {};
+    const planning = data.supervisor?.planning ?? {};
+    const planningAlerts = Array.isArray(planning.alerts) ? planning.alerts : [];
     const integrationPill = (id, fallback) => {
       const integration = integrationFrom(data, id);
       if (!integration && fallback) {
@@ -143,6 +145,20 @@ export const supervisorModule = {
               <li>Conflitos: ${escapeHtml(research.conflicts ?? 0)}</li>
               <li>Qualidade: ${escapeHtml(research.quality ?? 'MISSING')} · ${escapeHtml(research.freshness ?? 'MISSING')}</li>
             </ul>
+          </section>
+          <section>
+            <h3>Planejamento estratégico</h3>
+            <ul>
+              <li>Estado: ${escapeHtml(planning.status ?? 'MISSING')} · ${escapeHtml(planning.horizon ?? '--')}</li>
+              <li>Prontos: ${escapeHtml(planning.ready ?? 0)}</li>
+              <li>Aguardando pesquisa: ${escapeHtml(planning.needsResearch ?? 0)}</li>
+              <li>Bloqueados: ${escapeHtml(planning.blocked ?? 0)}</li>
+              <li>Baixa confiança: ${escapeHtml(planning.lowConfidence ?? 0)}</li>
+              <li>Testes: ${escapeHtml(planning.experiments ?? 0)}</li>
+              <li>Dados stale: ${escapeHtml(planning.stale ?? 0)}</li>
+              <li>Conflitos: ${escapeHtml(planning.conflicts ?? 0)}</li>
+            </ul>
+            ${renderItems(planningAlerts, 'Nenhum alerta de planejamento ativo.')}
           </section>
           <section>
             <h3>Qualidade dos dados</h3>

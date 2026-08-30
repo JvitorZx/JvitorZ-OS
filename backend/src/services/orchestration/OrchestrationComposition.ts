@@ -18,6 +18,7 @@ import { ChannelOperatorService } from '../channel-operators';
 import type { ChannelOperatorId } from '../../domains/channel-operators';
 import { AudienceIntelligenceService } from '../audience/AudienceIntelligenceService';
 import { ResearchService } from '../research';
+import { StrategicPlanningService } from '../strategic-planning';
 
 export interface OrchestrationDependencies {
   intelligence: Pick<CreatorIntelligenceService,
@@ -31,6 +32,7 @@ export interface OrchestrationDependencies {
   channelOperators: Pick<ChannelOperatorService, 'run'>;
   audience: Pick<AudienceIntelligenceService, 'summary' | 'traffic'>;
   research: Pick<ResearchService, 'research'>;
+  planning: Pick<StrategicPlanningService, 'getOrGenerateCurrent'>;
 }
 
 const previousOutputs = (results: ReadonlyMap<string, OrchestrationStepResult>): CapabilityOutput[] =>
@@ -54,6 +56,7 @@ export const createDefaultOrchestrationDependencies = (): OrchestrationDependenc
     channelOperators: new ChannelOperatorService(),
     audience: new AudienceIntelligenceService(),
     research: new ResearchService(),
+    planning: new StrategicPlanningService(),
   };
 };
 
@@ -61,6 +64,41 @@ export const createDefaultCapabilityRegistry = (
   dependencies: OrchestrationDependencies = createDefaultOrchestrationDependencies(),
 ): CapabilityRegistry => {
   const registry = new CapabilityRegistry();
+
+  registry.register({
+    id: 'strategic-planning.current', responsibility: 'Consultar ou gerar a fila editorial atual sem prever views.',
+    inputs: ['projectId'], outputs: ['content plan', 'execution queue', 'risks', 'missingData'], availability: 'available',
+    dependencies: [], access: 'write', sideEffect: 'INTERNAL_WRITE', persistentMutation: true,
+    maxAffectedItems: 12, capabilityTags: ['planning'],
+  }, async ({ request }) => {
+    const { plan, generated } = await dependencies.planning.getOrGenerateCurrent({
+      projectId: request.projectId,
+      horizon: 'TODAY',
+    });
+    const next = plan.items.filter(({ queue }) => queue === 'NEXT');
+    const waiting = plan.items.filter(({ queue }) => ['WAITING', 'BLOCKED'].includes(queue));
+    const evidenceCounts = plan.items.map(({ evidence }) => Array.isArray(evidence) ? evidence.length : 0);
+    return {
+      summary: next[0]
+        ? `Proxima prioridade editorial: ${next[0].title}.`
+        : `Plano ${plan.status} sem item pronto para execucao.`,
+      facts: [`Plano ${plan.id} (${plan.horizon}) com ${plan.items.length} item(ns).`],
+      inferences: next.map(({ rationale }) => rationale).slice(0, 2),
+      recommendations: [
+        ...next.map(({ title }) => `Gravar agora: ${title}.`),
+        ...plan.items.filter(({ queue }) => queue === 'LATER').slice(0, 2).map(({ title }) => `Depois: ${title}.`),
+      ],
+      risks: waiting.map(({ title, readiness }) => `${title}: ${readiness}.`).slice(0, 6),
+      missingData: waiting.filter(({ readiness }) => readiness === 'NEEDS_RESEARCH').map(({ title }) => `Pesquisa para ${title}`).slice(0, 6),
+      confidence: evidenceCounts.length ? Math.min(1, evidenceCounts.reduce((sum, count) => sum + count, 0) / Math.max(1, plan.items.length * 3)) : 0,
+      data: {
+        planId: plan.id, generated, status: plan.status, horizon: plan.horizon,
+        items: plan.items.map(({ id, title, priority, readiness, queue, position, executionScore }) => ({
+          id, title, priority, readiness, queue, position, executionScore,
+        })),
+      },
+    };
+  });
 
   registry.register({
     id: 'performance.read', responsibility: 'Ler snapshots, baseline e sinais persistidos.',

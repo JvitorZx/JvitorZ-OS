@@ -36,6 +36,7 @@ export const classifyManagerIntent = (message: string): ManagerIntent => {
   if (/tendenc|crescendo|caindo|subindo|piorando|melhorando/.test(text)) return 'TREND_ANALYSIS';
   if (/risco|ameaca|problema.*agora|o que pode dar errado/.test(text)) return 'RISK_ANALYSIS';
   if (/oportunidade|melhor chance|potencial agora/.test(text)) return 'OPPORTUNITY_DISCOVERY';
+  if (/o que.*gravo hoje|fila editorial|plano editorial|o que vem depois|o que fazer agora/.test(text)) return 'CONTENT_PLANNING';
   if (/planej|calendario|cronograma|organizar.*conteudo/.test(text)) return 'PLANNING';
   if (/o que.*gravar|devo gravar|proximo video|qual jogo|qual ideia|vale testar|continuar/.test(text)) {
     return 'CONTENT_DECISION';
