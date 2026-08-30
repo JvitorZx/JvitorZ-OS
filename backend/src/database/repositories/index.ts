@@ -10,6 +10,8 @@ export * from './EditorialDecisionOutcomeReviewRepository';
 export * from './OrchestrationExecutionRepository';
 export * from './PlanReviewRepository';
 export * from './MessageRepository';
+export * from './ResearchHistoryRepository';
+export * from './ResearchOpportunityRepository';
 export * from './LibraryItemRepository';
 export * from './ConversationLibraryItemRepository';
 export * from './VideoIdeaRepository';

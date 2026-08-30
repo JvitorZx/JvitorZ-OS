@@ -237,6 +237,12 @@ Fundação editorial compartilhada pelo Planner. Registra ideias, reúne evidên
 
 O domínio aceita dados manuais persistidos e dados reais obtidos pelos providers oficiais de Analytics, Reach e Audience. Tendências, séries e padrões são derivados somente do histórico persistido. vidIQ e pesquisa web permanecem providers futuros e não são simulados.
 
+## Research e descoberta
+
+O sistema possui um Research Engine modular, acessível pela workspace Pesquisa, pelo Gerente e automaticamente pelo Planner quando a pergunta pede investigação. O provider inicial usa somente dados internos persistidos e declara essa limitação; vidIQ e web search continuam futuros.
+
+Research produz candidatos, evidências, freshness, confiança, riscos e lacunas. Ele não decide o que gravar. O Editorial Decision Engine recebe essas oportunidades e continua responsável pela recomendação final e pelo `OpportunityScore`, sempre sem previsão exata de views.
+
 ## Performance Intelligence
 
 Resultados de vídeos podem ser ingeridos manualmente como snapshots normalizados. O sistema mantém métricas ausentes como desconhecidas, calcula baseline dinâmica do próprio canal, deriva sinais quantitativos e atualiza aprendizados estruturados com provenance e confiança.

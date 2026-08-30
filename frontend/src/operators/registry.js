@@ -8,6 +8,10 @@ export const operatorRegistry = [
     responsibility: 'Transforma contexto, memória e performance em decisões editoriais.', source: 'Planner + OpenAI configurável',
   },
   {
+    id: 'research', name: 'Pesquisa e Oportunidades', route: '/research', status: 'AVAILABLE',
+    responsibility: 'Descobre candidatos e evidências sem substituir a decisão editorial.', source: 'Research providers modulares',
+  },
+  {
     id: 'ctr', name: 'Operador de CTR', route: '/analytics/ctr', status: 'NOT_CONFIGURED',
     responsibility: 'Analisa CTR e impressões observadas sem inventar causalidade.', source: 'YouTube Analytics persistido', dynamic: true,
   },

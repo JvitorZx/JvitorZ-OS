@@ -389,3 +389,20 @@ Relações principais:
 - `Project 1:N ContentPattern`;
 - `SeriesDefinition 1:N VideoSeriesLink`;
 - `VideoPerformanceSnapshot 1:N VideoSeriesLink`.
+
+## ResearchHistory e ResearchOpportunity
+
+### ResearchHistory
+
+Execução persistida de pesquisa. Guarda escopo opcional de projeto, query original e normalizada, intent, assunto, fontes, resultados, qualidade, freshness, limitações, contexto técnico seguro, instante de pesquisa e validade do cache. `cacheKey` agrupa pesquisas comparáveis; `executionKey` impede duplicação dentro da mesma janela sem impedir comparações futuras.
+
+### ResearchOpportunity
+
+Candidato derivado de uma pesquisa persistida. Guarda rank, assunto/tipo, estado de descoberta, resumo, fontes, evidências, freshness, compatibilidade, confiança, riscos, lacunas e próxima investigação. A relação pertence a um `ResearchHistory` e a chave é única dentro daquela execução.
+
+```text
+Project 1 -> N ResearchHistory
+ResearchHistory 1 -> N ResearchOpportunity
+```
+
+Excluir um histórico remove somente suas oportunidades derivadas. Excluir um projeto preserva a pesquisa com `projectId = null`. Nenhuma tabela armazena token, credencial, payload bruto de provider ou previsão de views.

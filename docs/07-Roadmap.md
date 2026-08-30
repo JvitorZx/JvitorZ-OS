@@ -1193,4 +1193,32 @@ Limites preservados:
 - `PlanReview` permanece obrigatório segundo a política de risco existente;
 - a interpretação estrutural é determinística; nenhum provider de linguagem pode mudar fatos, evidências ou plano silenciosamente.
 
-Próximo checkpoint: **SPRINT 37 — NÃO INICIADA**.
+## Sprint 37 — Research & Opportunity Discovery Engine — CONCLUÍDA
+
+**Objetivo:** dar ao JvitorZ OS uma fronteira estruturada para descobrir oportunidades de conteúdo sem confundir pesquisa com decisão editorial.
+
+Entregas:
+
+- domínio neutro `research` com request, query, source, evidence, candidate, result, confidence, freshness e opportunity;
+- intents para jogos, conteúdo, temas, nicho, sinal competitivo, audiência, demanda de busca, content gap, tendências e ideias;
+- `ResearchProvider` modular e provider interno funcional sobre snapshots, tendências, séries, padrões, ideias e audiência persistidos;
+- normalização comum com origem, timestamp, freshness, qualidade, relevância, confiança, contexto e limitações;
+- `OpportunityDiscoveryService` com estados `HIGH_INTEREST`, `PROMISING`, `WATCH`, `WEAK_SIGNAL` e `INSUFFICIENT_DATA`;
+- detecção conservadora de lacunas, conflito de fontes, compatibilidade com o canal e próxima investigação, sem previsão de views;
+- persistência de `ResearchHistory` e `ResearchOpportunity`, ranking estável, cache de seis horas, reexecução e fallback last-known-good marcado como stale;
+- endpoints para pesquisa geral, jogos, temas, oportunidades, histórico, abertura e refresh;
+- capability `research.discover` selecionada pelo Gerente somente para intenção de pesquisa;
+- oportunidades entregues ao `EditorialDecisionService` como evidência, mantendo `OpportunityScore` e decisão final no engine existente;
+- Planner integrado pelo fluxo Planner -> Gerente -> Research -> Decision; Supervisor com origem, qualidade, freshness, conflitos e baixa confiança;
+- workspace mínima `/research`, client central, texto seguro, lifecycle, prevenção de duplicação e descarte de respostas obsoletas;
+- migration aditiva e **802 testes determinísticos** aprovados em SQLite em memória, sem rede externa.
+
+Limites preservados:
+
+- o provider inicial cobre somente evidências internas e declara que não mede o mercado externo;
+- vidIQ, web search e demais fontes externas permanecem adapters futuros;
+- oportunidade é hipótese para investigação, não ordem para gravar e não previsão de performance;
+- sem scraping, upload, publicação, automação irreversível ou nova credencial;
+- resultados stale permanecem identificados e conflitos nunca são apagados.
+
+Próximo checkpoint: **SPRINT 38 — NÃO INICIADA**.

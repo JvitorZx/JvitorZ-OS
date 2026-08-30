@@ -229,7 +229,7 @@ Planner/API
     -> repositories -> Prisma/SQLite
 ```
 
-`ResearchProvider` é a fronteira de extensão. O provider inicial usa apenas `PerformanceSignal` persistido. Futuros adapters de YouTube, vidIQ, tendências ou web deverão converter suas fontes para `ResearchEvidence`; o motor não conhece SDKs externos.
+Esse `ResearchProvider` histórico é uma fronteira estreita da avaliação de uma `VideoIdea` já persistida: recebe a ideia e consulta apenas `PerformanceSignal` interno. Ele não é o motor geral de descoberta da Sprint 37. Novas fontes de YouTube, vidIQ ou web pertencem ao contrato neutro `domains/research/ResearchProvider`, evitando duplicar serviços de pesquisa ou acoplar `CreatorIntelligenceService` a SDKs externos.
 
 Cada componente do score carrega classificação, fontes e justificativa. Ausência de evidência permanece explícita e nenhum componente promete desempenho futuro.
 
@@ -491,3 +491,25 @@ Confiança combina volume (35%), comparabilidade das janelas (20%), qualidade da
 `SeriesIntelligenceService` aceita importação apenas de metadado explícito, vínculo manual reversível e associação automática somente por correspondência exata de alta confiança. Saúde compara os três episódios mais recentes com os três anteriores quando há amostra. `DORMANT` comunica inatividade e não julgamento de qualidade.
 
 `ContentPatternIntelligenceService` agrupa apenas dimensões realmente persistidas. Resultado é uma associação com amostra, recência, confiança e evidências; não é uma explicação causal. Trends e Series seguem o contrato comum de operadores e entram no Gerente como capabilities read-only. O Planner recebe evidências temporais pelo `EditorialDecisionService`; o Dashboard continua sem lógica específica desses operadores e o Supervisor apenas consolida destaques.
+
+## Research & Opportunity Discovery
+
+A Sprint 37 adiciona uma fronteira de descoberta anterior à decisão editorial:
+
+```text
+Planner / Gerente / Research workspace
+  -> ResearchService
+    -> ResearchProvider[]
+      -> InternalResearchProvider
+        -> snapshots + trends + series + patterns + ideas + audience
+    -> OpportunityDiscoveryService
+    -> ResearchHistoryRepository + ResearchOpportunityRepository
+      -> Prisma -> SQLite
+  -> EditorialDecisionService
+```
+
+`ResearchProvider` recebe uma `ResearchQuery` neutra e devolve `ResearchSource`, `ResearchEvidence` e `ResearchCandidate`. Provider, origem interna/externa, coleta, freshness, qualidade e limitações permanecem explícitos. O motor não conhece SDK, credencial ou formato específico de YouTube, vidIQ ou web.
+
+O provider inicial é inteiramente local e não faz rede. Ele normaliza apenas fatos e associações já persistidos. `OpportunityDiscoveryService` consolida candidatos, preserva conflitos, aponta content gaps e produz próxima investigação. O resultado não toma uma decisão nem recalcula `OpportunityScore`; a capability `research.discover` entrega candidatos e evidências ao `EditorialDecisionService`, que continua responsável pelo ranking editorial.
+
+Consultas idênticas usam cache por seis horas. Reexecuções criam histórico comparável; falha de provider pode devolver last-known-good somente como `STALE_FALLBACK`. Ausência total retorna indisponibilidade segura sem derrubar Dashboard, Planner ou Supervisor.

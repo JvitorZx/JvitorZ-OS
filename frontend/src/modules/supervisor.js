@@ -39,6 +39,7 @@ export const supervisorModule = {
     const dataQuality = Array.isArray(data.supervisor?.dataQuality) ? data.supervisor.dataQuality : [];
     const temporal = data.supervisor?.temporalIntelligence ?? {};
     const temporalHighlights = Array.isArray(temporal.highlights) ? temporal.highlights : [];
+    const research = data.supervisor?.research ?? {};
     const integrationPill = (id, fallback) => {
       const integration = integrationFrom(data, id);
       if (!integration && fallback) {
@@ -132,6 +133,16 @@ export const supervisorModule = {
           <section>
             <h3>Tendências e séries</h3>
             ${renderItems(temporalHighlights, 'Ainda não há sinais temporais com evidência suficiente.')}
+          </section>
+          <section>
+            <h3>Pesquisa e oportunidades</h3>
+            <ul>
+              <li>Pesquisas recentes: ${escapeHtml(research.totalResearches ?? 0)}</li>
+              <li>Oportunidades: ${escapeHtml(research.opportunities ?? 0)}</li>
+              <li>Baixa confiança: ${escapeHtml(research.lowConfidence ?? 0)}</li>
+              <li>Conflitos: ${escapeHtml(research.conflicts ?? 0)}</li>
+              <li>Qualidade: ${escapeHtml(research.quality ?? 'MISSING')} · ${escapeHtml(research.freshness ?? 'MISSING')}</li>
+            </ul>
           </section>
           <section>
             <h3>Qualidade dos dados</h3>

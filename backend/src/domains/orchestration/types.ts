@@ -27,6 +27,7 @@ export type ManagerIntent =
   | 'TRAFFIC_ANALYSIS'
   | 'PLANNING'
   | 'OPPORTUNITY_DISCOVERY'
+  | 'RESEARCH_DISCOVERY'
   | 'RISK_ANALYSIS'
   | 'GENERAL_CREATOR_QUESTION'
   | 'UNKNOWN';
@@ -48,6 +49,7 @@ export type OperatorCapability =
   | 'decision-memory'
   | 'shared-memory'
   | 'supervision'
+  | 'research'
   | 'response';
 
 export type CapabilityAccess = 'read' | 'write' | 'external_side_effect';

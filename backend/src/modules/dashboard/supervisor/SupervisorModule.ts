@@ -21,6 +21,7 @@ import {
 import { AudienceIntelligenceService } from '../../../services/audience/AudienceIntelligenceService';
 import { OrchestrationExecutionRepository } from '../../../database/repositories/OrchestrationExecutionRepository';
 import type { OrchestrationRequest, OrchestrationResult } from '../../../domains/orchestration';
+import { ResearchService } from '../../../services/research';
 
 const operatorSummary = (operator: { id: string; status: string; missingData: string[]; sampleSize: number }): string => {
   if (operator.status === 'AVAILABLE') {
@@ -46,6 +47,7 @@ export class SupervisorModule {
     private readonly youtubeReachService: Pick<YouTubeReachSyncService, 'getStatus'> = youtubeReachSyncService,
     private readonly audienceIntelligence: Pick<AudienceIntelligenceService, 'summary'> = new AudienceIntelligenceService(),
     private readonly orchestrationRepository = new OrchestrationExecutionRepository(DatabaseService.client),
+    private readonly researchService: Pick<ResearchService, 'getOperationalSummary'> = new ResearchService(),
   ) {}
 
   async getSupervisorOverview() {
@@ -170,6 +172,12 @@ export class SupervisorModule {
         signals: (operator.signals ?? []).map(({ summary }) => summary).slice(0, 5),
       }));
     } catch { /* Specialized read models must not break the Supervisor. */ }
+    let research = {
+      totalResearches: 0, opportunities: 0, lowConfidence: 0, stale: 0, conflicts: 0,
+      quality: 'MISSING', freshness: 'MISSING', latestAt: null as Date | null, sources: [] as Array<{ id: string; kind: string; freshness: string; quality: string }>,
+    };
+    try { research = await this.researchService.getOperationalSummary(); }
+    catch { /* Research is local and cannot break the Supervisor or Dashboard. */ }
     const byId = new Map(channelOperators.map((operator) => [operator.id, operator]));
     const analyticsQuality = youtubeAnalytics.state === 'synchronized' || youtubeAnalytics.state === 'connected' ? 'GOOD'
       : youtubeAnalytics.lastSyncAt ? 'STALE' : youtubeAnalytics.state === 'temporary_error' ? 'ERROR' : 'MISSING';
@@ -179,6 +187,9 @@ export class SupervisorModule {
       { area: 'Retenção', state: byId.get('retention')?.status === 'AVAILABLE' ? 'GOOD' : byId.get('retention')?.status === 'LIMITED' ? 'PARTIAL' : 'MISSING', summary: byId.get('retention')?.summary ?? 'Retenção sem dados.' },
       { area: 'Tipo de conteúdo', state: byId.get('long-form')?.sampleSize || byId.get('shorts')?.sampleSize ? 'GOOD' : 'MISSING', summary: 'Classificação real de long-form e Shorts.' },
       { area: 'Audiência', state: audience?.quality.state ?? 'MISSING', summary: audience?.facts[0] ?? 'Audiência e fontes de tráfego ainda sem dados.' },
+      { area: 'Pesquisa', state: research.quality, summary: research.totalResearches
+        ? `${research.opportunities} oportunidade(s), freshness ${research.freshness}.`
+        : 'Nenhuma pesquisa persistida ainda.' },
     ];
     return {
       alerts: dataQuality.filter(({ state }) => ['STALE', 'INCONSISTENT', 'ERROR'].includes(state)).map(({ area, summary }) => `${area}: ${summary}`),
@@ -216,6 +227,7 @@ export class SupervisorModule {
         series: byId.get('series') ?? null,
         highlights: [...(byId.get('trends')?.signals ?? []), ...(byId.get('series')?.signals ?? [])].slice(0, 6),
       },
+      research,
       audience,
     };
   }

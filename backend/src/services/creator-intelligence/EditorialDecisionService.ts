@@ -48,6 +48,23 @@ export interface GenerateEditorialDecisionInput {
   ideaIds?: readonly string[];
   videoId?: string | null;
   candidates?: readonly EditorialCandidate[];
+  researchOpportunities?: readonly ResearchDecisionInput[];
+}
+
+export interface ResearchDecisionInput {
+  key: string;
+  subject: string;
+  subjectType: string;
+  state: string;
+  summary: string;
+  sources: readonly string[];
+  freshness: string;
+  compatibility: number;
+  confidence: number;
+  evidence: ReadonlyArray<{ sourceId: string; classification: string; summary: string; confidence: number }>;
+  risks: readonly string[];
+  gaps: readonly string[];
+  nextInvestigation: string;
 }
 
 export interface EditorialEvidenceItem {
@@ -126,7 +143,8 @@ export const classifyEditorialIntent = (
 };
 
 export const isEditorialQuestion = (question: string): boolean =>
-  classifyEditorialIntent(question) !== 'general_editorial';
+  classifyEditorialIntent(question) !== 'general_editorial'
+  || /(pesquis|procure|investigue|oportunidade|lacuna|tema surgindo|fora do meu canal)/i.test(question);
 
 const isUniqueConstraintError = (error: unknown): boolean =>
   typeof error === 'object' && error !== null && 'code' in error && error.code === 'P2002';
@@ -430,6 +448,16 @@ export class EditorialDecisionService {
     if (new Set(suppliedCandidates.map(({ key }) => key)).size !== suppliedCandidates.length) {
       throw new EditorialDecisionValidationError('candidate keys must be unique');
     }
+    const researchOpportunities = (input.researchOpportunities ?? []).slice(0, 20);
+    const researchCandidates = researchOpportunities.map((opportunity) => normalizeCandidate({
+      key: opportunity.key,
+      label: opportunity.subject,
+      type: opportunity.subjectType === 'GAME' || opportunity.subjectType === 'SIMULATOR' || opportunity.subjectType === 'CAR'
+        ? 'GAME' : opportunity.subjectType === 'SERIES' ? 'SERIES' : opportunity.subjectType === 'FORMAT' ? 'FORMAT' : 'TOPIC',
+      ...(opportunity.subjectType === 'GAME' ? { game: opportunity.subject } : {}),
+      ...(opportunity.subjectType === 'TOPIC' ? { topic: opportunity.subject } : {}),
+      ...(opportunity.subjectType === 'FORMAT' ? { format: opportunity.subject } : {}),
+    }));
     const videoId = input.videoId?.trim() || null;
     const intent = classifyEditorialIntent(question, Math.max(ideaIds.length, suppliedCandidates.length));
     const normalizedQuestionKey = searchable(question).replace(/\s+/g, ' ').trim();
@@ -457,10 +485,12 @@ export class EditorialDecisionService {
     ]);
     const snapshots = videoId ? allSnapshots.filter((snapshot) => snapshot.videoId === videoId) : allSnapshots;
     const ranking = recommendation.ranking.slice(0, 5);
-    const top = suppliedCandidates.length > 0 ? undefined : ranking[0];
+    const top = suppliedCandidates.length > 0 || researchCandidates.length > 0 ? undefined : ranking[0];
     const latest = snapshots[0];
     const candidates = suppliedCandidates.length > 0
       ? suppliedCandidates
+      : researchCandidates.length > 0
+        ? researchCandidates
       : ranking.length > 0
         ? ranking.map((item) => {
           const idea = context.ideas.find(({ id }) => id === item.ideaId);
@@ -476,9 +506,9 @@ export class EditorialDecisionService {
         : intent === 'continue_series' && seriesAnalyses.length > 0
           ? seriesAnalyses.map(({ series }) => normalizeCandidate({ key: series.id, label: series.name, type: 'SERIES', seriesId: series.id }))
           : [normalizeCandidate({ key: 'current-opportunity', label: 'Oportunidade editorial atual', type: 'TOPIC' })];
-    const opportunityRanking = this.opportunityScoring.rank(candidates.map((candidate) => ({
-      candidate,
-      ...factorsForCandidate(candidate, {
+    const opportunityRanking = this.opportunityScoring.rank(candidates.map((candidate) => {
+      const researchOpportunity = researchOpportunities.find(({ key }) => key === candidate.key);
+      const base = factorsForCandidate(candidate, {
         ranking,
         signals: allSignals,
         trends: temporalTrends,
@@ -488,8 +518,21 @@ export class EditorialDecisionService {
         retention: retentionAnalysis,
         longForm: longFormAnalysis,
         shorts: shortsAnalysis,
-      }),
-    })));
+      });
+      return {
+        candidate,
+        factors: [
+          ...base.factors,
+          ...(researchOpportunity ? [factor(
+            'EDITORIAL_FIT', researchOpportunity.compatibility * 100, researchOpportunity.confidence,
+            researchOpportunity.freshness === 'STALE' ? 'STALE' : 'PARTIAL',
+            `research:${researchOpportunity.key}`, researchOpportunity.summary, 'inference',
+          )] : []),
+        ],
+        constraints: [...base.constraints, ...(researchOpportunity?.gaps ?? []).map((summary, index) => ({ code: `RESEARCH_GAP_${index + 1}`, summary }))],
+        risks: [...base.risks, ...(researchOpportunity?.risks ?? []).map((summary, index) => ({ code: `RESEARCH_RISK_${index + 1}`, severity: 'MEDIUM' as const, summary, source: `research:${researchOpportunity?.key ?? candidate.key}` }))],
+      };
+    }));
     const topOpportunity = opportunityRanking[0];
 
     const evidence: EditorialEvidenceItem[] = [];
@@ -532,6 +575,13 @@ export class EditorialDecisionService {
         source: `channel-memory:${insight.key}`,
         summary: insight.statement,
         confidence: insight.confidence,
+      });
+    }
+    for (const opportunity of researchOpportunities.slice(0, 5)) {
+      evidence.push({
+        classification: 'inference', source: `research:${opportunity.key}`,
+        summary: `${opportunity.summary} Fonte(s): ${opportunity.sources.join(', ') || 'não informada'}. Freshness: ${opportunity.freshness}.`,
+        confidence: opportunity.confidence,
       });
     }
     const relevantTrends = temporalTrends
@@ -586,7 +636,7 @@ export class EditorialDecisionService {
       });
     }
 
-    const text = suppliedCandidates.length > 0 && topOpportunity
+    const text = (suppliedCandidates.length > 0 || researchCandidates.length > 0) && topOpportunity
       ? {
         recommendation: `${topOpportunity.candidate.label} apresenta a maior oportunidade relativa entre os candidatos avaliados (${topOpportunity.opportunity.category}, ${topOpportunity.opportunity.value}/100).`,
         nextAction: `Valide os dados ausentes de ${topOpportunity.candidate.label} e execute um teste proporcional à confiança disponível.`,
@@ -628,6 +678,7 @@ export class EditorialDecisionService {
       opportunityRanking: opportunityRanking.map(({ candidate, opportunity }) => [candidate.key, opportunity.value, opportunity.category, opportunity.confidence]),
       trends: relevantTrends.map(({ id, detectedAt, classification }) => [id, detectedAt, classification]),
       series: seriesAnalyses.slice(0, 10).map(({ series, health }) => [series.id, health.health, health.sampleSize]),
+      research: researchOpportunities.map(({ key, state, confidence, freshness }) => [key, state, confidence, freshness]),
     });
     const existing = await this.decisions.findByDedupeKey(dedupeKey);
     if (existing) return { decision: existing, created: false };
@@ -651,7 +702,7 @@ export class EditorialDecisionService {
         category: opportunity.category,
         rationale: opportunity.rationale,
       }));
-      const persistedAlternatives = suppliedCandidates.length > 0 || ranking.length === 0
+      const persistedAlternatives = suppliedCandidates.length > 0 || researchCandidates.length > 0 || ranking.length === 0
         ? candidateAlternatives
         : legacyAlternatives;
       const decision = await this.decisions.create({

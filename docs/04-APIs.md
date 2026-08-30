@@ -1131,3 +1131,44 @@ Lista associações persistidas. Queries opcionais: `projectId`, `patternType` (
 ### `GET /subject-performance`
 
 Consulta agrupamentos reais por `type=game|topic`, com `projectId` opcional. Retorna `200`; tipo ausente ou inválido retorna `400`. Metadado indisponível resulta em lista vazia, nunca inferência textual.
+
+## Research & Opportunity Discovery
+
+Base: `/api/research`. Todos os bodies e filtros são estritos. Validação retorna `400`, registro ausente `404`, providers totalmente indisponíveis sem cache retornam `503` e falha inesperada retorna `500` sanitizado.
+
+### `POST /api/research`
+
+Executa pesquisa normalizada. Body:
+
+```json
+{
+  "query": "procure jogos que combinem com meu canal",
+  "intent": "GAME_DISCOVERY",
+  "projectId": "opcional",
+  "subjectType": "GAME",
+  "subject": "simulador",
+  "forceRefresh": false
+}
+```
+
+Somente `query` é obrigatória. Retorna `200` com `historyId`, query, fontes, resultados, oportunidades, qualidade, freshness, limitações, validade e estado de cache (`MISS`, `HIT` ou `STALE_FALLBACK`).
+
+### `POST /api/research/games` e `POST /api/research/topics`
+
+Atalhos do mesmo contrato. Forçam respectivamente `GAME_DISCOVERY/GAME` e `TOPIC_RESEARCH/TOPIC`; não usam provider externo implicitamente.
+
+### `GET /api/research/opportunities`
+
+Lista oportunidades persistidas em ordem de pesquisa mais recente e rank. Filtros opcionais: `projectId`, `state` e `limit` (1–100). Cada item inclui origem da pesquisa e data.
+
+### `GET /api/research/opportunities/:id`
+
+Abre o artefato persistido com fontes, evidências, freshness, compatibilidade, confiança, riscos, lacunas e próxima investigação. Retorna `200` ou `404`.
+
+### `GET /api/research/history` e `GET /api/research/history/:id`
+
+Listam ou abrem pesquisas persistidas. A listagem aceita `projectId` e `limit` (1–50). Resultados externos e internos, quando existirem, mantêm sua origem separada.
+
+### `POST /api/research/history/:id/refresh`
+
+Reexecuta uma pesquisa existente com body `{}` e cria uma observação comparável. Não transforma resultado stale em atual sem nova execução válida.

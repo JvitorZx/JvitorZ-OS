@@ -649,3 +649,28 @@ O cálculo usa somente dados já persistidos e nunca abre uma chamada Google ao 
 No Planner, uma pergunta temporal é reconhecida pelo roteador determinístico e o `EditorialDecisionService` seleciona sinais e séries relevantes à ideia. Evidências entram separadas de inferências e recomendações. O Gerente pode executar `channel-operator.trends` e `channel-operator.series`; o Supervisor apenas lê resumos e não dispara sincronização, criação de série ou outro side effect.
 
 Na UI, Analytics usa o client central para listar tendências, abrir detalhes, consultar padrões e manter séries. Respostas obsoletas são descartadas por geração de request e o controller remove listeners no unmount. Conteúdo persistido é renderizado como texto.
+
+## Research e descoberta de oportunidades — Sprint 37
+
+```text
+Pergunta de pesquisa
+  -> frontend API client ou Planner -> Gerente
+    -> POST /api/research | capability research.discover
+      -> ResearchService
+        -> normalização de intent/assunto
+        -> cache recente por query + escopo
+        -> ResearchProvider[]
+          -> InternalResearchProvider
+             -> snapshots, trends, series, patterns, ideas, audience
+        -> OpportunityDiscoveryService
+        -> ResearchHistory + ResearchOpportunity
+          -> Prisma -> SQLite
+      -> EditorialDecisionService (quando uma decisão é pedida)
+        -> Planner / Gerente / Supervisor
+```
+
+Research separa `fact`, `inference` e `hypothesis`; cada evidência mantém fonte, timestamp, freshness, relevância, confiança e contexto. Fontes internas e externas não são fundidas sem identificação. Conflitos reduzem confiança e permanecem visíveis.
+
+Uma consulta recente válida retorna `cache=HIT`. Uma reexecução explícita cria nova observação. Se todos os providers falharem, o último resultado válido pode ser devolvido como `STALE_FALLBACK`; sem histórico, a API retorna `503`. Pesquisa indisponível não derruba as demais capacidades.
+
+O Planner reconhece pedidos de investigação, delega ao Gerente e persiste apenas sua mensagem de resposta normal. Research produz candidatos; o Decision Engine decide. Uma oportunidade pode posteriormente alimentar Biblioteca e pautas pelos fluxos existentes, sem criar uma segunda biblioteca.

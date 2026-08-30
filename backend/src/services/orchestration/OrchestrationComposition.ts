@@ -17,6 +17,7 @@ import { composeOrchestrationResponse, consolidateEvidence } from './EvidenceCon
 import { ChannelOperatorService } from '../channel-operators';
 import type { ChannelOperatorId } from '../../domains/channel-operators';
 import { AudienceIntelligenceService } from '../audience/AudienceIntelligenceService';
+import { ResearchService } from '../research';
 
 export interface OrchestrationDependencies {
   intelligence: Pick<CreatorIntelligenceService,
@@ -29,6 +30,7 @@ export interface OrchestrationDependencies {
   youtube: Pick<YouTubePerformanceSyncService, 'sync'>;
   channelOperators: Pick<ChannelOperatorService, 'run'>;
   audience: Pick<AudienceIntelligenceService, 'summary' | 'traffic'>;
+  research: Pick<ResearchService, 'research'>;
 }
 
 const previousOutputs = (results: ReadonlyMap<string, OrchestrationStepResult>): CapabilityOutput[] =>
@@ -51,6 +53,7 @@ export const createDefaultOrchestrationDependencies = (): OrchestrationDependenc
     youtube: youtubePerformanceSyncService,
     channelOperators: new ChannelOperatorService(),
     audience: new AudienceIntelligenceService(),
+    research: new ResearchService(),
   };
 };
 
@@ -171,12 +174,40 @@ export const createDefaultCapabilityRegistry = (
   });
 
   registry.register({
+    id: 'research.discover', responsibility: 'Descobrir candidatos e evidências sem tomar a decisão editorial final.',
+    inputs: ['intent', 'projectId'], outputs: ['research candidates', 'evidence', 'freshness'], availability: 'available',
+    dependencies: [], access: 'write', sideEffect: 'INTERNAL_WRITE', persistentMutation: true,
+    maxAffectedItems: 20, capabilityTags: ['research'],
+  }, async ({ request }) => {
+    const execution = await dependencies.research.research({ query: request.intent, projectId: request.projectId });
+    const opportunities = execution.opportunities.slice(0, 10);
+    return {
+      summary: `${opportunities.length} oportunidade(s) de pesquisa encontradas com qualidade ${execution.quality}.`,
+      facts: execution.results.flatMap(({ evidence }) => evidence.filter(({ classification }) => classification === 'fact').map(({ summary }) => summary)).slice(0, 6),
+      inferences: opportunities.map(({ summary }) => summary).slice(0, 6),
+      recommendations: opportunities.map(({ nextInvestigation }) => nextInvestigation).slice(0, 3),
+      risks: [...new Set(opportunities.flatMap(({ risks }) => risks))].slice(0, 6),
+      missingData: [...new Set([...execution.limitations, ...opportunities.flatMap(({ gaps }) => gaps)])].slice(0, 8),
+      confidence: opportunities[0]?.confidence ?? 0,
+      data: {
+        historyId: execution.historyId, quality: execution.quality, freshness: execution.freshness,
+        opportunities: opportunities.map(({ key, subject, subjectType, state, summary, sources, freshness, compatibility, confidence, evidence, risks, gaps, nextInvestigation }) => ({
+          key, subject, subjectType, state, summary, sources, freshness, compatibility, confidence,
+          evidence: evidence.slice(0, 8), risks, gaps, nextInvestigation,
+        })),
+      },
+    };
+  });
+
+  registry.register({
     id: 'creator-intelligence.decide', responsibility: 'Gerar decisão editorial explicável.',
     inputs: ['intent', 'projectId', 'conversationId'], outputs: ['decision', 'evidence'], availability: 'available',
-    dependencies: ['performance.read'], access: 'write', sideEffect: 'INTERNAL_WRITE', persistentMutation: true,
+    dependencies: ['performance.read', 'research.discover'], access: 'write', sideEffect: 'INTERNAL_WRITE', persistentMutation: true,
     maxAffectedItems: 1, capabilityTags: ['editorial-decision'],
-  }, async ({ request }) => {
+  }, async ({ request, results }) => {
     const candidates = request.context?.candidateLabels ?? [];
+    const research = outputFor(results, 'research.discover')?.data?.opportunities;
+    const researchOpportunities = Array.isArray(research) ? research : [];
     const { decision } = request.managerIntent === 'IDEA_COMPARISON' && candidates.length >= 2
       ? await dependencies.editorial.compareCandidates({
         question: request.intent,
@@ -187,6 +218,7 @@ export const createDefaultCapabilityRegistry = (
         question: request.intent,
         projectId: request.projectId,
         conversationId: request.conversationId,
+        researchOpportunities,
       });
     const parsed = parseEditorialDecisionArrays(decision);
     return {

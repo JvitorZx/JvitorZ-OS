@@ -11,6 +11,7 @@ import reachRoutes from './reach';
 import audienceRoutes from './audience';
 import temporalIntelligenceRoutes from './temporalIntelligence';
 import managerRoutes from './manager';
+import researchRoutes from './research';
 
 const router = Router();
 
@@ -26,6 +27,7 @@ router.use('/operators/creator-intelligence/reach', reachRoutes);
 router.use('/operators/creator-intelligence/audience', audienceRoutes);
 router.use('/operators/creator-intelligence', temporalIntelligenceRoutes);
 router.use('/manager', managerRoutes);
+router.use('/research', researchRoutes);
 
 router.get('/', (_req, res) => {
   res.json({ message: 'JvitorZ OS backend route is working' });

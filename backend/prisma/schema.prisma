@@ -37,6 +37,7 @@ model Project {
   contentPatterns     ContentPattern[]
   editorialDecisions EditorialDecision[]
   orchestrationExecutions OrchestrationExecution[]
+  researchHistories ResearchHistory[]
   createdAt        DateTime           @default(now())
   updatedAt        DateTime           @updatedAt
 }
@@ -453,6 +454,61 @@ model ContentPattern {
 
   @@index([projectId, patternType, detectedAt])
   @@index([classification, detectedAt])
+}
+
+model ResearchHistory {
+  id              String                @id @default(cuid())
+  projectId       String?
+  project         Project?              @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  executionKey    String                @unique
+  cacheKey        String
+  query           String
+  normalizedQuery String
+  intent          String
+  subjectType     String?
+  subject         String?
+  sources         Json
+  results         Json
+  quality         String
+  freshness       String
+  limitations     Json
+  context         Json?
+  researchedAt    DateTime
+  validUntil      DateTime
+  opportunities   ResearchOpportunity[]
+  createdAt       DateTime              @default(now())
+  updatedAt       DateTime              @updatedAt
+
+  @@index([projectId, researchedAt])
+  @@index([cacheKey, researchedAt])
+  @@index([quality, freshness])
+}
+
+model ResearchOpportunity {
+  id                String          @id @default(cuid())
+  researchHistoryId String
+  researchHistory   ResearchHistory @relation(fields: [researchHistoryId], references: [id], onDelete: Cascade)
+  key               String
+  rank              Int
+  subject           String
+  subjectType       String
+  state             String
+  summary           String
+  sources           Json
+  evidence          Json
+  freshness         String
+  compatibility     Float
+  confidence        Float
+  risks             Json
+  gaps              Json
+  nextInvestigation String
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  @@unique([researchHistoryId, key])
+  @@index([researchHistoryId, rank])
+  @@index([state, confidence, createdAt])
+  @@index([subjectType, subject])
 }
 
 model VideoReachSnapshot {

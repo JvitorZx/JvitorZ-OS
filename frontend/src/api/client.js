@@ -944,4 +944,63 @@ export const createApiClient = (baseUrl) => ({
     if (projectId !== undefined) params.set('projectId', requireIdentifier(projectId, 'projectId'));
     return requestJson(`${baseUrl}/api/operators/creator-intelligence/subject-performance?${params}`, undefined, 'Erro ao carregar performance por assunto');
   },
+
+  async runResearch(input) {
+    if (!input || typeof input !== 'object' || Array.isArray(input)) throw new TypeError('research input must be an object');
+    return requestJson(`${baseUrl}/api/research`, {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(input),
+    }, 'Erro ao executar pesquisa');
+  },
+
+  async researchGames(input) {
+    if (!input || typeof input !== 'object' || Array.isArray(input)) throw new TypeError('game research input must be an object');
+    return requestJson(`${baseUrl}/api/research/games`, {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(input),
+    }, 'Erro ao pesquisar jogos');
+  },
+
+  async researchTopics(input) {
+    if (!input || typeof input !== 'object' || Array.isArray(input)) throw new TypeError('topic research input must be an object');
+    return requestJson(`${baseUrl}/api/research/topics`, {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(input),
+    }, 'Erro ao pesquisar temas');
+  },
+
+  async listResearchOpportunities(filters = {}) {
+    const params = new URLSearchParams();
+    if (filters.projectId !== undefined) params.set('projectId', requireIdentifier(filters.projectId, 'projectId'));
+    if (filters.state !== undefined) params.set('state', requireIdentifier(filters.state, 'state'));
+    if (filters.limit !== undefined) {
+      if (!Number.isInteger(filters.limit) || filters.limit < 1 || filters.limit > 100) throw new TypeError('limit must be an integer from 1 to 100');
+      params.set('limit', String(filters.limit));
+    }
+    return requestJson(`${baseUrl}/api/research/opportunities${params.size ? `?${params}` : ''}`, undefined, 'Erro ao carregar oportunidades de pesquisa');
+  },
+
+  async getResearchOpportunity(id) {
+    const validId = requireIdentifier(id, 'opportunityId');
+    return requestJson(`${baseUrl}/api/research/opportunities/${encodeURIComponent(validId)}`, undefined, 'Erro ao abrir oportunidade de pesquisa');
+  },
+
+  async listResearchHistory(filters = {}) {
+    const params = new URLSearchParams();
+    if (filters.projectId !== undefined) params.set('projectId', requireIdentifier(filters.projectId, 'projectId'));
+    if (filters.limit !== undefined) {
+      if (!Number.isInteger(filters.limit) || filters.limit < 1 || filters.limit > 50) throw new TypeError('limit must be an integer from 1 to 50');
+      params.set('limit', String(filters.limit));
+    }
+    return requestJson(`${baseUrl}/api/research/history${params.size ? `?${params}` : ''}`, undefined, 'Erro ao carregar histórico de pesquisa');
+  },
+
+  async getResearchHistory(id) {
+    const validId = requireIdentifier(id, 'researchId');
+    return requestJson(`${baseUrl}/api/research/history/${encodeURIComponent(validId)}`, undefined, 'Erro ao abrir pesquisa');
+  },
+
+  async refreshResearch(id) {
+    const validId = requireIdentifier(id, 'researchId');
+    return requestJson(`${baseUrl}/api/research/history/${encodeURIComponent(validId)}/refresh`, {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}',
+    }, 'Erro ao atualizar pesquisa');
+  },
 });
