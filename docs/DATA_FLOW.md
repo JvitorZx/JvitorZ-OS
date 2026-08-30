@@ -776,3 +776,34 @@ Hipotese + variantes -> ExperimentationService -> repositories
 ```
 
 O frontend envia IDs; o backend copia metricas, freshness, qualidade e contexto do outcome. Reanalise sem dados novos conserva o fingerprint e nao cria historico artificial. O servico de memoria e reutilizado; o ranker nao e alterado.
+
+## Proactive Strategic Monitoring - Sprint 43
+
+```text
+Fontes persistidas
+  -> PersistedStrategicMonitoringSource (isolamento por fonte)
+  -> StrategicMonitoringRules (deterministicas)
+  -> StrategicMonitoringService.evaluate(projectId?)
+     -> MonitoringSnapshotRepository (fingerprint da avaliacao)
+     -> StrategicSignalRepository
+        -> cria/atualiza/reabre sinal
+        -> anexa SignalEvidence
+        -> resolve somente fonte avaliada
+        -> marca STALE quando a fonte falha
+  -> /api/monitoring
+     -> API client
+     -> #/monitoring / Planner / Gerente / Supervisor
+```
+
+A avaliacao manual e a periodica usam o mesmo servico. Quando explicitamente habilitado, o fluxo proativo e:
+
+```text
+AutomationRuntimeService tick
+  -> AutomationSchedulerService.runDueAutomations()
+     -> StrategicMonitoringJob (intervalo + retry limitado)
+     -> StrategicMonitoringService.evaluate()
+     -> automacoes vencidas normais
+  -> AutomationRuntimeEvent sanitizado
+```
+
+Nao existe scheduler paralelo. Repetir os mesmos fatos conserva o fingerprint e nao multiplica sinais ou evidencias. Falha de uma fonte nao invalida as demais e nao dispara acao externa.

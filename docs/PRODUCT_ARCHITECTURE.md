@@ -557,3 +557,23 @@ O Planner recebe uma dependencia opcional `listForPlanner()` e consulta no maxim
 `ExperimentationService` coordena lifecycle, observacoes e finalizacao. `ExperimentAnalyzer` e deterministico e sem I/O; repositories sao os unicos componentes que acessam Prisma. O dominio reutiliza `PlanningOutcome` e solicita `StrategicLearningService.refresh()` depois de resultado material, sem duplicar analise de memoria.
 
 Planner consulta ate cinco testes em modo read-only. Gerente usa `strategic-experimentation.read`; Supervisor consolida riscos. Comparabilidade exige contexto equivalente, freshness, qualidade e duas observacoes por variante. Confidence nao e probabilidade e o ranker permanece isolado.
+
+## Proactive Strategic Monitoring
+
+`StrategicMonitoringService` coleta fatos persistidos por `PersistedStrategicMonitoringSource`, aplica regras puras de `StrategicMonitoringRules` e coordena somente repositories Prisma. Cada candidato recebe chave logica e fingerprint; `StrategicSignalRepository` preserva lifecycle/evidencias e `MonitoringSnapshotRepository` torna a mesma avaliacao idempotente.
+
+```text
+Analytics / Trends / Series / Data Quality / Research
+Planning / Learning / Experiments
+  -> PersistedStrategicMonitoringSource
+  -> StrategicMonitoringRules
+  -> StrategicMonitoringService
+  -> StrategicSignal + SignalEvidence + MonitoringSnapshot
+  -> API / Monitoring workspace / Planner / Gerente / Supervisor
+```
+
+O frontend apresenta dados calculados pelo backend e nao recalcula severidade. Respostas tardias, filtros e transicoes usam tokens de request/montagem e single-flight. `statePanel` continua global; falhas do monitoramento usam feedback local.
+
+`StrategicMonitoringJob` participa do tick unico de `AutomationSchedulerService`. Ele nao possui timer proprio, fica desabilitado por padrao (`STRATEGIC_MONITORING_ENABLED=false`), respeita intervalo explicito e retry limitado do runtime. O job apenas chama `evaluate`; nao cria plano, nao executa automacao e nao chama integracao externa. Falha fica contida e o scheduler continua avaliando as automacoes normais.
+
+Sinal e correlacao operacional, nao causalidade. Severidade prioriza revisao humana, nao estima impacto futuro. O monitoramento nao muda ranking ou aprendizado automaticamente.

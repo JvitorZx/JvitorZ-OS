@@ -1325,3 +1325,29 @@ Base: `/api/planning/experiments`. Payloads sao estritos e erros internos sao sa
 - `GET /:id/evidence` e `GET /:id/history`: expoem rastreabilidade e journal.
 
 Status: `400` payload invalido, `404` ausente, `409` conflito, `422` bloqueio e `500` sanitizado. Falta de comparabilidade retorna `INSUFFICIENT_EVIDENCE`, nao erro HTTP.
+
+## Strategic Monitoring
+
+Todos os contratos usam o prefixo `/api/monitoring`. Respostas de erro sao sanitizadas e nunca incluem stack, payload de fonte, token ou credencial.
+
+### `GET /api/monitoring/signals`
+
+Lista sinais em ordem persistida. Filtros opcionais: `projectId`, `state`, `severity`, `type` e `limit` (1 a 200). Retorna `200` com array; query invalida retorna `400`.
+
+### `GET /api/monitoring/signals/:id`
+
+Abre um sinal com suas evidencias. Retorna `200`, `400` para ID invalido ou `404` quando inexistente.
+
+### `POST /api/monitoring/evaluate`
+
+Executa uma avaliacao manual controlada. Body estrito: `{}` ou `{ "projectId": "..." }`. Retorna `200` com snapshot, contagens `created`, `updated`, `resolved`, flag `unchanged` e sinais atuais. Nao executa acao externa.
+
+### Transicoes de estado
+
+- `POST /api/monitoring/signals/:id/acknowledge`
+- `POST /api/monitoring/signals/:id/dismiss`
+- `POST /api/monitoring/signals/:id/resolve`
+
+Body estrito: `{}` ou `{ "reason": "..." }`. Sucesso retorna `200` com o sinal persistido. Payload invalido retorna `400`, sinal inexistente `404` e transicao de sinal fechado `409`.
+
+Falha inesperada retorna `500 { "error": "Strategic monitoring request failed" }` sem detalhes internos.

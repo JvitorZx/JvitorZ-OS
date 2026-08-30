@@ -43,6 +43,8 @@ model Project {
   planningOutcomes PlanningOutcome[]
   strategicLearnings StrategicLearning[]
   strategicExperiments StrategicExperiment[]
+  strategicSignals StrategicSignal[]
+  monitoringSnapshots MonitoringSnapshot[]
   createdAt        DateTime           @default(now())
   updatedAt        DateTime           @updatedAt
 }
@@ -899,6 +901,90 @@ model ExperimentEvent {
 
   @@index([experimentId, createdAt])
   @@index([event, createdAt])
+}
+
+model MonitoringRule {
+  id            String   @id @default(cuid())
+  code          String   @unique
+  signalType    String
+  defaultSeverity String
+  cooldownHours Int
+  description   String
+  enabled       Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([enabled, signalType])
+}
+
+model StrategicSignal {
+  id             String           @id @default(cuid())
+  projectId      String?
+  project        Project?         @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  logicalKey     String           @unique
+  fingerprint    String
+  type           String
+  severity       String
+  state          String           @default("NEW")
+  source         String
+  sourceId       String
+  subject        String
+  summary        String
+  impact         String
+  confidence     Float
+  limitations    Json             @default("[]")
+  detectedAt     DateTime
+  lastObservedAt DateTime
+  cooldownUntil  DateTime
+  acknowledgedAt DateTime?
+  resolvedAt     DateTime?
+  dismissedAt    DateTime?
+  evidence       SignalEvidence[]
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  @@index([projectId, state, severity, detectedAt])
+  @@index([type, state, lastObservedAt])
+  @@index([source, sourceId])
+  @@index([fingerprint])
+}
+
+model MonitoringSnapshot {
+  id                    String           @id @default(cuid())
+  projectId             String?
+  project               Project?         @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  evaluationFingerprint String           @unique
+  evaluatedSources      Json
+  sourceState           Json
+  candidateCount        Int
+  createdCount          Int
+  updatedCount          Int
+  resolvedCount         Int
+  evaluatedAt           DateTime
+  evidence              SignalEvidence[]
+  createdAt             DateTime         @default(now())
+
+  @@index([projectId, evaluatedAt])
+}
+
+model SignalEvidence {
+  id         String             @id @default(cuid())
+  signalId   String
+  signal     StrategicSignal    @relation(fields: [signalId], references: [id], onDelete: Cascade)
+  snapshotId String?
+  snapshot   MonitoringSnapshot? @relation(fields: [snapshotId], references: [id], onDelete: SetNull)
+  source     String
+  sourceId   String
+  kind       String
+  summary    String
+  payload    Json               @default("{}")
+  observedAt DateTime
+  createdAt  DateTime           @default(now())
+
+  @@unique([signalId, snapshotId, kind])
+  @@index([signalId, observedAt])
+  @@index([snapshotId])
+  @@index([source, sourceId])
 }
 
 model StrategicLearningEvidence {

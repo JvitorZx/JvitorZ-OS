@@ -24,6 +24,7 @@ import type { OrchestrationRequest, OrchestrationResult } from '../../../domains
 import { ResearchService } from '../../../services/research';
 import { StrategicPlanningService } from '../../../services/strategic-planning';
 import { ExperimentationService } from '../../../services/strategic-experimentation';
+import { StrategicMonitoringService } from '../../../services/strategic-monitoring';
 
 const operatorSummary = (operator: { id: string; status: string; missingData: string[]; sampleSize: number }): string => {
   if (operator.status === 'AVAILABLE') {
@@ -52,6 +53,7 @@ export class SupervisorModule {
     private readonly researchService: Pick<ResearchService, 'getOperationalSummary'> = new ResearchService(),
     private readonly strategicPlanningService: Pick<StrategicPlanningService, 'getOperationalSummary'> = new StrategicPlanningService(),
     private readonly experimentationService: Pick<ExperimentationService, 'getOperationalSummary'> = new ExperimentationService(),
+    private readonly strategicMonitoringService: Pick<StrategicMonitoringService, 'getOperationalSummary'> = new StrategicMonitoringService(),
   ) {}
 
   async getSupervisorOverview() {
@@ -192,6 +194,10 @@ export class SupervisorModule {
     let experimentation = { total: 0, active: 0, waitingForData: 0, stale: 0, lowConfidence: 0, inconclusive: 0, contradicted: 0 };
     try { experimentation = await this.experimentationService.getOperationalSummary(); }
     catch { /* Experimentation is local and cannot break the Supervisor or Dashboard. */ }
+    let strategicMonitoring = { total: 0, active: 0, high: 0, critical: 0, stale: 0,
+      signals: [] as Array<{ id: string; type: string; severity: string; subject: string; summary: string; confidence: number; detectedAt: Date }> };
+    try { strategicMonitoring = await this.strategicMonitoringService.getOperationalSummary(); }
+    catch { /* Monitoring is local and cannot break the Supervisor or Dashboard. */ }
     const byId = new Map(channelOperators.map((operator) => [operator.id, operator]));
     const analyticsQuality = youtubeAnalytics.state === 'synchronized' || youtubeAnalytics.state === 'connected' ? 'GOOD'
       : youtubeAnalytics.lastSyncAt ? 'STALE' : youtubeAnalytics.state === 'temporary_error' ? 'ERROR' : 'MISSING';
@@ -213,6 +219,11 @@ export class SupervisorModule {
         : experimentation.total > 0 ? 'GOOD' : 'MISSING', summary: experimentation.total
         ? `${experimentation.active} ativos, ${experimentation.waitingForData} aguardando dados e ${experimentation.inconclusive} inconclusivos.`
         : 'Nenhum experimento estrategico registrado.' },
+      { area: 'Monitoramento', state: strategicMonitoring.critical > 0 ? 'ERROR'
+        : strategicMonitoring.high > 0 ? 'PARTIAL' : strategicMonitoring.total > 0 ? 'GOOD' : 'MISSING',
+      summary: strategicMonitoring.active
+        ? `${strategicMonitoring.active} sinal(is) ativo(s), ${strategicMonitoring.high} HIGH e ${strategicMonitoring.critical} CRITICAL.`
+        : 'Nenhum sinal estrategico ativo.' },
     ];
     return {
       alerts: dataQuality.filter(({ state }) => ['STALE', 'INCONSISTENT', 'ERROR'].includes(state)).map(({ area, summary }) => `${area}: ${summary}`),
@@ -253,6 +264,7 @@ export class SupervisorModule {
       research,
       planning,
       experimentation,
+      strategicMonitoring,
       audience,
     };
   }

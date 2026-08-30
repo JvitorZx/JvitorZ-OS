@@ -58,6 +58,15 @@ const listEditorialDecisionView = (baseUrl, path, filters, errorMessage) => {
   return requestJson(`${baseUrl}/api/operators/creator-intelligence/${path}${query ? `?${query}` : ''}`, undefined, errorMessage);
 };
 
+const transitionStrategicSignal = (baseUrl, signalId, action, reason) => {
+  const id = requireIdentifier(signalId, 'signalId');
+  const normalizedReason = reason === undefined || reason === null || reason === '' ? undefined : String(reason).trim();
+  if (reason !== undefined && reason !== null && reason !== '' && !normalizedReason) throw new TypeError('reason must be a non-empty string');
+  return requestJson(`${baseUrl}/api/monitoring/signals/${encodeURIComponent(id)}/${action}`, {
+    method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(normalizedReason ? { reason: normalizedReason } : {}),
+  }, 'Erro ao atualizar sinal estrategico');
+};
+
 export const createApiClient = (baseUrl) => ({
   async getIntegrationStatus() {
     return requestJson(`${baseUrl}/api/integrations/status`, undefined, 'Erro ao consultar integracoes');
@@ -449,6 +458,45 @@ export const createApiClient = (baseUrl) => ({
   async getStrategicExperimentHistory(experimentId) {
     const id = requireIdentifier(experimentId, 'experimentId');
     return requestJson(`${baseUrl}/api/planning/experiments/${encodeURIComponent(id)}/history`, undefined, 'Erro ao carregar historico do experimento');
+  },
+
+  async listStrategicSignals(filters = {}) {
+    if (!filters || typeof filters !== 'object' || Array.isArray(filters)) throw new TypeError('monitoring filters must be an object');
+    const query = new URLSearchParams();
+    for (const field of ['projectId', 'state', 'severity', 'type']) {
+      if (filters[field] !== undefined && filters[field] !== '') query.set(field, requireIdentifier(filters[field], field));
+    }
+    if (filters.limit !== undefined) {
+      if (!Number.isInteger(filters.limit) || filters.limit < 1 || filters.limit > 200) throw new TypeError('limit must be an integer from 1 to 200');
+      query.set('limit', String(filters.limit));
+    }
+    return requestJson(`${baseUrl}/api/monitoring/signals${query.size ? `?${query}` : ''}`, undefined, 'Erro ao carregar monitoramento estrategico');
+  },
+
+  async getStrategicSignal(signalId) {
+    const id = requireIdentifier(signalId, 'signalId');
+    return requestJson(`${baseUrl}/api/monitoring/signals/${encodeURIComponent(id)}`, undefined, 'Erro ao abrir sinal estrategico');
+  },
+
+  async evaluateStrategicMonitoring(projectId) {
+    const body = projectId === undefined || projectId === null || projectId === ''
+      ? {}
+      : { projectId: requireIdentifier(projectId, 'projectId') };
+    return requestJson(`${baseUrl}/api/monitoring/evaluate`, {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body),
+    }, 'Erro ao avaliar monitoramento estrategico');
+  },
+
+  async acknowledgeStrategicSignal(signalId, reason) {
+    return transitionStrategicSignal(baseUrl, signalId, 'acknowledge', reason);
+  },
+
+  async dismissStrategicSignal(signalId, reason) {
+    return transitionStrategicSignal(baseUrl, signalId, 'dismiss', reason);
+  },
+
+  async resolveStrategicSignal(signalId, reason) {
+    return transitionStrategicSignal(baseUrl, signalId, 'resolve', reason);
   },
 
   async planOrchestration(input) {

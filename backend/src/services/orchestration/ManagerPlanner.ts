@@ -28,6 +28,7 @@ const TEMPLATES: Record<ManagerIntent, ManagerPlanTemplate> = {
   PLANNING: { objective: 'Transformar evidencias e memoria em uma fila editorial executavel.', capabilities: ['planning'] },
   CONTENT_PLANNING: { objective: 'Consultar ou gerar a fila editorial e explicar o que executar agora, depois ou aguardar.', capabilities: ['planning'] },
   EXPERIMENT_STATUS: { objective: 'Explicar hipoteses, testes ativos e resultados observados sem afirmar causalidade.', capabilities: ['experimentation'] },
+  STRATEGIC_MONITORING: { objective: 'Consultar mudancas estrategicas relevantes e seus sinais auditaveis sem afirmar causalidade.', capabilities: ['monitoring'] },
   OPPORTUNITY_DISCOVERY: { objective: 'Identificar a melhor oportunidade atual usando o ranking editorial existente.', capabilities: ['data-quality', 'trends', 'series', 'decision-memory', 'editorial-decision'] },
   RESEARCH_DISCOVERY: { objective: 'Descobrir candidatos e evidências antes de submetê-los à decisão editorial.', capabilities: ['data-quality', 'research', 'trends', 'decision-memory', 'editorial-decision'] },
   RISK_ANALYSIS: { objective: 'Consolidar riscos editoriais e operacionais sem fabricar certeza.', capabilities: ['data-quality', 'supervision', 'decision-memory'] },

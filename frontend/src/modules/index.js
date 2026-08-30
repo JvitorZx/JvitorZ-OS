@@ -10,6 +10,7 @@ import { homeModule } from './home.js';
 import { libraryModule } from './library.js';
 import { researchModule } from './research.js';
 import { strategicPlanningModule } from './strategic-planning.js';
+import { monitoringModule } from './monitoring.js';
 
 export const dashboardModules = [
   homeModule,
@@ -17,6 +18,7 @@ export const dashboardModules = [
   analyticsModule,
   plannerModule,
   strategicPlanningModule,
+  monitoringModule,
   libraryModule,
   researchModule,
   managerModule,

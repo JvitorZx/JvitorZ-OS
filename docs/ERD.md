@@ -388,3 +388,24 @@ StrategicExperiment 1 --- N ExperimentEvidence / ExperimentEvent
 ```
 
 `ExperimentObservation` e unica por experimento/outcome. Evidence conecta resultado a observacao e, quando disponivel, ao aprendizado reavaliado.
+
+## Strategic Monitoring
+
+```text
+Project 1 --- N StrategicSignal
+Project 1 --- N MonitoringSnapshot
+
+StrategicSignal 1 --- N SignalEvidence
+MonitoringSnapshot 1 --- N SignalEvidence
+
+MonitoringRule
+  code UNIQUE
+
+MonitoringSnapshot
+  evaluationFingerprint UNIQUE
+
+StrategicSignal
+  logicalKey UNIQUE
+```
+
+`SignalEvidence.signalId` usa `ON DELETE CASCADE`; `snapshotId` e opcional e usa `SET NULL`. `projectId` opcional em sinal/snapshot usa `SET NULL`. A modelagem preserva lifecycle e auditoria sem converter sinais em acoes automaticas.

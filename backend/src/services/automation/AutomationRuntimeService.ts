@@ -140,7 +140,8 @@ export class AutomationRuntimeService {
       if (result.missed > 0) await this.event('MISSED_OCCURRENCE', { count: result.missed });
       await this.event('RUNTIME_TICK_COMPLETED', { due: result.due, missed: result.missed,
         runsStarted: result.results.filter(({ created }) => created).length,
-        runsFailed: result.results.filter((item) => 'run' in item && item.run.status === 'FAILED').length });
+        runsFailed: result.results.filter((item) => 'run' in item && item.run.status === 'FAILED').length,
+        strategicMonitoring: result.internalJobs?.strategicMonitoring?.status ?? 'UNAVAILABLE' });
       return result;
     } catch (error) {
       this.status = 'ERROR'; this.lastError = safeName(error);

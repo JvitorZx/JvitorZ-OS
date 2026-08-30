@@ -98,6 +98,13 @@ export interface PlannerExperimentationProvider {
   }>>;
 }
 
+export interface PlannerStrategicMonitoringProvider {
+  listForPlanner(projectId: string | null, limit?: number): Promise<Array<{
+    id: string; type: string; severity: string; subject: string; summary: string;
+    confidence: number; limitations: unknown; detectedAt: Date;
+  }>>;
+}
+
 export class PlannerService {
   private conversationRepository?: ConversationRepository;
   private messageRepository?: MessageRepository;
@@ -109,6 +116,7 @@ export class PlannerService {
   private readonly manager?: Pick<ManagerOrchestratorService, 'query'>;
   private readonly strategicLearningMemory?: PlannerStrategicLearningProvider;
   private readonly experimentation?: PlannerExperimentationProvider;
+  private readonly strategicMonitoring?: PlannerStrategicMonitoringProvider;
 
   constructor(
     conversationRepository?: ConversationRepository,
@@ -121,6 +129,7 @@ export class PlannerService {
     manager?: Pick<ManagerOrchestratorService, 'query'>,
     strategicLearningMemory?: PlannerStrategicLearningProvider,
     experimentation?: PlannerExperimentationProvider,
+    strategicMonitoring?: PlannerStrategicMonitoringProvider,
   ) {
     this.conversationRepository = conversationRepository;
     this.messageRepository = messageRepository;
@@ -132,6 +141,7 @@ export class PlannerService {
     this.manager = manager;
     this.strategicLearningMemory = strategicLearningMemory;
     this.experimentation = experimentation;
+    this.strategicMonitoring = strategicMonitoring;
   }
 
   private get repository(): ConversationRepository {
@@ -342,8 +352,21 @@ export class PlannerService {
         // Experiment context is optional and cannot block persisted Planner replies.
       }
     }
+    let monitoringMessage = null;
+    if (this.strategicMonitoring) {
+      try {
+        const signals = await this.strategicMonitoring.listForPlanner(conversation.projectId, 5);
+        if (signals.length) monitoringMessage = { sender: 'system', createdAt: new Date(), text: [
+          'Sinais estrategicos ativos. Use somente como contexto auditavel; nao altere ranking, nao afirme causalidade e preserve as limitacoes:',
+          ...signals.map((entry) => `- [${entry.severity}/${entry.type}] ${entry.subject}: ${entry.summary} Confianca ${Math.round(entry.confidence * 100)}%.`),
+        ].join('\n').slice(0, 3_000) };
+      } catch {
+        // Monitoring is optional read-only context and cannot block persisted Planner replies.
+      }
+    }
     const input = mapConversationToLanguageInput({ ...conversation,
-      messages: [...conversation.messages, ...(learningMessage ? [learningMessage] : []), ...(experimentationMessage ? [experimentationMessage] : [])], artifacts });
+      messages: [...conversation.messages, ...(learningMessage ? [learningMessage] : []),
+        ...(experimentationMessage ? [experimentationMessage] : []), ...(monitoringMessage ? [monitoringMessage] : [])], artifacts });
     let generatedText: unknown;
 
     try {

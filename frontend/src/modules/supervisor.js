@@ -42,6 +42,8 @@ export const supervisorModule = {
     const research = data.supervisor?.research ?? {};
     const planning = data.supervisor?.planning ?? {};
     const planningAlerts = Array.isArray(planning.alerts) ? planning.alerts : [];
+    const monitoring = data.supervisor?.strategicMonitoring ?? {};
+    const monitoringSignals = Array.isArray(monitoring.signals) ? monitoring.signals : [];
     const integrationPill = (id, fallback) => {
       const integration = integrationFrom(data, id);
       if (!integration && fallback) {
@@ -167,6 +169,19 @@ export const supervisorModule = {
           <section>
             <h3>Qualidade dos dados</h3>
             ${dataQuality.length > 0 ? `<ul>${dataQuality.map((item) => `<li>${escapeHtml(item.area)}: ${escapeHtml(item.state)} · ${escapeHtml(item.summary)}</li>`).join('')}</ul>` : '<p class="performance-empty">Sem diagnóstico de qualidade.</p>'}
+          </section>
+          <section>
+            <h3>Monitoramento estratégico</h3>
+            <ul>
+              <li>Ativos: ${escapeHtml(monitoring.active ?? 0)}</li>
+              <li>Alta severidade: ${escapeHtml(monitoring.high ?? 0)}</li>
+              <li>Críticos: ${escapeHtml(monitoring.critical ?? 0)}</li>
+              <li>Stale: ${escapeHtml(monitoring.stale ?? 0)}</li>
+            </ul>
+            ${monitoringSignals.length > 0
+              ? `<ul>${monitoringSignals.slice(0, 5).map((signal) => `<li>${escapeHtml(signal.severity)} · ${escapeHtml(signal.subject)}: ${escapeHtml(signal.summary)}</li>`).join('')}</ul>`
+              : '<p class="performance-empty">Nenhum sinal prioritário ativo.</p>'}
+            <a class="button secondary" href="#/monitoring">Abrir monitoramento</a>
           </section>
           <section>
             <h3>Prioridades editoriais</h3>

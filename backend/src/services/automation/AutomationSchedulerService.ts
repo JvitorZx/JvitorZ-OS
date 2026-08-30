@@ -5,6 +5,7 @@ import { AutomationRunnerService } from './AutomationRunnerService';
 import { AutomationAuditRepository } from '../../database/repositories/AutomationAuditRepository';
 import { calculateLatestEligibleRunAt, type AutomationSchedule, type AutomationTriggerType } from '../../domains/automation';
 import { AutomationGovernanceService } from './AutomationGovernanceService';
+import { StrategicMonitoringJob } from './StrategicMonitoringJob';
 
 export const AUTOMATION_RETRY_BACKOFF_MS = 1_000;
 
@@ -15,6 +16,7 @@ export class AutomationSchedulerService {
     private readonly audits = new AutomationAuditRepository(DatabaseService.client),
     private readonly delay: (milliseconds: number) => Promise<void> = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)),
     private readonly governance = new AutomationGovernanceService(),
+    private readonly monitoringJob = new StrategicMonitoringJob(),
   ) {}
 
   findDueAutomations(now: Date): Promise<Automation[]> {
@@ -22,6 +24,12 @@ export class AutomationSchedulerService {
   }
 
   async runDueAutomations(now: Date, maxRetries = 0) {
+    let strategicMonitoring;
+    try { strategicMonitoring = await this.monitoringJob.run(now, maxRetries); }
+    catch (error) {
+      strategicMonitoring = { status: 'FAILED' as const, attempted: true, attempts: 1, evaluatedAt: now,
+        errorType: error instanceof Error ? error.name : 'UnknownError' };
+    }
     const due = await this.findDueAutomations(now);
     const results = [];
     let missed = 0;
@@ -48,6 +56,6 @@ export class AutomationSchedulerService {
       }
       results.push(output);
     }
-    return { checkedAt: now, due: due.length, missed, results };
+    return { checkedAt: now, due: due.length, missed, results, internalJobs: { strategicMonitoring } };
   }
 }

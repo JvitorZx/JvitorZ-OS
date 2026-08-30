@@ -1337,4 +1337,23 @@ Entregas:
 
 Limites: experimento descreve consistencia observada, nunca causalidade ou previsao; confidence nao e probabilidade; ranking e prioridades nao mudam automaticamente; nao ha publicacao, A/B nativo, ML ou automacao irreversivel.
 
-Proximo checkpoint: **SPRINT 43 - NAO INICIADA**.
+## Sprint 43 - Proactive Strategic Monitoring - CONCLUIDA
+
+**Objetivo:** detectar mudancas estrategicas relevantes a partir dos dominios persistidos e apresentar sinais auditaveis, sem converter alerta em acao automatica.
+
+Entregas:
+
+- dominio `strategic-monitoring` com severidades `INFO`, `LOW`, `MEDIUM`, `HIGH`, `CRITICAL` e estados `NEW`, `ACKNOWLEDGED`, `RESOLVED`, `STALE`, `DISMISSED`;
+- regras deterministicas para tendencias, series, qualidade de dados, oportunidades, planejamento, experimentos e aprendizados;
+- fingerprint, cooldown, snapshots e evidencias persistidas para evitar spam e preservar historico;
+- resolucao automatica somente quando a fonte foi avaliada e o estado subjacente deixou de existir;
+- falha de fonte preservando sinais anteriores como `STALE`, sem apagar last-known-good;
+- API REST de lista, detalhe, filtros, avaliacao, reconhecimento, resolucao e dispensa;
+- workspace `#/monitoring` com filtros, detalhe, evidencias, limitacoes, estados degradados e operacoes single-flight;
+- sinais prioritarios no Supervisor, consulta no Gerente e contexto limitado no Planner;
+- avaliacao periodica opcional dentro do `AutomationRuntimeService`, desativada por padrao e sem scheduler paralelo;
+- testes de dominio, repository, migration, HTTP, frontend e runtime proativo.
+
+Limites preservados: sinal nao demonstra causalidade; severidade nao preve impacto; avaliacao proativa nao executa acoes; `HIGH`/`CRITICAL` apenas priorizam atencao; falha de fonte pode deixar o sinal `STALE`; o monitoramento nao altera ranking, video, YouTube ou automacao externa.
+
+Proximo checkpoint: **SPRINT 44 - NAO INICIADA**.

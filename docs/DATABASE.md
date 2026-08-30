@@ -269,3 +269,11 @@ Testes executam a migration em SQLite `:memory:`. O `backend/prisma/dev.db` cont
 ### Strategic Experimentation
 
 A migration `20260908120000_strategic_experimentation` e aditiva e cria as tabelas de definicao, observacao, resultado, evidencia e auditoria. Nao reescreve outcomes, planos, execucoes, aprendizados ou snapshots. `(experimentId, outcomeId)` impede duplicacao; outcomes usam `RESTRICT`; referencias opcionais usam `SET NULL`; filhos internos usam cascade. `analysisFingerprint` evita eventos artificiais em reanalise identica.
+
+### Strategic Monitoring
+
+A migration `20260909120000_strategic_monitoring` e aditiva. Ela cria `MonitoringRule`, `MonitoringSnapshot`, `StrategicSignal` e `SignalEvidence`, com chaves unicas para codigo, fingerprint de avaliacao e chave logica do sinal. Projetos opcionais usam `SET NULL`; evidencias seguem o sinal por cascade e preservam referencia opcional ao snapshot.
+
+Os repositories encapsulam Prisma. Avaliacoes repetidas sao idempotentes, sinais preservam historico e cooldown, e nenhuma tabela guarda token, credencial ou payload externo bruto. O job proativo usa essas mesmas tabelas e o runtime existente; nao requer migration adicional na parte B.
+
+Testes de migration e runtime usam SQLite isolado. `backend/prisma/dev.db` permanece local e fora do commit.

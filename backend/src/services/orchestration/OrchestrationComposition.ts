@@ -20,6 +20,7 @@ import { AudienceIntelligenceService } from '../audience/AudienceIntelligenceSer
 import { ResearchService } from '../research';
 import { StrategicPlanningService } from '../strategic-planning';
 import { ExperimentationService } from '../strategic-experimentation';
+import { StrategicMonitoringService } from '../strategic-monitoring';
 
 export interface OrchestrationDependencies {
   intelligence: Pick<CreatorIntelligenceService,
@@ -35,6 +36,7 @@ export interface OrchestrationDependencies {
   research: Pick<ResearchService, 'research'>;
   planning: Pick<StrategicPlanningService, 'getOrGenerateCurrent'>;
   experimentation: Pick<ExperimentationService, 'list'>;
+  monitoring: Pick<StrategicMonitoringService, 'list'>;
 }
 
 const previousOutputs = (results: ReadonlyMap<string, OrchestrationStepResult>): CapabilityOutput[] =>
@@ -60,6 +62,7 @@ export const createDefaultOrchestrationDependencies = (): OrchestrationDependenc
     research: new ResearchService(),
     planning: new StrategicPlanningService(),
     experimentation: new ExperimentationService(),
+    monitoring: new StrategicMonitoringService(),
   };
 };
 
@@ -67,6 +70,25 @@ export const createDefaultCapabilityRegistry = (
   dependencies: OrchestrationDependencies = createDefaultOrchestrationDependencies(),
 ): CapabilityRegistry => {
   const registry = new CapabilityRegistry();
+
+  registry.register({
+    id: 'strategic-monitoring.read', responsibility: 'Consultar sinais estrategicos ativos, evidencias e limitacoes sem executar acoes externas.',
+    inputs: ['projectId'], outputs: ['active strategic signals', 'evidence', 'limitations'], availability: 'available',
+    dependencies: [], access: 'read', sideEffect: 'READ_ONLY', persistentMutation: false, capabilityTags: ['monitoring'],
+  }, async ({ request }) => {
+    const rows = await dependencies.monitoring.list({ projectId: request.projectId, limit: 100 });
+    const active = rows.filter(({ state }) => ['NEW', 'ACKNOWLEDGED'].includes(state));
+    const important = active.filter(({ severity }) => ['HIGH', 'CRITICAL'].includes(severity));
+    return {
+      summary: active.length ? `${active.length} sinal(is) estrategico(s) ativo(s).` : 'Nenhum sinal estrategico ativo.',
+      facts: active.slice(0, 6).map(({ severity, type, subject, summary }) => `[${severity}/${type}] ${subject}: ${summary}`),
+      risks: important.map(({ subject, summary }) => `${subject}: ${summary}`).slice(0, 6),
+      missingData: active.filter(({ type }) => ['DATA_MISSING', 'DATA_STALE', 'DATA_QUALITY_DEGRADED'].includes(type))
+        .map(({ subject }) => subject).slice(0, 6),
+      confidence: active.length ? Math.min(...active.map(({ confidence }) => confidence)) : 1,
+      data: { active: active.map(({ id, type, severity, subject, state }) => ({ id, type, severity, subject, state })) },
+    };
+  });
 
   registry.register({
     id: 'strategic-experimentation.read', responsibility: 'Consultar hipoteses, variantes e resultados observados sem afirmar causalidade.',

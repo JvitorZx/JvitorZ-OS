@@ -482,3 +482,26 @@ Observacao nao e padrao, padrao nao e causalidade e aprendizado estrategico nao 
 `StrategicExperiment` agrega `ExperimentHypothesis`, `ExperimentVariant`, `ExperimentMetric`, `ExperimentConstraint`, `ExperimentObservation`, `ExperimentResult`, `ExperimentEvidence` e `ExperimentEvent`. Observacoes referenciam outcomes por FK e possuem unicidade `(experimentId, outcomeId)`. Resultado e hipotese sao 1:1; eventos sao append-only.
 
 Somente metricas existentes em `PlanningOutcome.metrics` sao aceitas. A trilha e `Learning -> Experiment -> Observation -> Outcome -> Execution -> PlannedContentItem -> Video/Snapshot`.
+
+## Strategic Monitoring
+
+### MonitoringRule
+
+Catalogo persistido das regras deterministicas: codigo unico, tipo de sinal, severidade padrao, cooldown e descricao.
+
+### MonitoringSnapshot
+
+Uma avaliacao auditavel por projeto opcional. Guarda fingerprint unico, fontes avaliadas, estado de cada fonte, contagens e instante. O fingerprint impede snapshots artificiais quando os fatos e estados projetados nao mudaram.
+
+### StrategicSignal e SignalEvidence
+
+`StrategicSignal` guarda chave logica unica, fingerprint, tipo, severidade, estado, origem, assunto, resumo, possivel impacto, confidence, limitacoes, timestamps e cooldown. `SignalEvidence` referencia opcionalmente o snapshot e registra deteccao, mudanca, reabertura, stale, resolucao automatica ou transicao humana.
+
+```text
+Project 1 -> N StrategicSignal
+Project 1 -> N MonitoringSnapshot
+StrategicSignal 1 -> N SignalEvidence
+MonitoringSnapshot 1 -> N SignalEvidence
+```
+
+Sinais antigos nao sao apagados. `STALE` preserva o last-known-good quando uma fonte falha. Confidence mede qualidade/cobertura da observacao; nao e probabilidade nem previsao.
