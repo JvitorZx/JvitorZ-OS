@@ -42,6 +42,7 @@ model Project {
   planningOutcomeLinks PlanningOutcomeLink[]
   planningOutcomes PlanningOutcome[]
   strategicLearnings StrategicLearning[]
+  strategicExperiments StrategicExperiment[]
   createdAt        DateTime           @default(now())
   updatedAt        DateTime           @updatedAt
 }
@@ -586,6 +587,7 @@ model PlannedContentItem {
   outcomeLinks                 PlanningOutcomeLink[]
   outcomes                     PlanningOutcome[]
   outcomeAuditEvents           PlanningOutcomeAuditEvent[]
+  experimentVariants           ExperimentVariant[]
   createdAt                   DateTime              @default(now())
   updatedAt                   DateTime              @updatedAt
 
@@ -630,6 +632,7 @@ model PlanningExecutionEvent {
   createdAt        DateTime           @default(now())
   outcomeLinks     PlanningOutcomeLink[]
   outcomes         PlanningOutcome[]
+  experimentVariants ExperimentVariant[]
 
   @@index([planId, createdAt])
   @@index([itemId, createdAt])
@@ -698,6 +701,7 @@ model PlanningOutcome {
   updatedAt        DateTime                 @updatedAt
   auditEvents      PlanningOutcomeAuditEvent[]
   learningEvidence StrategicLearningEvidence[]
+  experimentObservations ExperimentObservation[]
 
   @@unique([linkId, snapshotId])
   @@index([planId, evaluatedAt])
@@ -731,12 +735,170 @@ model StrategicLearning {
   lastObservedAt       DateTime
   evidence             StrategicLearningEvidence[]
   revisions            StrategicLearningRevision[]
+  sourceExperiments    StrategicExperiment[]
+  experimentEvidence  ExperimentEvidence[]
   createdAt            DateTime                    @default(now())
   updatedAt            DateTime                    @updatedAt
 
   @@index([projectId, status, confidence])
   @@index([dimension, subject])
   @@index([freshness, updatedAt])
+}
+
+model StrategicExperiment {
+  id                 String                  @id @default(cuid())
+  projectId          String?
+  project            Project?                @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  sourceLearningId   String?
+  sourceLearning     StrategicLearning?      @relation(fields: [sourceLearningId], references: [id], onDelete: SetNull)
+  title              String
+  description        String?
+  context            Json                    @default("{}")
+  status             String                  @default("DRAFT")
+  primaryMetric      String
+  secondaryMetrics   Json                    @default("[]")
+  risk               String?
+  comparisonCriterion Json                   @default("{}")
+  confidence         Float                   @default(0)
+  limitations        Json                    @default("[]")
+  startedAt          DateTime?
+  endedAt            DateTime?
+  hypothesis         ExperimentHypothesis?
+  variants           ExperimentVariant[]
+  metrics            ExperimentMetric[]
+  constraints        ExperimentConstraint[]
+  observations       ExperimentObservation[]
+  result             ExperimentResult?
+  evidence           ExperimentEvidence[]
+  history            ExperimentEvent[]
+  createdAt          DateTime                @default(now())
+  updatedAt          DateTime                @updatedAt
+
+  @@index([projectId, status, updatedAt])
+  @@index([sourceLearningId])
+}
+
+model ExperimentHypothesis {
+  id                 String              @id @default(cuid())
+  experimentId       String              @unique
+  experiment         StrategicExperiment @relation(fields: [experimentId], references: [id], onDelete: Cascade)
+  description        String
+  priorEvidence      Json                @default("[]")
+  expectedVariantKey String
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+}
+
+model ExperimentVariant {
+  id               String                  @id @default(cuid())
+  experimentId     String
+  experiment       StrategicExperiment     @relation(fields: [experimentId], references: [id], onDelete: Cascade)
+  key              String
+  label            String
+  description      String?
+  plannedItemId    String?
+  plannedItem      PlannedContentItem?     @relation(fields: [plannedItemId], references: [id], onDelete: SetNull)
+  executionEventId String?
+  executionEvent   PlanningExecutionEvent? @relation(fields: [executionEventId], references: [id], onDelete: SetNull)
+  observations     ExperimentObservation[]
+  createdAt        DateTime                @default(now())
+  updatedAt        DateTime                @updatedAt
+
+  @@unique([experimentId, key])
+  @@index([plannedItemId])
+  @@index([executionEventId])
+}
+
+model ExperimentMetric {
+  id           String              @id @default(cuid())
+  experimentId String
+  experiment   StrategicExperiment @relation(fields: [experimentId], references: [id], onDelete: Cascade)
+  name         String
+  role         String
+  direction    String
+  createdAt    DateTime            @default(now())
+
+  @@unique([experimentId, name])
+}
+
+model ExperimentConstraint {
+  id           String              @id @default(cuid())
+  experimentId String
+  experiment   StrategicExperiment @relation(fields: [experimentId], references: [id], onDelete: Cascade)
+  code         String
+  summary      String
+  blocking     Boolean             @default(false)
+  createdAt    DateTime            @default(now())
+
+  @@unique([experimentId, code])
+}
+
+model ExperimentObservation {
+  id                String              @id @default(cuid())
+  experimentId      String
+  experiment        StrategicExperiment @relation(fields: [experimentId], references: [id], onDelete: Cascade)
+  variantId         String
+  variant           ExperimentVariant   @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  outcomeId         String
+  outcome           PlanningOutcome     @relation(fields: [outcomeId], references: [id], onDelete: Restrict)
+  observedAt        DateTime
+  freshness         String
+  dataQuality       String
+  comparisonContext Json
+  metrics           Json
+  evidence          ExperimentEvidence[]
+  createdAt         DateTime            @default(now())
+
+  @@unique([experimentId, outcomeId])
+  @@index([variantId, observedAt])
+  @@index([outcomeId])
+}
+
+model ExperimentResult {
+  id                  String              @id @default(cuid())
+  experimentId        String              @unique
+  experiment          StrategicExperiment @relation(fields: [experimentId], references: [id], onDelete: Cascade)
+  classification      String
+  summary             String
+  confidence          Float
+  benchmark           Json
+  limitations         Json
+  analysisFingerprint String
+  analyzedAt          DateTime            @default(now())
+  evidence            ExperimentEvidence[]
+  updatedAt           DateTime            @updatedAt
+}
+
+model ExperimentEvidence {
+  id            String                @id @default(cuid())
+  experimentId  String
+  experiment    StrategicExperiment   @relation(fields: [experimentId], references: [id], onDelete: Cascade)
+  resultId      String?
+  result        ExperimentResult?     @relation(fields: [resultId], references: [id], onDelete: SetNull)
+  observationId String?
+  observation   ExperimentObservation? @relation(fields: [observationId], references: [id], onDelete: SetNull)
+  learningId    String?
+  learning      StrategicLearning?    @relation(fields: [learningId], references: [id], onDelete: SetNull)
+  stance        String
+  summary       String
+  createdAt     DateTime              @default(now())
+
+  @@unique([experimentId, observationId])
+  @@index([resultId])
+  @@index([learningId])
+}
+
+model ExperimentEvent {
+  id           String              @id @default(cuid())
+  experimentId String
+  experiment   StrategicExperiment @relation(fields: [experimentId], references: [id], onDelete: Cascade)
+  event        String
+  reason       String?
+  data         Json                @default("{}")
+  createdAt    DateTime            @default(now())
+
+  @@index([experimentId, createdAt])
+  @@index([event, createdAt])
 }
 
 model StrategicLearningEvidence {

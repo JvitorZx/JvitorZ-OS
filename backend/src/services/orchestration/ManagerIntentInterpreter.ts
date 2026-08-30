@@ -21,6 +21,7 @@ export const extractComparisonCandidates = (message: string): string[] => {
 export const classifyManagerIntent = (message: string): ManagerIntent => {
   const text = searchable(message);
   if (!text) return 'UNKNOWN';
+  if (/(o que estamos testando|experimento|hipotese|resultado do teste|o que aprendemos.*teste|hipotese.*confirmada)/.test(text)) return 'EXPERIMENT_STATUS';
   if (/(pesquise|pesquisar|procure|investigue|fora do meu canal|tema surgindo|jogo vale pesquisar|lacuna de conteudo)/.test(text)) return 'RESEARCH_DISCOVERY';
   if (/(ctr|taxa de clique|impressoes)/.test(text) && /retenc|consumo|assist/.test(text)) return 'CHANNEL_DIAGNOSIS';
   if (/qual dessas ideias|qual ideia.*melhor|compare.*ideias?/.test(text)) return 'IDEA_COMPARISON';

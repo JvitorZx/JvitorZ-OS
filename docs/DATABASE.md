@@ -265,3 +265,7 @@ A migration `20260907120000_strategic_learning_memory` e aditiva. Cria `Strategi
 - `projectId` opcional usa `SET NULL`; evidencia e revisao seguem o aprendizado por cascade.
 
 Testes executam a migration em SQLite `:memory:`. O `backend/prisma/dev.db` continua local, recebe migration somente apos backup e nunca entra no commit.
+
+### Strategic Experimentation
+
+A migration `20260908120000_strategic_experimentation` e aditiva e cria as tabelas de definicao, observacao, resultado, evidencia e auditoria. Nao reescreve outcomes, planos, execucoes, aprendizados ou snapshots. `(experimentId, outcomeId)` impede duplicacao; outcomes usam `RESTRICT`; referencias opcionais usam `SET NULL`; filhos internos usam cascade. `analysisFingerprint` evita eventos artificiais em reanalise identica.

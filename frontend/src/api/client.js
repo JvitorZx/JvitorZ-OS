@@ -398,6 +398,59 @@ export const createApiClient = (baseUrl) => ({
     return requestJson(`${baseUrl}/api/planning/${routes[kind]}/${encodeURIComponent(id)}/learnings`, undefined, 'Erro ao carregar aprendizados relacionados');
   },
 
+  async listStrategicExperiments(filters = {}) {
+    const query = new URLSearchParams();
+    if (filters.projectId) query.set('projectId', requireIdentifier(filters.projectId, 'projectId'));
+    if (filters.status) query.set('status', requireIdentifier(filters.status, 'status'));
+    if (filters.limit) query.set('limit', String(filters.limit));
+    return requestJson(`${baseUrl}/api/planning/experiments${query.size ? `?${query}` : ''}`, undefined, 'Erro ao carregar experimentos');
+  },
+
+  async createStrategicExperiment(input) {
+    if (!input || typeof input !== 'object' || Array.isArray(input)) throw new TypeError('experiment input must be an object');
+    return requestJson(`${baseUrl}/api/planning/experiments`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(input) }, 'Erro ao criar experimento');
+  },
+
+  async getStrategicExperiment(experimentId) {
+    const id = requireIdentifier(experimentId, 'experimentId');
+    return requestJson(`${baseUrl}/api/planning/experiments/${encodeURIComponent(id)}`, undefined, 'Erro ao abrir experimento');
+  },
+
+  async startStrategicExperiment(experimentId) {
+    const id = requireIdentifier(experimentId, 'experimentId');
+    return requestJson(`${baseUrl}/api/planning/experiments/${encodeURIComponent(id)}/start`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' }, 'Erro ao iniciar experimento');
+  },
+
+  async cancelStrategicExperiment(experimentId, reason) {
+    const id = requireIdentifier(experimentId, 'experimentId');
+    return requestJson(`${baseUrl}/api/planning/experiments/${encodeURIComponent(id)}/cancel`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(reason ? { reason } : {}) }, 'Erro ao cancelar experimento');
+  },
+
+  async linkStrategicExperimentVariant(experimentId, variantId, input) {
+    const id = requireIdentifier(experimentId, 'experimentId'); const variant = requireIdentifier(variantId, 'variantId');
+    return requestJson(`${baseUrl}/api/planning/experiments/${encodeURIComponent(id)}/variants/${encodeURIComponent(variant)}`, { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify(input ?? {}) }, 'Erro ao vincular variante');
+  },
+
+  async addStrategicExperimentObservation(experimentId, variantId, outcomeId) {
+    const id = requireIdentifier(experimentId, 'experimentId');
+    return requestJson(`${baseUrl}/api/planning/experiments/${encodeURIComponent(id)}/observations`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ variantId: requireIdentifier(variantId, 'variantId'), outcomeId: requireIdentifier(outcomeId, 'outcomeId') }) }, 'Erro ao adicionar observacao');
+  },
+
+  async analyzeStrategicExperiment(experimentId) {
+    const id = requireIdentifier(experimentId, 'experimentId');
+    return requestJson(`${baseUrl}/api/planning/experiments/${encodeURIComponent(id)}/analyze`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' }, 'Erro ao analisar experimento');
+  },
+
+  async getStrategicExperimentEvidence(experimentId) {
+    const id = requireIdentifier(experimentId, 'experimentId');
+    return requestJson(`${baseUrl}/api/planning/experiments/${encodeURIComponent(id)}/evidence`, undefined, 'Erro ao carregar evidencias do experimento');
+  },
+
+  async getStrategicExperimentHistory(experimentId) {
+    const id = requireIdentifier(experimentId, 'experimentId');
+    return requestJson(`${baseUrl}/api/planning/experiments/${encodeURIComponent(id)}/history`, undefined, 'Erro ao carregar historico do experimento');
+  },
+
   async planOrchestration(input) {
     return requestJson(
       `${baseUrl}/api/orchestrator/plan`,

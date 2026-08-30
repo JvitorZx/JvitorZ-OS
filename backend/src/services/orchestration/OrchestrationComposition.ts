@@ -19,6 +19,7 @@ import type { ChannelOperatorId } from '../../domains/channel-operators';
 import { AudienceIntelligenceService } from '../audience/AudienceIntelligenceService';
 import { ResearchService } from '../research';
 import { StrategicPlanningService } from '../strategic-planning';
+import { ExperimentationService } from '../strategic-experimentation';
 
 export interface OrchestrationDependencies {
   intelligence: Pick<CreatorIntelligenceService,
@@ -33,6 +34,7 @@ export interface OrchestrationDependencies {
   audience: Pick<AudienceIntelligenceService, 'summary' | 'traffic'>;
   research: Pick<ResearchService, 'research'>;
   planning: Pick<StrategicPlanningService, 'getOrGenerateCurrent'>;
+  experimentation: Pick<ExperimentationService, 'list'>;
 }
 
 const previousOutputs = (results: ReadonlyMap<string, OrchestrationStepResult>): CapabilityOutput[] =>
@@ -57,6 +59,7 @@ export const createDefaultOrchestrationDependencies = (): OrchestrationDependenc
     audience: new AudienceIntelligenceService(),
     research: new ResearchService(),
     planning: new StrategicPlanningService(),
+    experimentation: new ExperimentationService(),
   };
 };
 
@@ -64,6 +67,25 @@ export const createDefaultCapabilityRegistry = (
   dependencies: OrchestrationDependencies = createDefaultOrchestrationDependencies(),
 ): CapabilityRegistry => {
   const registry = new CapabilityRegistry();
+
+  registry.register({
+    id: 'strategic-experimentation.read', responsibility: 'Consultar hipoteses, variantes e resultados observados sem afirmar causalidade.',
+    inputs: ['projectId'], outputs: ['active experiments', 'observed results', 'limitations'], availability: 'available',
+    dependencies: [], access: 'read', sideEffect: 'READ_ONLY', persistentMutation: false, capabilityTags: ['experimentation'],
+  }, async ({ request }) => {
+    const experiments = await dependencies.experimentation.list({ projectId: request.projectId, limit: 20 });
+    const active = experiments.filter(({ status }) => ['READY', 'RUNNING', 'WAITING_FOR_DATA'].includes(status));
+    const latest = experiments.find(({ result }) => Boolean(result));
+    return {
+      summary: active.length ? `${active.length} experimento(s) estrategico(s) ativo(s).` : 'Nenhum experimento estrategico ativo.',
+      facts: experiments.slice(0, 5).map(({ title, status, result }) => `${title}: ${status}${result ? `, resultado ${result.classification}` : ''}.`),
+      inferences: latest?.result ? [latest.result.summary] : [],
+      risks: experiments.filter(({ result }) => result && result.confidence < 0.5).map(({ title }) => `${title}: baixa confianca observacional.`),
+      missingData: active.filter(({ status }) => status === 'WAITING_FOR_DATA').map(({ title }) => `${title}: observacoes comparaveis.`),
+      confidence: latest?.result?.confidence ?? 0,
+      data: { active: active.map(({ id, title, status }) => ({ id, title, status })), latestResult: latest?.result ?? null },
+    };
+  });
 
   registry.register({
     id: 'strategic-planning.current', responsibility: 'Consultar ou gerar a fila editorial atual sem prever views.',

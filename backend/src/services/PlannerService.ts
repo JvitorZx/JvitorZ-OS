@@ -91,6 +91,13 @@ export interface PlannerStrategicLearningProvider {
   }>>;
 }
 
+export interface PlannerExperimentationProvider {
+  listForPlanner(projectId: string | null, limit?: number): Promise<Array<{
+    id: string; title: string; status: string; hypothesis: string; primaryMetric: string;
+    result: string | null; confidence: number;
+  }>>;
+}
+
 export class PlannerService {
   private conversationRepository?: ConversationRepository;
   private messageRepository?: MessageRepository;
@@ -101,6 +108,7 @@ export class PlannerService {
   private readonly orchestrator?: Pick<OrchestratorService, 'run'>;
   private readonly manager?: Pick<ManagerOrchestratorService, 'query'>;
   private readonly strategicLearningMemory?: PlannerStrategicLearningProvider;
+  private readonly experimentation?: PlannerExperimentationProvider;
 
   constructor(
     conversationRepository?: ConversationRepository,
@@ -112,6 +120,7 @@ export class PlannerService {
     orchestrator?: Pick<OrchestratorService, 'run'>,
     manager?: Pick<ManagerOrchestratorService, 'query'>,
     strategicLearningMemory?: PlannerStrategicLearningProvider,
+    experimentation?: PlannerExperimentationProvider,
   ) {
     this.conversationRepository = conversationRepository;
     this.messageRepository = messageRepository;
@@ -122,6 +131,7 @@ export class PlannerService {
     this.orchestrator = orchestrator;
     this.manager = manager;
     this.strategicLearningMemory = strategicLearningMemory;
+    this.experimentation = experimentation;
   }
 
   private get repository(): ConversationRepository {
@@ -320,8 +330,20 @@ export class PlannerService {
         // Strategic memory is optional context; a read failure must not block the persisted chat flow.
       }
     }
+    let experimentationMessage = null;
+    if (this.experimentation) {
+      try {
+        const experiments = await this.experimentation.listForPlanner(conversation.projectId, 5);
+        if (experiments.length) experimentationMessage = { sender: 'system', createdAt: new Date(), text: [
+          'Experimentos estrategicos ativos. Use somente como contexto; nao altere ranking e nao afirme causalidade:',
+          ...experiments.map((entry) => `- [${entry.status}] ${entry.title}: ${entry.hypothesis}${entry.result ? ` Resultado observado: ${entry.result}; confianca ${Math.round(entry.confidence * 100)}%.` : ''}`),
+        ].join('\n').slice(0, 3_000) };
+      } catch {
+        // Experiment context is optional and cannot block persisted Planner replies.
+      }
+    }
     const input = mapConversationToLanguageInput({ ...conversation,
-      messages: learningMessage ? [...conversation.messages, learningMessage] : conversation.messages, artifacts });
+      messages: [...conversation.messages, ...(learningMessage ? [learningMessage] : []), ...(experimentationMessage ? [experimentationMessage] : [])], artifacts });
     let generatedText: unknown;
 
     try {

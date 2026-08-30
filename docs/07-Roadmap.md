@@ -1320,4 +1320,21 @@ Limites preservados:
 - ausencia de evidencias comparaveis retorna dados insuficientes;
 - nenhuma prioridade, score, plano ou video e alterado automaticamente.
 
-Proximo checkpoint: **SPRINT 42 - NAO INICIADA**.
+## Sprint 42 - Strategic Experimentation & Hypothesis Validation - CONCLUIDA
+
+**Objetivo:** transformar hipoteses editoriais em testes controlados internos, comparando outcomes auditaveis sem A/B nativo do YouTube, ML ou afirmacao causal.
+
+Entregas:
+
+- dominio `strategic-experimentation` com hipotese, variantes, metricas, restricoes, observacoes, resultado, evidencias e historico;
+- estados `DRAFT`, `READY`, `RUNNING`, `WAITING_FOR_DATA`, `COMPLETED`, `INCONCLUSIVE` e `CANCELLED`;
+- comparabilidade obrigatoria por formato, janela, idade de publicacao, freshness, qualidade e amostra minima;
+- classificacoes `SUPPORTS_HYPOTHESIS`, `CONTRADICTS_HYPOTHESIS`, `MIXED_EVIDENCE` e `INSUFFICIENT_EVIDENCE`;
+- persistencia idempotente e analise deterministica por fingerprint;
+- integracao com outcomes e `StrategicLearningService`, sem duplicar regras de aprendizado;
+- contexto somente leitura no Planner, capability no Gerente e alertas no Supervisor;
+- API REST e area Experimentos em `#/planning` com lifecycle protegido.
+
+Limites: experimento descreve consistencia observada, nunca causalidade ou previsao; confidence nao e probabilidade; ranking e prioridades nao mudam automaticamente; nao ha publicacao, A/B nativo, ML ou automacao irreversivel.
+
+Proximo checkpoint: **SPRINT 43 - NAO INICIADA**.

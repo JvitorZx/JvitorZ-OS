@@ -375,3 +375,16 @@ StrategicLearning 1 --- N StrategicLearningRevision
 ```
 
 `StrategicLearning.key` identifica o grupo estruturado e comparavel. `StrategicLearningEvidence` possui unicidade `(learningId, outcomeId)`. A trilha ate outcome, snapshot, execucao, item e video e reconstruivel por FKs.
+
+## Strategic Experimentation
+
+```text
+Project / StrategicLearning 1 --- N StrategicExperiment
+StrategicExperiment 1 --- 1 ExperimentHypothesis
+StrategicExperiment 1 --- N Variant / Metric / Constraint / Observation
+PlanningOutcome 1 --- N ExperimentObservation
+StrategicExperiment 1 --- 0..1 ExperimentResult
+StrategicExperiment 1 --- N ExperimentEvidence / ExperimentEvent
+```
+
+`ExperimentObservation` e unica por experimento/outcome. Evidence conecta resultado a observacao e, quando disponivel, ao aprendizado reavaliado.

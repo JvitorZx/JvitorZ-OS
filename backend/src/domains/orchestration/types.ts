@@ -27,6 +27,7 @@ export type ManagerIntent =
   | 'TRAFFIC_ANALYSIS'
   | 'PLANNING'
   | 'CONTENT_PLANNING'
+  | 'EXPERIMENT_STATUS'
   | 'OPPORTUNITY_DISCOVERY'
   | 'RESEARCH_DISCOVERY'
   | 'RISK_ANALYSIS'
@@ -52,6 +53,7 @@ export type OperatorCapability =
   | 'supervision'
   | 'research'
   | 'planning'
+  | 'experimentation'
   | 'response';
 
 export type CapabilityAccess = 'read' | 'write' | 'external_side_effect';

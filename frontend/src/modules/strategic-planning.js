@@ -73,6 +73,26 @@ const renderStrategicPlanning = () => createPanel({
         <aside data-planning-learning-detail><p class="performance-empty">Selecione um aprendizado para ver as evidencias.</p></aside>
       </div>
     </section>
+    <section class="planning-experiments" aria-labelledby="planning-experiments-title">
+      <div class="planning-section-heading">
+        <div><p class="eyebrow">Teste controlado</p><h3 id="planning-experiments-title">Experimentos</h3></div>
+      </div>
+      <form class="planning-experiment-form" data-planning-experiment-form>
+        <input type="text" data-experiment-title placeholder="Nome do experimento" maxlength="180" required>
+        <input type="text" data-experiment-hypothesis placeholder="Hipotese observacional" maxlength="1000" required>
+        <select data-experiment-metric aria-label="Metrica primaria">
+          <option value="views">Views</option><option value="ctr">CTR</option><option value="watchTimeMinutes">Watch time</option>
+          <option value="averageViewPercentage">Retencao media</option><option value="subscribersGained">Inscritos</option>
+        </select>
+        <input type="text" data-experiment-variant-a placeholder="Variante A" maxlength="180" required>
+        <input type="text" data-experiment-variant-b placeholder="Variante B" maxlength="180" required>
+        <button class="button" type="submit" data-experiment-create>Criar experimento</button>
+      </form>
+      <div class="planning-experiment-workspace">
+        <div data-planning-experiments aria-live="polite"><p class="performance-empty">Carregando experimentos...</p></div>
+        <aside data-planning-experiment-detail><p class="performance-empty">Selecione um experimento para ver variantes e evidencias.</p></aside>
+      </div>
+    </section>
   `,
 });
 
@@ -93,6 +113,11 @@ export const createStrategicPlanningController = ({ api }) => {
   let learningPending = false;
   let strategicLearnings = [];
   let selectedLearningId = null;
+  let experimentRequest = 0;
+  let experimentDetailRequest = 0;
+  let experimentPending = false;
+  let strategicExperiments = [];
+  let selectedExperimentId = null;
   const executionNotes = new Map();
   const pendingItems = new Set();
   let cleanup = () => {};
@@ -116,6 +141,9 @@ export const createStrategicPlanningController = ({ api }) => {
     const learnings = panel.querySelector('[data-planning-learnings]');
     const learningDetail = panel.querySelector('[data-planning-learning-detail]');
     const learningRefresh = panel.querySelector('[data-planning-learning-refresh]');
+    const experiments = panel.querySelector('[data-planning-experiments]');
+    const experimentDetail = panel.querySelector('[data-planning-experiment-detail]');
+    const experimentForm = panel.querySelector('[data-planning-experiment-form]');
     if (![form, horizon, generateButton, feedback, meta, now, queue, detail].every(Boolean)) return;
 
     const setFeedback = (message = '', variant = '') => {
@@ -311,6 +339,82 @@ export const createStrategicPlanningController = ({ api }) => {
       } catch { if (current()) setFeedback('Nao foi possivel reavaliar os aprendizados.', 'error'); }
       finally { learningPending = false; if (current()) { learningRefresh.disabled = false; learningRefresh.setAttribute('aria-busy', 'false'); } }
     };
+    const experimentById = (experimentId) => strategicExperiments.find(({ id }) => id === experimentId) ?? null;
+    const renderExperimentDetail = (experiment = null) => {
+      if (!experimentDetail) return;
+      if (!experiment) { experimentDetail.replaceChildren(text('p', 'Selecione um experimento para ver variantes e evidencias.', 'performance-empty')); return; }
+      const article = document.createElement('article'); article.className = 'planning-detail-content';
+      article.append(text('strong', experiment.title), text('p', experiment.hypothesis?.description ?? ''),
+        text('span', `${experiment.status} - ${experiment.primaryMetric} - confianca ${Math.round(Number(experiment.result?.confidence ?? experiment.confidence ?? 0) * 100)}%`));
+      const variants = document.createElement('ul');
+      for (const variant of experiment.variants ?? []) {
+        const row = document.createElement('li'); row.append(text('span', `${variant.key}: ${variant.label} - ${variant.observations?.length ?? 0} observacoes`));
+        const outcome = document.createElement('input'); outcome.type = 'text'; outcome.placeholder = 'ID de outcome auditavel'; outcome.dataset.experimentOutcome = variant.id;
+        outcome.setAttribute('aria-label', `Outcome para ${variant.label}`); row.append(outcome,
+          button('Adicionar observacao', 'Vincular outcome a variante', { experimentObserve: experiment.id, variantId: variant.id }, 'button secondary'));
+        variants.append(row);
+      }
+      article.append(text('h4', 'Variantes'), variants);
+      if (experiment.result) article.append(text('h4', 'Resultado observado'), text('p', experiment.result.summary),
+        text('small', `${experiment.result.classification} - associacao observada, nao causalidade.`));
+      const limitations = Array.isArray(experiment.limitations) ? experiment.limitations : [];
+      if (limitations.length) { const list = document.createElement('ul'); limitations.forEach((entry) => list.append(text('li', entry))); article.append(text('h4', 'Limitacoes'), list); }
+      const actions = document.createElement('div'); actions.className = 'planning-item-actions';
+      if (['DRAFT', 'READY', 'WAITING_FOR_DATA'].includes(experiment.status)) actions.append(button('Iniciar', 'Iniciar experimento', { experimentAction: 'start', experimentId: experiment.id }, 'button secondary'));
+      if (['RUNNING', 'WAITING_FOR_DATA'].includes(experiment.status)) actions.append(button('Analisar', 'Analisar observacoes comparaveis', { experimentAction: 'analyze', experimentId: experiment.id }, 'button'));
+      if (!['COMPLETED', 'INCONCLUSIVE', 'CANCELLED'].includes(experiment.status)) actions.append(button('Cancelar', 'Cancelar experimento', { experimentAction: 'cancel', experimentId: experiment.id }, 'button secondary'));
+      for (const control of actions.children) control.disabled = experimentPending; article.append(actions); experimentDetail.replaceChildren(article);
+    };
+    const renderExperiments = () => {
+      if (!experiments) return;
+      if (!strategicExperiments.length) { experiments.replaceChildren(text('p', 'Nenhum experimento estrategico registrado.', 'performance-empty')); selectedExperimentId = null; renderExperimentDetail(); return; }
+      const list = document.createElement('div'); list.className = 'planning-learning-list';
+      for (const experiment of strategicExperiments) {
+        const row = document.createElement('article'); row.className = 'planning-learning-item'; row.dataset.planningExperiment = experiment.id;
+        row.append(text('strong', experiment.title), text('span', `${experiment.status} - ${experiment.primaryMetric}`),
+          text('small', `${experiment._count?.observations ?? 0} observacoes`), button('Abrir', 'Abrir experimento', { experimentOpen: experiment.id }, 'button secondary')); list.append(row);
+      }
+      experiments.replaceChildren(list);
+    };
+    const loadExperiments = async () => {
+      if (!experiments || typeof api.listStrategicExperiments !== 'function') return;
+      const request = ++experimentRequest;
+      try { const loaded = await api.listStrategicExperiments({ limit: 100 }); if (!current() || request !== experimentRequest) return;
+        strategicExperiments = Array.isArray(loaded) ? loaded : []; renderExperiments(); }
+      catch { if (current() && request === experimentRequest) { strategicExperiments = []; renderExperiments(); setFeedback('Nao foi possivel carregar os experimentos.', 'warning'); } }
+    };
+    const openExperiment = async (experimentId) => {
+      if (typeof api.getStrategicExperiment !== 'function') return; selectedExperimentId = experimentId; const request = ++experimentDetailRequest;
+      experimentDetail?.replaceChildren(text('p', 'Carregando experimento...', 'performance-empty'));
+      try { const loaded = await api.getStrategicExperiment(experimentId); if (!current() || request !== experimentDetailRequest || selectedExperimentId !== experimentId) return; renderExperimentDetail(loaded); }
+      catch { if (current() && request === experimentDetailRequest) { renderExperimentDetail(); setFeedback('Nao foi possivel abrir este experimento.', 'error'); } }
+    };
+    const createExperiment = async (event) => {
+      event.preventDefault(); if (experimentPending || typeof api.createStrategicExperiment !== 'function') return;
+      const titleInput = experimentForm.querySelector('[data-experiment-title]'); const hypothesis = experimentForm.querySelector('[data-experiment-hypothesis]');
+      const metric = experimentForm.querySelector('[data-experiment-metric]'); const variantA = experimentForm.querySelector('[data-experiment-variant-a]'); const variantB = experimentForm.querySelector('[data-experiment-variant-b]');
+      if (![titleInput, hypothesis, metric, variantA, variantB].every((entry) => entry?.value?.trim())) return;
+      experimentPending = true; experimentForm.querySelector('[data-experiment-create]').disabled = true;
+      try { const created = await api.createStrategicExperiment({ title: titleInput.value.trim(), hypothesis: hypothesis.value.trim(), expectedVariantKey: 'A',
+        primaryMetric: metric.value, metricDirection: 'HIGHER_BETTER', variants: [{ key: 'A', label: variantA.value.trim() }, { key: 'B', label: variantB.value.trim() }] });
+        if (!current()) return; selectedExperimentId = created.id; experimentForm.reset?.(); await loadExperiments(); await openExperiment(created.id); setFeedback('Experimento criado como teste controlado.', 'success'); }
+      catch { if (current()) setFeedback('Nao foi possivel criar o experimento.', 'error'); }
+      finally { experimentPending = false; if (current()) experimentForm.querySelector('[data-experiment-create]').disabled = false; }
+    };
+    const experimentAction = async (experimentId, action, variantId = null) => {
+      if (experimentPending) return; experimentPending = true; const currentExperiment = experimentById(experimentId); renderExperimentDetail(currentExperiment);
+      try {
+        if (action === 'start') await api.startStrategicExperiment(experimentId);
+        else if (action === 'analyze') await api.analyzeStrategicExperiment(experimentId);
+        else if (action === 'cancel') await api.cancelStrategicExperiment(experimentId, 'Cancelado explicitamente pela interface.');
+        else if (action === 'observe') {
+          const input = experimentDetail?.querySelector?.(`[data-experiment-outcome="${variantId}"]`); if (!input?.value?.trim()) { setFeedback('Informe um outcome auditavel para a variante.', 'warning'); return; }
+          await api.addStrategicExperimentObservation(experimentId, variantId, input.value.trim());
+        }
+        if (!current()) return; await loadExperiments(); await openExperiment(experimentId); setFeedback('Experimento atualizado.', 'success');
+      } catch (error) { if (current()) setFeedback(error?.status === 422 ? 'O experimento ainda possui bloqueios ou dados insuficientes.' : error?.status === 409 ? 'A operacao conflita com o estado atual do experimento.' : 'Nao foi possivel atualizar o experimento.', 'error'); }
+      finally { experimentPending = false; if (current() && selectedExperimentId === experimentId) openExperiment(experimentId); }
+    };
     const actionBar = (item, index, allItems) => {
       const actions = document.createElement('div'); actions.className = 'planning-item-actions';
       const open = button('Detalhes', 'Abrir detalhes', { planningOpen: item.id }, 'button secondary'); actions.append(open);
@@ -492,6 +596,12 @@ export const createStrategicPlanningController = ({ api }) => {
       finally { pendingItems.delete(id); if (current()) renderQueue(); }
     };
     const handleClick = (event) => {
+      const experimentOpen = event.target.closest?.('[data-experiment-open]');
+      if (experimentOpen) { openExperiment(experimentOpen.dataset.experimentOpen); return; }
+      const experimentControl = event.target.closest?.('[data-experiment-action]');
+      if (experimentControl) { experimentAction(experimentControl.dataset.experimentId, experimentControl.dataset.experimentAction); return; }
+      const experimentObserve = event.target.closest?.('[data-experiment-observe]');
+      if (experimentObserve) { experimentAction(experimentObserve.dataset.experimentObserve, 'observe', experimentObserve.dataset.variantId); return; }
       const learningOpen = event.target.closest?.('[data-planning-learning-open]');
       if (learningOpen) { openLearning(learningOpen.dataset.planningLearningOpen); return; }
       const learningOutcome = event.target.closest?.('[data-planning-learning-outcome]');
@@ -538,12 +648,14 @@ export const createStrategicPlanningController = ({ api }) => {
     form.addEventListener('submit', generate); queue.addEventListener('click', handleClick); queue.addEventListener('change', handleChange);
     outcomes?.addEventListener('click', handleClick);
     learnings?.addEventListener('click', handleClick); learningDetail?.addEventListener('click', handleClick); learningRefresh?.addEventListener('click', refreshLearnings);
+    experiments?.addEventListener('click', handleClick); experimentDetail?.addEventListener('click', handleClick); experimentForm?.addEventListener('submit', createExperiment);
     cleanup = () => { form.removeEventListener('submit', generate); queue.removeEventListener('click', handleClick); queue.removeEventListener('change', handleChange); outcomes?.removeEventListener('click', handleClick);
-      learnings?.removeEventListener('click', handleClick); learningDetail?.removeEventListener('click', handleClick); learningRefresh?.removeEventListener('click', refreshLearnings); };
-    load(); loadLearnings();
+      learnings?.removeEventListener('click', handleClick); learningDetail?.removeEventListener('click', handleClick); learningRefresh?.removeEventListener('click', refreshLearnings);
+      experiments?.removeEventListener('click', handleClick); experimentDetail?.removeEventListener('click', handleClick); experimentForm?.removeEventListener('submit', createExperiment); };
+    load(); loadLearnings(); loadExperiments();
   };
 
-  const unmount = () => { cleanup(); cleanup = () => {}; mounted = null; generation += 1; loadRequest += 1; historyRequest += 1; outcomeRequest += 1; learningRequest += 1; learningDetailRequest += 1; outcomeState = null; outcomePending = false; learningPending = false; strategicLearnings = []; selectedLearningId = null; pendingItems.clear(); executionNotes.clear(); };
+  const unmount = () => { cleanup(); cleanup = () => {}; mounted = null; generation += 1; loadRequest += 1; historyRequest += 1; outcomeRequest += 1; learningRequest += 1; learningDetailRequest += 1; experimentRequest += 1; experimentDetailRequest += 1; outcomeState = null; outcomePending = false; learningPending = false; experimentPending = false; strategicLearnings = []; selectedLearningId = null; strategicExperiments = []; selectedExperimentId = null; pendingItems.clear(); executionNotes.clear(); };
   return { mount, unmount };
 };
 

@@ -764,3 +764,15 @@ PlanningOutcome comparavel e ativo
 Somente outcomes acima, dentro ou abaixo da referencia com vinculo ativo participam. Cada video conta uma vez por grupo comparavel. Formato, janela e idade de publicacao permanecem separados; Shorts e long-form nao sao misturados. Uma reavaliacao com o mesmo fingerprint nao grava evidencias ou revisoes novas.
 
 O Planner recebe no maximo cinco resumos observacionais como contexto. Essa leitura nao chama o ranker, nao muda `executionScore`, prioridade, fila ou plano. Auditabilidade: `Learning -> Evidence -> Outcome -> Execution -> Planning Item -> Video/Snapshot`.
+
+## Strategic Experimentation
+
+```text
+Hipotese + variantes -> ExperimentationService -> repositories
+  -> ExperimentObservation -> PlanningOutcome -> Video/Snapshot
+  -> ExperimentAnalyzer -> Result + Evidence + Event
+  -> StrategicLearningService.refresh()
+  -> Planning UI / Planner read-only / Gerente / Supervisor
+```
+
+O frontend envia IDs; o backend copia metricas, freshness, qualidade e contexto do outcome. Reanalise sem dados novos conserva o fingerprint e nao cria historico artificial. O servico de memoria e reutilizado; o ranker nao e alterado.

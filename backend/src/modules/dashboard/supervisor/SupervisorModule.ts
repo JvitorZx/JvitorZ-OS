@@ -23,6 +23,7 @@ import { OrchestrationExecutionRepository } from '../../../database/repositories
 import type { OrchestrationRequest, OrchestrationResult } from '../../../domains/orchestration';
 import { ResearchService } from '../../../services/research';
 import { StrategicPlanningService } from '../../../services/strategic-planning';
+import { ExperimentationService } from '../../../services/strategic-experimentation';
 
 const operatorSummary = (operator: { id: string; status: string; missingData: string[]; sampleSize: number }): string => {
   if (operator.status === 'AVAILABLE') {
@@ -50,6 +51,7 @@ export class SupervisorModule {
     private readonly orchestrationRepository = new OrchestrationExecutionRepository(DatabaseService.client),
     private readonly researchService: Pick<ResearchService, 'getOperationalSummary'> = new ResearchService(),
     private readonly strategicPlanningService: Pick<StrategicPlanningService, 'getOperationalSummary'> = new StrategicPlanningService(),
+    private readonly experimentationService: Pick<ExperimentationService, 'getOperationalSummary'> = new ExperimentationService(),
   ) {}
 
   async getSupervisorOverview() {
@@ -187,6 +189,9 @@ export class SupervisorModule {
     };
     try { planning = await this.strategicPlanningService.getOperationalSummary(); }
     catch { /* Strategic planning is local and cannot break the Supervisor or Dashboard. */ }
+    let experimentation = { total: 0, active: 0, waitingForData: 0, stale: 0, lowConfidence: 0, inconclusive: 0, contradicted: 0 };
+    try { experimentation = await this.experimentationService.getOperationalSummary(); }
+    catch { /* Experimentation is local and cannot break the Supervisor or Dashboard. */ }
     const byId = new Map(channelOperators.map((operator) => [operator.id, operator]));
     const analyticsQuality = youtubeAnalytics.state === 'synchronized' || youtubeAnalytics.state === 'connected' ? 'GOOD'
       : youtubeAnalytics.lastSyncAt ? 'STALE' : youtubeAnalytics.state === 'temporary_error' ? 'ERROR' : 'MISSING';
@@ -204,6 +209,10 @@ export class SupervisorModule {
       summary: planning.planId
         ? `${planning.ready} prontos, ${planning.needsResearch} aguardando pesquisa e ${planning.blocked} bloqueados.`
         : 'Nenhum plano estrategico ativo.' },
+      { area: 'Experimentos', state: experimentation.stale > 0 || experimentation.lowConfidence > 0 ? 'PARTIAL'
+        : experimentation.total > 0 ? 'GOOD' : 'MISSING', summary: experimentation.total
+        ? `${experimentation.active} ativos, ${experimentation.waitingForData} aguardando dados e ${experimentation.inconclusive} inconclusivos.`
+        : 'Nenhum experimento estrategico registrado.' },
     ];
     return {
       alerts: dataQuality.filter(({ state }) => ['STALE', 'INCONSISTENT', 'ERROR'].includes(state)).map(({ area, summary }) => `${area}: ${summary}`),
@@ -243,6 +252,7 @@ export class SupervisorModule {
       },
       research,
       planning,
+      experimentation,
       audience,
     };
   }

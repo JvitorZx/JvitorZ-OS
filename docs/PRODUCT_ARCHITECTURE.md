@@ -551,3 +551,9 @@ A UI Resultados é uma projeção do backend: Planejado → Executado → Public
 Os grupos usam somente metadata estruturada; nenhum titulo e analisado por heuristica. As regras sao publicas: uma observacao e `WEAK`; duas ou tres com dominancia minima de dois tercos podem ser `EMERGING`; quatro ou mais com dominancia de 75% podem ser `SUPPORTED`; dois sinais favoraveis e dois contrarios produzem `CONTRADICTED`. Freshness reutiliza as janelas publicas do Strategic Outcome.
 
 O Planner recebe uma dependencia opcional `listForPlanner()` e consulta no maximo cinco resumos. `StrategicPlanningRanker`, prioridade e fila nao importam nem consultam a memoria. Fingerprint, chave unica e lock por escopo impedem duplicacao e historico artificial.
+
+### Strategic Experimentation
+
+`ExperimentationService` coordena lifecycle, observacoes e finalizacao. `ExperimentAnalyzer` e deterministico e sem I/O; repositories sao os unicos componentes que acessam Prisma. O dominio reutiliza `PlanningOutcome` e solicita `StrategicLearningService.refresh()` depois de resultado material, sem duplicar analise de memoria.
+
+Planner consulta ate cinco testes em modo read-only. Gerente usa `strategic-experimentation.read`; Supervisor consolida riscos. Comparabilidade exige contexto equivalente, freshness, qualidade e duas observacoes por variante. Confidence nao e probabilidade e o ranker permanece isolado.

@@ -1311,3 +1311,17 @@ Classificações não representam causalidade. O benchmark usa mediana de pelo m
 Consultas relacionadas usam `GET /api/planning/items/:id/learnings`, `/plans/:id/learnings`, `/outcomes/:id/learnings` e `/videos/:id/learnings`. Elas nao recalculam nem alteram o planejamento.
 
 Os contratos nunca afirmam causalidade. `confidence` representa cobertura, consistencia, qualidade e freshness das evidencias comparaveis; nao e probabilidade de sucesso.
+
+## Strategic Experimentation
+
+Base: `/api/planning/experiments`. Payloads sao estritos e erros internos sao sanitizados.
+
+- `POST /api/planning/experiments`: cria hipotese com duas variantes e metrica suportada (`201`).
+- `GET /api/planning/experiments` e `GET /api/planning/experiments/:id`: lista e abre testes persistidos.
+- `POST /:id/start` e `POST /:id/cancel`: controlam lifecycle explicitamente.
+- `PATCH /:id/variants/:variantId`: associa item/execucao sem alterar ranking.
+- `POST /:id/observations`: recebe somente `variantId` e `outcomeId`; metricas sao lidas do banco (`201`/`200` idempotente).
+- `POST /:id/analyze`: persiste classificacao e evidencias deterministicas.
+- `GET /:id/evidence` e `GET /:id/history`: expoem rastreabilidade e journal.
+
+Status: `400` payload invalido, `404` ausente, `409` conflito, `422` bloqueio e `500` sanitizado. Falta de comparabilidade retorna `INSUFFICIENT_EVIDENCE`, nao erro HTTP.

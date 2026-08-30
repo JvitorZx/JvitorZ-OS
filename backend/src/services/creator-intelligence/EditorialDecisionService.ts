@@ -144,7 +144,7 @@ export const classifyEditorialIntent = (
 
 export const isEditorialQuestion = (question: string): boolean =>
   classifyEditorialIntent(question) !== 'general_editorial'
-  || /(pesquis|procure|investigue|oportunidade|lacuna|tema surgindo|fora do meu canal|o que.*gravo hoje|fila editorial|plano editorial|o que vem depois|planej|calendario editorial)/i.test(question);
+  || /(pesquis|procure|investigue|oportunidade|lacuna|tema surgindo|fora do meu canal|o que.*gravo hoje|fila editorial|plano editorial|o que vem depois|planej|calendario editorial|o que estamos testando|experimento|hipotese|resultado do teste)/i.test(question);
 
 const isUniqueConstraintError = (error: unknown): boolean =>
   typeof error === 'object' && error !== null && 'code' in error && error.code === 'P2002';

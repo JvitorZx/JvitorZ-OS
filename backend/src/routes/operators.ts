@@ -33,6 +33,7 @@ import { createCreatorIntelligenceRouter } from './creatorIntelligence';
 import { OrchestratorService } from '../services/orchestration/OrchestratorService';
 import { ManagerOrchestratorService } from '../services/orchestration/ManagerOrchestratorService';
 import { StrategicLearningService } from '../services/strategic-learning';
+import { ExperimentationService } from '../services/strategic-experimentation';
 
 const createDefaultPlannerService = (
   creatorIntelligenceService: CreatorIntelligenceService,
@@ -50,6 +51,7 @@ const createDefaultPlannerService = (
     orchestratorService,
     new ManagerOrchestratorService(orchestratorService),
     new StrategicLearningService(),
+    new ExperimentationService(),
   );
 
 const toLibraryItemResponse = ({

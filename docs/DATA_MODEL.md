@@ -476,3 +476,9 @@ StrategicLearning 1 -> N StrategicLearningRevision
 ```
 
 Observacao nao e padrao, padrao nao e causalidade e aprendizado estrategico nao e decisao automatica.
+
+## Strategic Experimentation
+
+`StrategicExperiment` agrega `ExperimentHypothesis`, `ExperimentVariant`, `ExperimentMetric`, `ExperimentConstraint`, `ExperimentObservation`, `ExperimentResult`, `ExperimentEvidence` e `ExperimentEvent`. Observacoes referenciam outcomes por FK e possuem unicidade `(experimentId, outcomeId)`. Resultado e hipotese sao 1:1; eventos sao append-only.
+
+Somente metricas existentes em `PlanningOutcome.metrics` sao aceitas. A trilha e `Learning -> Experiment -> Observation -> Outcome -> Execution -> PlannedContentItem -> Video/Snapshot`.

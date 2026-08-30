@@ -19,6 +19,14 @@ import {
   StrategicLearningValidationError,
 } from '../services/strategic-learning';
 import type { PlanningConstraint } from '../domains/strategic-planning';
+import {
+  ExperimentationService,
+  ExperimentationValidationError,
+  ExperimentNotFoundError,
+  ExperimentObservationNotFoundError,
+  ExperimentConflictError,
+  ExperimentNotReadyError,
+} from '../services/strategic-experimentation';
 
 const isObject = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -47,6 +55,10 @@ const sendError = (res: Parameters<Parameters<Router['get']>[1]>[1], error: unkn
   if (error instanceof StrategicOutcomeNotReadyError) return res.status(422).json({ error: error.message });
   if (error instanceof StrategicLearningValidationError) return res.status(400).json({ error: error.message });
   if (error instanceof StrategicLearningNotFoundError) return res.status(404).json({ error: error.message });
+  if (error instanceof ExperimentationValidationError) return res.status(400).json({ error: error.message });
+  if (error instanceof ExperimentNotFoundError || error instanceof ExperimentObservationNotFoundError) return res.status(404).json({ error: error.message });
+  if (error instanceof ExperimentConflictError) return res.status(409).json({ error: error.message });
+  if (error instanceof ExperimentNotReadyError) return res.status(422).json({ error: error.message });
   const name = error instanceof Error ? error.name : 'UnknownError';
   console.error(`Strategic planning request failed (${name})`);
   return res.status(500).json({ error: 'Strategic planning request failed' });
@@ -56,6 +68,7 @@ export const createPlanningRouter = (
   service: StrategicPlanningService = new StrategicPlanningService(),
   outcomeService: StrategicOutcomeService = new StrategicOutcomeService(),
   learningService: StrategicLearningService = new StrategicLearningService(),
+  experimentationService: ExperimentationService = new ExperimentationService(),
 ): Router => {
   const router = Router();
 
@@ -316,6 +329,66 @@ export const createPlanningRouter = (
   router.get('/plans/:id/learnings', related('planId'));
   router.get('/outcomes/:id/learnings', related('outcomeId'));
   router.get('/videos/:id/learnings', related('videoId'));
+
+  router.get('/experiments', async (req, res) => {
+    if (!hasOnly(req.query as Record<string, unknown>, ['projectId', 'status', 'limit'])
+      || !optionalText(req.query.projectId) || !optionalText(req.query.status)
+      || (req.query.limit !== undefined && (typeof req.query.limit !== 'string' || !/^\d+$/.test(req.query.limit)))) {
+      return res.status(400).json({ error: 'invalid experiment query' });
+    }
+    try { return res.status(200).json(await experimentationService.list({
+      ...('projectId' in req.query ? { projectId: req.query.projectId || null } : {}),
+      ...(req.query.status ? { status: req.query.status } : {}), ...(req.query.limit ? { limit: Number(req.query.limit) } : {}),
+    })); } catch (error) { return sendError(res, error); }
+  });
+
+  router.post('/experiments', async (req, res) => {
+    const fields = ['projectId', 'sourceLearningId', 'title', 'description', 'context', 'hypothesis', 'priorEvidence',
+      'expectedVariantKey', 'primaryMetric', 'secondaryMetrics', 'metricDirection', 'risk', 'comparisonCriterion', 'variants', 'constraints'];
+    if (!isObject(req.body) || !hasOnly(req.body, fields) || !Array.isArray(req.body.variants)) {
+      return res.status(400).json({ error: 'invalid experiment payload' });
+    }
+    try { return res.status(201).json(await experimentationService.create(req.body as never)); }
+    catch (error) { return sendError(res, error); }
+  });
+
+  router.get('/experiments/:id/evidence', async (req, res) => {
+    const id = req.params.id?.trim(); if (!id || Object.keys(req.query).length) return res.status(400).json({ error: 'invalid experiment id' });
+    try { return res.status(200).json(await experimentationService.evidence(id)); } catch (error) { return sendError(res, error); }
+  });
+  router.get('/experiments/:id/history', async (req, res) => {
+    const id = req.params.id?.trim(); if (!id || Object.keys(req.query).length) return res.status(400).json({ error: 'invalid experiment id' });
+    try { return res.status(200).json(await experimentationService.history(id)); } catch (error) { return sendError(res, error); }
+  });
+  router.get('/experiments/:id', async (req, res) => {
+    const id = req.params.id?.trim(); if (!id || Object.keys(req.query).length) return res.status(400).json({ error: 'invalid experiment id' });
+    try { return res.status(200).json(await experimentationService.get(id)); } catch (error) { return sendError(res, error); }
+  });
+  router.post('/experiments/:id/start', async (req, res) => {
+    const id = req.params.id?.trim(); if (!id || !isObject(req.body) || !hasOnly(req.body, [])) return res.status(400).json({ error: 'invalid experiment start payload' });
+    try { return res.status(200).json(await experimentationService.start(id)); } catch (error) { return sendError(res, error); }
+  });
+  router.post('/experiments/:id/cancel', async (req, res) => {
+    const id = req.params.id?.trim(); if (!id || !isObject(req.body) || !hasOnly(req.body, ['reason']) || !optionalText(req.body.reason)) return res.status(400).json({ error: 'invalid experiment cancel payload' });
+    try { return res.status(200).json(await experimentationService.cancel(id, req.body.reason as string | null | undefined)); } catch (error) { return sendError(res, error); }
+  });
+  router.patch('/experiments/:id/variants/:variantId', async (req, res) => {
+    const id = req.params.id?.trim(); const variantId = req.params.variantId?.trim();
+    if (!id || !variantId || !isObject(req.body) || !hasOnly(req.body, ['plannedItemId', 'executionEventId'])
+      || !optionalText(req.body.plannedItemId) || !optionalText(req.body.executionEventId)) return res.status(400).json({ error: 'invalid experiment variant payload' });
+    try { return res.status(200).json(await experimentationService.linkVariant(id, variantId, req.body as never)); } catch (error) { return sendError(res, error); }
+  });
+  router.post('/experiments/:id/observations', async (req, res) => {
+    const id = req.params.id?.trim();
+    if (!id || !isObject(req.body) || !hasOnly(req.body, ['variantId', 'outcomeId'])
+      || typeof req.body.variantId !== 'string' || typeof req.body.outcomeId !== 'string') return res.status(400).json({ error: 'invalid experiment observation payload' });
+    try { const result = await experimentationService.addObservation(id, req.body.variantId, req.body.outcomeId); return res.status(result.created ? 201 : 200).json(result); }
+    catch (error) { return sendError(res, error); }
+  });
+  router.post('/experiments/:id/analyze', async (req, res) => {
+    const id = req.params.id?.trim(); if (!id || !isObject(req.body) || !hasOnly(req.body, [])) return res.status(400).json({ error: 'invalid experiment analysis payload' });
+    try { return res.status(200).json(await experimentationService.analyze(id)); } catch (error) { return sendError(res, error); }
+  });
 
   router.get('/:id', async (req, res) => {
     const id = req.params.id?.trim();

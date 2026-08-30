@@ -30,7 +30,7 @@ const learning = (overrides = {}) => ({ id: 'learning-1', dimension: 'FORMAT', s
   evidence: [], revisions: [], ...overrides });
 const createDom = () => {
   const root = new FakeElement(); const panel = new FakeElement(); root.map.set('.strategic-planning-panel', panel);
-  for (const selector of ['[data-planning-generate-form]', '[data-planning-horizon]', '[data-planning-generate]', '[data-planning-feedback]', '[data-planning-meta]', '[data-planning-now]', '[data-planning-queue]', '[data-planning-detail]', '[data-planning-execution-history]', '[data-planning-outcomes]', '[data-planning-learnings]', '[data-planning-learning-detail]', '[data-planning-learning-refresh]']) panel.map.set(selector, new FakeElement());
+  for (const selector of ['[data-planning-generate-form]', '[data-planning-horizon]', '[data-planning-generate]', '[data-planning-feedback]', '[data-planning-meta]', '[data-planning-now]', '[data-planning-queue]', '[data-planning-detail]', '[data-planning-execution-history]', '[data-planning-outcomes]', '[data-planning-learnings]', '[data-planning-learning-detail]', '[data-planning-learning-refresh]', '[data-planning-experiments]', '[data-planning-experiment-detail]', '[data-planning-experiment-form]']) panel.map.set(selector, new FakeElement());
   panel.querySelector('[data-planning-horizon]').value = 'TODAY'; return { root, get: (selector) => panel.querySelector(selector) };
 };
 const originalDocument = globalThis.document; const originalFetch = globalThis.fetch;
@@ -76,4 +76,35 @@ test('refresh is single-flight and late list/detail responses are ignored after 
   const first = button.dispatch('click'); const second = button.dispatch('click'); await flush(); assert.equal(calls, 1);
   controller.unmount(); refresh.resolve({ insufficientData: false }); lateList.resolve([learning({ description: 'Late' })]); await Promise.all([first, second]); await flush();
   assert.doesNotMatch(collectText(dom.get('[data-planning-learnings]')), /Late/); assert.equal(button.listeners.get('click')?.length ?? 0, 0);
+});
+
+test('central client exposes complete strategic experimentation contracts', async () => {
+  const calls = []; globalThis.fetch = async (url, options = {}) => ({ ok: true, status: 200, async json() { calls.push([String(url), options]); return {}; } });
+  const api = createApiClient('http://localhost:3000');
+  await api.listStrategicExperiments({ status: 'RUNNING', limit: 5 });
+  await api.createStrategicExperiment({ title: 'Test' }); await api.getStrategicExperiment('exp/1');
+  await api.startStrategicExperiment('exp/1'); await api.addStrategicExperimentObservation('exp/1', 'var/1', 'out/1');
+  await api.analyzeStrategicExperiment('exp/1'); await api.cancelStrategicExperiment('exp/1', 'Stop');
+  await api.getStrategicExperimentEvidence('exp/1'); await api.getStrategicExperimentHistory('exp/1');
+  assert.deepEqual(calls.map(([url]) => url), [
+    'http://localhost:3000/api/planning/experiments?status=RUNNING&limit=5', 'http://localhost:3000/api/planning/experiments',
+    'http://localhost:3000/api/planning/experiments/exp%2F1', 'http://localhost:3000/api/planning/experiments/exp%2F1/start',
+    'http://localhost:3000/api/planning/experiments/exp%2F1/observations', 'http://localhost:3000/api/planning/experiments/exp%2F1/analyze',
+    'http://localhost:3000/api/planning/experiments/exp%2F1/cancel', 'http://localhost:3000/api/planning/experiments/exp%2F1/evidence',
+    'http://localhost:3000/api/planning/experiments/exp%2F1/history',
+  ]);
+  assert.equal(JSON.parse(calls[4][1].body).outcomeId, 'out/1'); await assert.rejects(() => api.getStrategicExperiment(' '), TypeError);
+});
+
+test('Planning renders experiment list safely and ignores stale detail after unmount', async () => {
+  const detail = deferred(); const dom = createDom();
+  const experiment = { id: 'experiment-1', title: '<img src=x onerror=alert(1)>', status: 'RUNNING', primaryMetric: 'ctr', _count: { observations: 2 },
+    hypothesis: { description: 'Direct hook' }, variants: [], result: null, limitations: [] };
+  const controller = createStrategicPlanningController({ api: { getCurrentContentPlan: async () => { throw missingPlan; }, listStrategicLearnings: async () => [],
+    listStrategicExperiments: async () => [experiment], getStrategicExperiment: async () => detail.promise } });
+  controller.mount(dom.root); await flush(); const list = dom.get('[data-planning-experiments]');
+  assert.match(collectText(list), /<img src=x onerror=alert\(1\)>/); const open = list.querySelector('[data-experiment-open]');
+  const pending = list.dispatch('click', open); controller.unmount(); detail.resolve({ ...experiment, title: 'Late experiment' }); await pending; await flush();
+  assert.doesNotMatch(collectText(dom.get('[data-planning-experiment-detail]')), /Late experiment/);
+  assert.equal(list.listeners.get('click')?.length ?? 0, 0);
 });

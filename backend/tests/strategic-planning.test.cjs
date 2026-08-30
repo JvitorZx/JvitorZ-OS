@@ -193,6 +193,7 @@ describe('strategic planning persistence, API and integrations', { concurrency: 
       supervisor: { getSupervisorOverview: async () => ({}) }, library: { listItems: async () => [] }, youtube: { sync: async () => ({ created: 0, updated: 0 }) },
       channelOperators: { run: async () => ({}) }, audience: { summary: async () => ({}), traffic: async () => ({}) }, research: { research: async () => ({}) },
       planning: { getOrGenerateCurrent: async () => ({ plan: await service.getById(currentPlan.id), generated: false }) },
+      experimentation: { list: async () => [{ id: 'experiment', title: 'Hook test', status: 'RUNNING', result: null }] },
     };
     const registry = createDefaultCapabilityRegistry(dependencies);
     const plan = createManagerOrchestrationPlan({ intent: 'o que eu gravo hoje?', managerIntent: 'CONTENT_PLANNING' }, registry);
@@ -220,8 +221,10 @@ describe('strategic planning persistence, API and integrations', { concurrency: 
       { summary: async () => null }, { findRecent: async () => [] },
       { getOperationalSummary: async () => ({ totalResearches: 0, opportunities: 0, lowConfidence: 0, stale: 0, conflicts: 0, quality: 'MISSING', freshness: 'MISSING', latestAt: null, sources: [] }) },
       { getOperationalSummary: async () => ({ planId: 'p1', status: 'READY', horizon: 'TODAY', total: 3, ready: 1, needsResearch: 1, blocked: 1, lowConfidence: 1, experiments: 2, stale: 1, conflicts: 1 }) },
+      { getOperationalSummary: async () => ({ total: 2, active: 1, waitingForData: 1, stale: 0, lowConfidence: 1, inconclusive: 0, contradicted: 0 }) },
     );
     const overview = await supervisor.getSupervisorOverview(); assert.equal(overview.planning.blocked, 1);
     assert.equal(overview.dataQuality.find(({ area }) => area === 'Planejamento').state, 'PARTIAL');
+    assert.equal(overview.experimentation.active, 1); assert.equal(overview.dataQuality.find(({ area }) => area === 'Experimentos').state, 'PARTIAL');
   });
 });
