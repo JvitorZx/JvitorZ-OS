@@ -1183,7 +1183,7 @@ Entregas:
 - Planner delegando perguntas editoriais multidisciplinares ao Gerente e permanecendo dono das mensagens;
 - Supervisor lendo operadores, conflitos, baixa confiança e insuficiência sem reconstruir análise;
 - workspace do Gerente com pergunta natural, loading, resposta, confiança, operadores, evidências, conflitos e dados ausentes;
-- 769 testes automatizados determinísticos, sem rede externa e sem alteração do `dev.db`.
+- 771 testes automatizados determinísticos, sem rede externa e sem alteração do `dev.db`.
 
 Limites preservados:
 
