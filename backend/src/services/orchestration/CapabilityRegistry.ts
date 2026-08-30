@@ -1,6 +1,7 @@
 import type {
   CapabilityDefinition,
   CapabilityExecutor,
+  OperatorCapability,
   RegisteredCapability,
 } from '../../domains/orchestration';
 import { validateCapabilityMetadata } from './PlanRiskClassifier';
@@ -36,6 +37,22 @@ export class CapabilityRegistry {
       inputs: [...definition.inputs],
       outputs: [...definition.outputs],
       dependencies: [...definition.dependencies],
+      ...(definition.capabilityTags ? { capabilityTags: [...definition.capabilityTags] } : {}),
     }));
+  }
+
+  findByCapability(capability: OperatorCapability): RegisteredCapability[] {
+    return [...this.capabilities.values()]
+      .filter(({ definition }) => definition.availability === 'available'
+        && definition.capabilityTags?.includes(capability))
+      .sort((left, right) => left.definition.id.localeCompare(right.definition.id));
+  }
+
+  findUnavailableByCapability(capability: OperatorCapability): CapabilityDefinition[] {
+    return [...this.capabilities.values()]
+      .map(({ definition }) => definition)
+      .filter((definition) => definition.availability === 'unavailable'
+        && definition.capabilityTags?.includes(capability))
+      .sort((left, right) => left.id.localeCompare(right.id));
   }
 }

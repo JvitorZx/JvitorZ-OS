@@ -16,21 +16,26 @@ import { CapabilityRegistry } from './CapabilityRegistry';
 import { composeOrchestrationResponse, consolidateEvidence } from './EvidenceConsolidator';
 import { ChannelOperatorService } from '../channel-operators';
 import type { ChannelOperatorId } from '../../domains/channel-operators';
+import { AudienceIntelligenceService } from '../audience/AudienceIntelligenceService';
 
 export interface OrchestrationDependencies {
   intelligence: Pick<CreatorIntelligenceService,
     'listPerformanceRecords' | 'listPerformanceSignals' | 'getPerformanceBaseline'>;
-  editorial: Pick<EditorialDecisionService, 'generate'>;
+  editorial: Pick<EditorialDecisionService, 'generate' | 'compareCandidates' | 'list'>;
   outcomes: Pick<DecisionOutcomeService, 'listOutcomes'>;
   refresh: Pick<OutcomeRefreshService, 'listStates' | 'refreshAvailable'>;
   supervisor: Pick<SupervisorModule, 'getSupervisorOverview'>;
   library: Pick<LibraryService, 'listItems'>;
   youtube: Pick<YouTubePerformanceSyncService, 'sync'>;
   channelOperators: Pick<ChannelOperatorService, 'run'>;
+  audience: Pick<AudienceIntelligenceService, 'summary' | 'traffic'>;
 }
 
 const previousOutputs = (results: ReadonlyMap<string, OrchestrationStepResult>): CapabilityOutput[] =>
   [...results.values()].flatMap(({ output }) => output ? [output] : []);
+
+const outputFor = (results: ReadonlyMap<string, OrchestrationStepResult>, capabilityId: string) =>
+  [...results.values()].find((result) => result.capabilityId === capabilityId)?.output;
 
 export const createDefaultOrchestrationDependencies = (): OrchestrationDependencies => {
   const intelligence = new CreatorIntelligenceService();
@@ -45,6 +50,7 @@ export const createDefaultOrchestrationDependencies = (): OrchestrationDependenc
     library: new LibraryService(),
     youtube: youtubePerformanceSyncService,
     channelOperators: new ChannelOperatorService(),
+    audience: new AudienceIntelligenceService(),
   };
 };
 
@@ -57,6 +63,7 @@ export const createDefaultCapabilityRegistry = (
     id: 'performance.read', responsibility: 'Ler snapshots, baseline e sinais persistidos.',
     inputs: ['projectId'], outputs: ['facts', 'baseline', 'signals'], availability: 'available',
     dependencies: [], access: 'read', sideEffect: 'READ_ONLY', persistentMutation: false,
+    capabilityTags: ['performance'],
   }, async ({ request }) => {
     const [records, baseline, signals] = await Promise.all([
       dependencies.intelligence.listPerformanceRecords(request.projectId),
@@ -76,8 +83,9 @@ export const createDefaultCapabilityRegistry = (
     id: 'analytics.read', responsibility: 'Interpretar o estado agregado de performance já carregado.',
     inputs: ['performance.read'], outputs: ['analytics summary'], availability: 'available',
     dependencies: ['performance.read'], access: 'read', sideEffect: 'READ_ONLY', persistentMutation: false,
+    capabilityTags: ['analytics'],
   }, async ({ results }) => {
-    const performance = results.get('performance')?.output;
+    const performance = outputFor(results, 'performance.read');
     const count = Number(performance?.data?.snapshotCount ?? 0);
     return {
       summary: count > 0 ? 'Analytics possui dados persistidos para análise.' : 'Analytics ainda não possui snapshots.',
@@ -101,6 +109,7 @@ export const createDefaultCapabilityRegistry = (
       id: `channel-operator.${operatorId}`, responsibility,
       inputs: ['projectId'], outputs: ['facts', 'signals', 'recommendations', 'missingData'], availability: 'available',
       dependencies: [], access: 'read', sideEffect: 'READ_ONLY', persistentMutation: false,
+      capabilityTags: [operatorId],
     }, async ({ request }) => {
       const analysis = await dependencies.channelOperators.run(operatorId as ChannelOperatorId, request.projectId);
       return {
@@ -110,22 +119,75 @@ export const createDefaultCapabilityRegistry = (
         recommendations: analysis.recommendations,
         missingData: analysis.missingData,
         confidence: analysis.confidence,
-        data: { operatorId: analysis.id, status: analysis.status, sampleSize: analysis.sampleSize, quality: analysis.quality ?? null },
+        data: {
+          operatorId: analysis.id,
+          status: analysis.status,
+          sampleSize: analysis.sampleSize,
+          lastDataAt: analysis.lastDataAt,
+          quality: analysis.quality ?? null,
+          signalDirections: analysis.signals.map(({ direction }) => direction),
+        },
       };
     });
   }
 
   registry.register({
+    id: 'audience.read', responsibility: 'Analisar audiencia e segmentos persistidos.',
+    inputs: ['projectId'], outputs: ['facts', 'audience signals', 'missingData'], availability: 'available',
+    dependencies: [], access: 'read', sideEffect: 'READ_ONLY', persistentMutation: false,
+    capabilityTags: ['audience'],
+  }, async ({ request }) => {
+    const summary = await dependencies.audience.summary(request.projectId);
+    return {
+      summary: `${summary.facts.length} fatos de audiencia disponiveis.`,
+      facts: summary.facts,
+      inferences: summary.signals,
+      recommendations: summary.recommendations,
+      missingData: summary.missingData,
+      confidence: summary.confidence,
+      data: {
+        sampleSize: summary.trafficSources.length + summary.countries.length + summary.devices.length,
+        quality: summary.quality,
+      },
+    };
+  });
+
+  registry.register({
+    id: 'traffic-sources.read', responsibility: 'Analisar fontes de trafego persistidas e sua qualidade.',
+    inputs: ['projectId'], outputs: ['traffic sources', 'signals', 'missingData'], availability: 'available',
+    dependencies: [], access: 'read', sideEffect: 'READ_ONLY', persistentMutation: false,
+    capabilityTags: ['traffic-sources'],
+  }, async ({ request }) => {
+    const traffic = await dependencies.audience.traffic(request.projectId);
+    const top = traffic.sources[0];
+    return {
+      summary: top ? `Principal fonte de trafego: ${top.segment}.` : 'Fontes de trafego indisponiveis.',
+      facts: top ? [`${top.segment} representa ${Math.round(top.viewShare * 100)}% das views observadas.`] : [],
+      inferences: traffic.signals,
+      missingData: traffic.missingData,
+      confidence: traffic.sources.length ? Math.min(1, traffic.sources.length / 5) : 0,
+      data: { sampleSize: traffic.sources.length, quality: traffic.quality },
+    };
+  });
+
+  registry.register({
     id: 'creator-intelligence.decide', responsibility: 'Gerar decisão editorial explicável.',
     inputs: ['intent', 'projectId', 'conversationId'], outputs: ['decision', 'evidence'], availability: 'available',
     dependencies: ['performance.read'], access: 'write', sideEffect: 'INTERNAL_WRITE', persistentMutation: true,
-    maxAffectedItems: 1,
+    maxAffectedItems: 1, capabilityTags: ['editorial-decision'],
   }, async ({ request }) => {
-    const { decision } = await dependencies.editorial.generate({
-      question: request.intent,
-      projectId: request.projectId,
-      conversationId: request.conversationId,
-    });
+    const candidates = request.context?.candidateLabels ?? [];
+    const { decision } = request.managerIntent === 'IDEA_COMPARISON' && candidates.length >= 2
+      ? await dependencies.editorial.compareCandidates({
+        question: request.intent,
+        projectId: request.projectId,
+        candidates: candidates.map((label) => ({ key: label.toLowerCase().replace(/[^a-z0-9]+/g, '-'), label, type: 'GAME' as const })),
+      })
+      : await dependencies.editorial.generate({
+        question: request.intent,
+        projectId: request.projectId,
+        conversationId: request.conversationId,
+      });
     const parsed = parseEditorialDecisionArrays(decision);
     return {
       summary: decision.recommendation,
@@ -169,6 +231,25 @@ export const createDefaultCapabilityRegistry = (
   });
 
   registry.register({
+    id: 'editorial-decisions.read', responsibility: 'Consultar decisoes editoriais anteriores relevantes.',
+    inputs: ['projectId', 'conversationId'], outputs: ['decision memory'], availability: 'available',
+    dependencies: [], access: 'read', sideEffect: 'READ_ONLY', persistentMutation: false,
+    capabilityTags: ['decision-memory'],
+  }, async ({ request }) => {
+    const decisions = await dependencies.editorial.list({
+      ...(request.conversationId ? { conversationId: request.conversationId } : { projectId: request.projectId }),
+      limit: request.context?.relevantMemoryLimit ?? 5,
+    });
+    return {
+      summary: `${decisions.length} decisoes editoriais anteriores relevantes.`,
+      facts: decisions.slice(0, 3).map(({ category, recommendation }) => `Decisao ${category}: ${recommendation}`),
+      missingData: decisions.length ? [] : ['previous editorial decisions'],
+      confidence: decisions.length ? 1 : 0,
+      data: { sampleSize: decisions.length, decisionIds: decisions.map(({ id }) => id) },
+    };
+  });
+
+  registry.register({
     id: 'outcome-refresh.inspect', responsibility: 'Detectar outcomes com evidência nova.',
     inputs: [], outputs: ['review states'], availability: 'available',
     dependencies: [], access: 'read', sideEffect: 'READ_ONLY', persistentMutation: false,
@@ -207,6 +288,7 @@ export const createDefaultCapabilityRegistry = (
     id: 'supervisor.read', responsibility: 'Consolidar o estado operacional do sistema.',
     inputs: [], outputs: ['operational status'], availability: 'available',
     dependencies: [], access: 'read', sideEffect: 'READ_ONLY', persistentMutation: false,
+    capabilityTags: ['supervision', 'data-quality'],
   }, async () => {
     const overview = await dependencies.supervisor.getSupervisorOverview();
     return {
@@ -219,7 +301,17 @@ export const createDefaultCapabilityRegistry = (
       risks: [...overview.editorial.risks, ...(overview.alerts ?? [])],
       recommendations: overview.editorial.actions,
       confidence: overview.youtubeReach?.quality?.state === 'GOOD' ? 1 : 0.7,
-      data: { youtubeAnalytics: overview.youtubeAnalytics.state, youtubeReach: overview.youtubeReach?.state ?? 'unavailable', dataQuality: overview.dataQuality ?? [], outcomeReviews: overview.outcomeReviews },
+      data: {
+        youtubeAnalytics: overview.youtubeAnalytics.state,
+        youtubeReach: overview.youtubeReach?.state ?? 'unavailable',
+        dataQuality: overview.dataQuality ?? [],
+        outcomeReviews: overview.outcomeReviews,
+        sampleSize: overview.channelOperators?.reduce((sum, item) => sum + item.sampleSize, 0) ?? 0,
+        quality: {
+          state: (overview.dataQuality ?? []).some(({ state }) => ['ERROR', 'MISSING'].includes(state)) ? 'PARTIAL' : 'GOOD',
+          freshness: overview.youtubeReach?.quality?.freshness ?? 'MISSING',
+        },
+      },
     };
   });
 
@@ -227,6 +319,7 @@ export const createDefaultCapabilityRegistry = (
     id: 'library.read', responsibility: 'Consultar artefatos persistidos da Biblioteca.',
     inputs: [], outputs: ['library item summaries'], availability: 'available',
     dependencies: [], access: 'read', sideEffect: 'READ_ONLY', persistentMutation: false,
+    capabilityTags: ['shared-memory'],
   }, async () => {
     const items = await dependencies.library.listItems();
     return {
@@ -256,6 +349,7 @@ export const createDefaultCapabilityRegistry = (
     id: 'planner.respond', responsibility: 'Transformar contexto consolidado em resposta editorial legível.',
     inputs: ['capability outputs'], outputs: ['consolidated response'], availability: 'available',
     dependencies: [], access: 'read', sideEffect: 'READ_ONLY', persistentMutation: false,
+    capabilityTags: ['response'],
   }, async ({ results }) => {
     const synthetic = previousOutputs(results).map((output, index): OrchestrationStepResult => ({
       stepId: `input-${index}`, capabilityId: 'input', status: 'completed', durationMs: 0, output,

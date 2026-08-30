@@ -1165,4 +1165,32 @@ Limites preservados:
 - dados ausentes permanecem explícitos e podem produzir `INSUFFICIENT_DATA`;
 - nenhuma nova integração externa, scraping, automação recorrente ou redesign foi introduzido.
 
-Próximo checkpoint: **SPRINT 36 — NÃO INICIADA**.
+## Sprint 36 — Gerente / Orquestrador Autônomo — CONCLUÍDA
+
+**Objetivo:** permitir que o criador faça perguntas naturais ao Gerente e receba uma resposta multidisciplinar rastreável, sem conhecer operadores internos.
+
+Entregas:
+
+- intents estruturados para diagnóstico, decisão, comparação, séries, formatos, CTR, retenção, tendências, audiência, tráfego, planejamento, oportunidades e riscos;
+- interpretação, planejamento, execução e consolidação em fronteiras separadas;
+- `CapabilityRegistry` como Operator Registry descobrível por capability, com seleção focada, deduplicação e dependências explícitas;
+- composição com Performance, Analytics, Data Quality/Supervisor, CTR, Retention, Shorts, Long-form, Trends, Series, Audience, Traffic Sources, memória, Biblioteca e Editorial Decision Engine;
+- contexto seletivo com até cinco decisões anteriores relevantes e candidatos explícitos extraídos de comparações;
+- evidências classificadas como fato, inferência ou recomendação, conflitos preservados e confiança consolidada por disponibilidade, qualidade, freshness, amostra e lacunas;
+- falha parcial com resposta `DEGRADED` e ausência honesta com `INSUFFICIENT_DATA`;
+- histórico append-only reutilizando `OrchestrationExecution`; seu `id` é o correlation ID da consulta;
+- endpoints `/api/manager/query`, histórico, abertura e diagnóstico por execução;
+- Planner delegando perguntas editoriais multidisciplinares ao Gerente e permanecendo dono das mensagens;
+- Supervisor lendo operadores, conflitos, baixa confiança e insuficiência sem reconstruir análise;
+- workspace do Gerente com pergunta natural, loading, resposta, confiança, operadores, evidências, conflitos e dados ausentes;
+- 769 testes automatizados determinísticos, sem rede externa e sem alteração do `dev.db`.
+
+Limites preservados:
+
+- confiança mede cobertura da evidência, não probabilidade de sucesso;
+- não há previsão de views, scraping, publicação, alteração no YouTube ou side effect irreversível;
+- `EditorialDecisionService` continua dono do ranking e do `OpportunityScore`;
+- `PlanReview` permanece obrigatório segundo a política de risco existente;
+- a interpretação estrutural é determinística; nenhum provider de linguagem pode mudar fatos, evidências ou plano silenciosamente.
+
+Próximo checkpoint: **SPRINT 37 — NÃO INICIADA**.

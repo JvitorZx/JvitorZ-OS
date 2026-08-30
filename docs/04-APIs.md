@@ -817,6 +817,43 @@ O módulo Analytics usa exclusivamente `frontend/src/api/client.js`. Na montagem
 
 Após sucesso, o frontend consulta novamente os dados persistidos. Respostas não `2xx` são representadas por erro seguro com status HTTP, permitindo mensagens locais específicas para `400`, `401`, `404`, `429` e `503` sem expor resposta crua do provider.
 
+## Gerente autônomo
+
+As rotas abaixo aceitam linguagem natural, selecionam capabilities internas e nunca executam side effect externo irreversível. Erros não incluem stack, payload bruto, credencial, prompt completo ou detalhes Prisma.
+
+### `POST /api/manager/query`
+
+Body estrito:
+
+```json
+{
+  "message": "Por que meu canal caiu?",
+  "projectId": "project-1",
+  "conversationId": "conversation-1",
+  "requestId": "optional-idempotency-key"
+}
+```
+
+Somente `message` é obrigatório, com 1 a 1000 caracteres. IDs opcionais devem ser strings não vazias. `requestId` deduplica a mesma consulta sequencial ou concorrente.
+
+`200` retorna `correlationId`, `status`, `outcome`, `intent`, `answer`, `confidence`, `operatorsUsed`, `evidence`, `conflicts`, `missingData`, `decision` e `createdAt`. `confidence` mede cobertura/qualidade, não chance de sucesso. `outcome` é `ANSWERED`, `DEGRADED` ou `INSUFFICIENT_DATA`.
+
+- `400`: body, texto ou identificador inválido;
+- `409`: conflito seguro de idempotência ou revisão, quando aplicável;
+- `500`: falha interna sanitizada.
+
+### `GET /api/manager/history`
+
+Lista consultas autônomas mais recentes. Aceita `projectId`, `conversationId` e `limit` de 1 a 50. Preserva a ordem do backend. Retorna `200`, `400` ou `500` seguro.
+
+### `GET /api/manager/history/:id`
+
+Abre o resultado persistido pelo correlation ID. Retorna `200`, `400`, `404` ou `500` seguro.
+
+### `GET /api/manager/history/:id/diagnostics`
+
+Retorna correlation ID, intent, status, outcome, confiança, operadores, conflitos, dados ausentes e timestamps. Cada operador informa motivo, status, duração e tipo seguro de erro. Não retorna stack nem output bruto. Retorna `200`, `400`, `404` ou `500` seguro.
+
 ## Orchestrator
 
 Todas as rotas usam `/api/orchestrator`. Payloads rejeitam campos extras e respostas de erro não expõem stack, token, credencial ou output bruto de capability.

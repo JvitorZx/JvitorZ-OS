@@ -269,6 +269,20 @@ Memória estruturada e limitada de uma execução do Gerente.
 - `projectId` e `conversationId`: escopos opcionais; somente projeto possui relação Prisma nesta etapa;
 - timestamps permitem observar ordem e duração sem guardar logs sensíveis.
 
+Na Sprint 36, o mesmo modelo também persiste a consulta autônoma sem migration adicional:
+
+- `request.managerIntent`: intent estrutural do Gerente;
+- `request.context`: projeto, conversa, candidatos explícitos e limite de memória relevante;
+- `id`: correlation ID de ponta a ponta;
+- `result.operatorInvocations`: operador/capability, motivo, status, duração e tipo seguro de erro;
+- `result.evidenceItems`: fatos, inferências e recomendações com origem;
+- `result.conflicts`: sinais incompatíveis preservados e seu efeito;
+- `result.confidenceBasis`: disponibilidade, qualidade, freshness, amostra e penalidades;
+- `result.outcome`: `ANSWERED`, `DEGRADED` ou `INSUFFICIENT_DATA`;
+- `result.decision`: referência limitada à decisão criada pelo Decision Engine, quando aplicável.
+
+O registro é append-only no uso do Gerente. Histórico, abertura e diagnóstico leem esse snapshot; não sobrescrevem execuções anteriores. A persistência em JSON mantém compatibilidade com execuções das Sprints 25–35 e evita uma tabela paralela para a mesma unidade transacional.
+
 ```text
 Project 1 -> N OrchestrationExecution
 Conversation ID 0..1 -> N OrchestrationExecution (referência lógica)

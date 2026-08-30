@@ -373,6 +373,20 @@ Capabilities disponíveis: `performance.read`, `analytics.read`, `channel-operat
 
 O Planner continua dono de conversa e mensagem. Na composição real, perguntas editoriais usam o Gerente para consolidar contexto, mas o Planner persiste a resposta e o Creator Intelligence continua dono da decisão. O Supervisor somente informa estado operacional e nunca executa capabilities.
 
+## Autonomous Manager Orchestration
+
+A Sprint 36 evolui a foundation sem criar uma segunda engine. `ManagerOrchestratorService` interpreta a pergunta, cria contexto seletivo e entrega um request enriquecido ao `OrchestratorService`. `ManagerPlanner` converte o intent em capability tags; o `CapabilityRegistry` descobre somente operadores disponíveis, elimina repetições e mantém dependências reais.
+
+Intents suportados: `CHANNEL_DIAGNOSIS`, `CONTENT_DECISION`, `IDEA_COMPARISON`, `SERIES_ANALYSIS`, `SHORTS_ANALYSIS`, `LONGFORM_ANALYSIS`, `CTR_ANALYSIS`, `RETENTION_ANALYSIS`, `TREND_ANALYSIS`, `AUDIENCE_ANALYSIS`, `TRAFFIC_ANALYSIS`, `PLANNING`, `OPPORTUNITY_DISCOVERY`, `RISK_ANALYSIS`, `GENERAL_CREATOR_QUESTION` e `UNKNOWN`.
+
+As capability tags incluem performance, analytics, data quality, CTR, retention, long-form, Shorts, trends, series, audience, traffic sources, decision memory, shared memory, editorial decision, supervision e response. Um plano focado não executa todos os operadores. `EditorialDecisionService` continua sendo a única implementação de ranking e oportunidade; o Gerente apenas o invoca.
+
+`EvidenceConsolidator` mantém fato, inferência e recomendação separados. Conflitos conhecidos, como CTR forte com retenção fraca ou tendência agregada em queda com série saudável, permanecem explícitos e reduzem confiança; nenhum lado é descartado arbitrariamente. Confiança consolidada combina disponibilidade, qualidade, freshness, amostra, conflitos e dados ausentes. Ela não representa chance de sucesso.
+
+Falhas de capabilities são sanitizadas. Operadores independentes continuam, o resultado passa a `DEGRADED` e a disponibilidade reduz a confiança. Sem evidência útil, a saída é `INSUFFICIENT_DATA`; nenhum conteúdo ausente é fabricado. `OrchestrationExecution.id` funciona como correlation ID, e request, contexto, plano, invocações, evidências, conflitos, resposta e confiança ficam no histórico append-only já existente.
+
+O Planner usa essa fronteira somente em perguntas editoriais e persiste a mensagem final. O Supervisor lê resumos de execuções recentes, operadores, conflitos, baixa confiança e insuficiência. A UI do Gerente mantém o fluxo autônomo separado do painel de operações controladas; side effects continuam passando por preview, política de risco e `PlanReview`.
+
 ## Operational Plan Review & Approval
 
 A execução controlada segue `Intent → Plan → Risk Classification → Review → Approval/Rejection → Execution → Audit`. `PlanReviewService` aplica política determinística, persiste review, snapshot/hash do plano aprovado e trilha append-only. `OrchestratorService` continua responsável pelo plano e pelas capabilities, mas o execution guard impede execução rejeitada, expirada, desatualizada ou concorrente. Antes de executar, o plano também é reconstruído com o registro atual; mudança ou remoção de capability expira a aprovação anterior.

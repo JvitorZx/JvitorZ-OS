@@ -29,6 +29,21 @@ const createDom = () => {
   panel.querySelector('[data-manager-sync-end]').value = '2026-08-25';
   return { root, get: (selector) => panel.querySelector(selector) };
 };
+const createQueryDom = () => {
+  const dom = createDom();
+  const panel = dom.root.querySelector('.manager-panel');
+  for (const selector of ['[data-manager-query-form]', '[data-manager-question]', '[data-manager-query]']) {
+    panel.map.set(selector, new FakeElement());
+  }
+  return dom;
+};
+const managerAnswer = {
+  correlationId: 'manager-1', status: 'completed', outcome: 'ANSWERED', intent: 'CHANNEL_DIAGNOSIS',
+  answer: '<script>alert(1)</script>', confidence: 0.72,
+  operatorsUsed: [{ operatorId: 'analytics' }, { operatorId: 'trends' }],
+  evidence: [{ classification: 'fact', summary: '<b>Fato real</b>' }],
+  conflicts: [{ summary: 'CTR forte e retenção fraca.' }], missingData: ['amostra longa'], decision: null,
+};
 const result = {
   status: 'completed', interpretation: 'Objetivo', response: '<img src=x onerror=alert(1)>',
   capabilities: ['performance.read', 'planner.respond'],
@@ -197,4 +212,79 @@ test('central API client uses exact orchestrator contracts and validates executi
     'http://localhost:3000/api/orchestrator/executions/execution-1/audit',
   ]);
   await assert.rejects(() => api.getOrchestrationExecution(''), TypeError);
+});
+
+test('manager autonomous form is present without removing controlled PlanReview', () => {
+  const markup = managerModule.render();
+  assert.match(markup, /data-manager-query-form/); assert.match(markup, /data-manager-form/);
+  assert.match(markup, /Planejar operação controlada/);
+});
+
+test('manager query runs once, renders evidence safely and refreshes real history', async () => {
+  let calls = 0; let historyCalls = 0;
+  const api = {
+    queryManager: async (input) => { calls += 1; assert.deepEqual(input, { message: 'Por que meu canal caiu?' }); return managerAnswer; },
+    listManagerHistory: async () => { historyCalls += 1; return []; },
+  };
+  const dom = createQueryDom(); const controller = createManagerController({ api }); controller.mount(dom.root); await flush();
+  dom.get('[data-manager-question]').value = 'Por que meu canal caiu?';
+  await dom.get('[data-manager-query-form]').dispatch('submit');
+  const content = dom.get('[data-manager-result]').children[0];
+  assert.equal(calls, 1); assert.equal(historyCalls, 2);
+  assert.equal(content.children[1].textContent, '<script>alert(1)</script>');
+  assert.equal(content.children[1].children.length, 0);
+  assert.equal(content.children.some?.((item) => item.textContent === '<b>Fato real</b>') ?? false, false);
+});
+
+test('manager blocks duplicate autonomous queries while pending', async () => {
+  const pending = deferred(); let calls = 0;
+  const api = { queryManager: async () => { calls += 1; return pending.promise; }, listManagerHistory: async () => [] };
+  const dom = createQueryDom(); createManagerController({ api }).mount(dom.root); await flush();
+  dom.get('[data-manager-question]').value = 'Status do canal';
+  const first = dom.get('[data-manager-query-form]').dispatch('submit');
+  const second = dom.get('[data-manager-query-form]').dispatch('submit');
+  await flush(); assert.equal(calls, 1); assert.equal(dom.get('[data-manager-query]').disabled, true);
+  pending.resolve(managerAnswer); await Promise.all([first, second]);
+});
+
+test('manager renders degraded state in local feedback without statePanel', async () => {
+  const api = { queryManager: async () => ({ ...managerAnswer, status: 'partial', outcome: 'DEGRADED' }), listManagerHistory: async () => [] };
+  const dom = createQueryDom(); createManagerController({ api }).mount(dom.root); await flush();
+  dom.get('[data-manager-question]').value = 'Diagnóstico'; await dom.get('[data-manager-query-form]').dispatch('submit');
+  assert.match(dom.get('[data-manager-feedback]').textContent, /degradado/);
+  assert.doesNotMatch(dom.get('[data-manager-feedback]').textContent, /stack|payload|statePanel/i);
+});
+
+test('late autonomous response after unmount cannot alter detached UI', async () => {
+  const pending = deferred();
+  const api = { queryManager: async () => pending.promise, listManagerHistory: async () => [] };
+  const dom = createQueryDom(); const controller = createManagerController({ api }); controller.mount(dom.root); await flush();
+  dom.get('[data-manager-question]').value = 'Status';
+  const request = dom.get('[data-manager-query-form]').dispatch('submit'); controller.unmount();
+  pending.resolve(managerAnswer); await request;
+  assert.equal(dom.get('[data-manager-result]').children.length, 0);
+});
+
+test('manager autonomous lifecycle keeps one submit listener across repeated mount', async () => {
+  let calls = 0;
+  const api = { queryManager: async () => { calls += 1; return managerAnswer; }, listManagerHistory: async () => [] };
+  const dom = createQueryDom(); const controller = createManagerController({ api });
+  controller.mount(dom.root); controller.mount(dom.root); await flush();
+  dom.get('[data-manager-question]').value = 'Status'; await dom.get('[data-manager-query-form]').dispatch('submit');
+  assert.equal(calls, 1); assert.equal(dom.get('[data-manager-query-form]').listeners.get('submit').length, 1);
+});
+
+test('central API client exposes manager query, history and diagnostics contracts', async () => {
+  const calls = [];
+  globalThis.fetch = async (url, options = {}) => { calls.push([String(url), options]); return { ok: true, status: 200, async json() { return {}; } }; };
+  const api = createApiClient('http://localhost:3000');
+  await api.queryManager({ message: 'status' }); await api.listManagerHistory({ limit: 5 });
+  await api.getManagerHistory('manager-1'); await api.getManagerDiagnostics('manager-1');
+  assert.deepEqual(calls.map(([url]) => url), [
+    'http://localhost:3000/api/manager/query',
+    'http://localhost:3000/api/manager/history?limit=5',
+    'http://localhost:3000/api/manager/history/manager-1',
+    'http://localhost:3000/api/manager/history/manager-1/diagnostics',
+  ]);
+  await assert.rejects(() => api.getManagerHistory(''), TypeError);
 });

@@ -31,6 +31,7 @@ import { DecisionOutcomeService } from '../services/creator-intelligence/Decisio
 import { OutcomeRefreshService } from '../services/creator-intelligence/OutcomeRefreshService';
 import { createCreatorIntelligenceRouter } from './creatorIntelligence';
 import { OrchestratorService } from '../services/orchestration/OrchestratorService';
+import { ManagerOrchestratorService } from '../services/orchestration/ManagerOrchestratorService';
 
 const createDefaultPlannerService = (
   creatorIntelligenceService: CreatorIntelligenceService,
@@ -46,6 +47,7 @@ const createDefaultPlannerService = (
     conversationLibraryService,
     editorialDecisionService,
     orchestratorService,
+    new ManagerOrchestratorService(orchestratorService),
   );
 
 const toLibraryItemResponse = ({

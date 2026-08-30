@@ -21,6 +21,7 @@ import {
   parseEditorialDecisionArrays,
 } from './creator-intelligence/EditorialDecisionService';
 import type { OrchestratorService } from './orchestration/OrchestratorService';
+import type { ManagerOrchestratorService } from './orchestration/ManagerOrchestratorService';
 
 export interface CreateConversationInput {
   title?: string;
@@ -91,6 +92,7 @@ export class PlannerService {
   private readonly conversationLibraryService?: ConversationLibraryService;
   private readonly editorialDecisionService?: EditorialDecisionService;
   private readonly orchestrator?: Pick<OrchestratorService, 'run'>;
+  private readonly manager?: Pick<ManagerOrchestratorService, 'query'>;
 
   constructor(
     conversationRepository?: ConversationRepository,
@@ -100,6 +102,7 @@ export class PlannerService {
     conversationLibraryService?: ConversationLibraryService,
     editorialDecisionService?: EditorialDecisionService,
     orchestrator?: Pick<OrchestratorService, 'run'>,
+    manager?: Pick<ManagerOrchestratorService, 'query'>,
   ) {
     this.conversationRepository = conversationRepository;
     this.messageRepository = messageRepository;
@@ -108,6 +111,7 @@ export class PlannerService {
     this.conversationLibraryService = conversationLibraryService;
     this.editorialDecisionService = editorialDecisionService;
     this.orchestrator = orchestrator;
+    this.manager = manager;
   }
 
   private get repository(): ConversationRepository {
@@ -195,6 +199,30 @@ export class PlannerService {
     const latestUserMessage = [...conversation.messages]
       .reverse()
       .find(({ sender }) => sender === 'user');
+    if (latestUserMessage && this.manager && isEditorialQuestion(latestUserMessage.text)) {
+      const orchestration = await this.manager.query({
+        message: latestUserMessage.text,
+        projectId: conversation.projectId,
+        conversationId: conversation.id,
+      });
+      const message = await this.messages.create({
+        conversationId: conversation.id,
+        sender: 'operator',
+        text: orchestration.answer,
+      });
+      const decisionId = typeof orchestration.decision?.decisionId === 'string'
+        ? orchestration.decision.decisionId : null;
+      const decision = decisionId && this.editorialDecisionService
+        ? await this.editorialDecisionService.getById(decisionId)
+        : null;
+      if (decision && !decision.operatorMessageId) {
+        await this.editorialDecisionService?.attachOperatorMessage(decision.id, message.id);
+      }
+      return Object.assign(message, {
+        ...(decision ? { editorialDecision: decision } : {}),
+        orchestrationExecutionId: orchestration.correlationId,
+      });
+    }
     if (latestUserMessage && this.orchestrator && isEditorialQuestion(latestUserMessage.text)) {
       const orchestration = await this.orchestrator.run({
         intent: latestUserMessage.text,

@@ -453,6 +453,35 @@ confirmação do usuário
 ```
 
 Não existe execução recorrente, polling ou chamada externa implícita.
+
+## Autonomous Manager — Sprint 36
+
+```text
+Pergunta natural
+  -> POST /api/manager/query
+  -> ManagerIntentInterpreter
+     -> ManagerIntent + OrchestrationContext seletivo
+  -> ManagerPlanner
+     -> capability tags
+  -> CapabilityRegistry
+     -> operadores necessários + dependências, sem duplicação
+  -> OrchestratorService
+     -> outputs classificados e falhas sanitizadas
+  -> EvidenceConsolidator
+     -> fatos / inferências / recomendações
+     -> conflitos preservados
+     -> confiança por qualidade, freshness, amostra e disponibilidade
+  -> OrchestrationExecution append-only
+  -> resposta ANSWERED, DEGRADED ou INSUFFICIENT_DATA
+```
+
+Perguntas focadas usam somente especialistas relevantes. Diagnóstico de canal pode combinar Data Quality, Performance, Analytics, Trends, Traffic Sources, Shorts e Long-form. Comparações usam Series, Trends, Long-form, memória de decisões e `EditorialDecisionService`; o Gerente não recalcula `OpportunityScore`.
+
+O contexto carrega apenas projeto, conversa, candidatos explícitos e até cinco decisões anteriores relevantes. Biblioteca entra somente em planejamento. Dados completos do banco não são despejados no request.
+
+Planner → `ManagerOrchestratorService.query` → operadores → resposta consolidada → Planner persiste a mensagem `operator`. Supervisor → histórico do Gerente → contagens de degraded, baixa confiança, insuficiência, conflitos e operadores; ele não executa nem reconstrói a análise.
+
+Falha de um operador não apaga outputs válidos dos demais. O diagnóstico por correlation ID expõe operador, motivo da seleção, status, duração e tipo seguro de erro, sem stack ou payload bruto. Operações externas permanecem fora de `/api/manager/query` e continuam protegidas pelo fluxo de PlanReview.
 ## Controlled Automation Runner
 
 ```text

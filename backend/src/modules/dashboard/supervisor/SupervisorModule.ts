@@ -19,6 +19,8 @@ import {
   type YouTubeReachStatus,
 } from '../../../services/performance-intelligence/YouTubeReachSyncService';
 import { AudienceIntelligenceService } from '../../../services/audience/AudienceIntelligenceService';
+import { OrchestrationExecutionRepository } from '../../../database/repositories/OrchestrationExecutionRepository';
+import type { OrchestrationRequest, OrchestrationResult } from '../../../domains/orchestration';
 
 const operatorSummary = (operator: { id: string; status: string; missingData: string[]; sampleSize: number }): string => {
   if (operator.status === 'AVAILABLE') {
@@ -43,6 +45,7 @@ export class SupervisorModule {
     private readonly channelOperatorService = new ChannelOperatorService(),
     private readonly youtubeReachService: Pick<YouTubeReachSyncService, 'getStatus'> = youtubeReachSyncService,
     private readonly audienceIntelligence: Pick<AudienceIntelligenceService, 'summary'> = new AudienceIntelligenceService(),
+    private readonly orchestrationRepository = new OrchestrationExecutionRepository(DatabaseService.client),
   ) {}
 
   async getSupervisorOverview() {
@@ -119,6 +122,31 @@ export class SupervisorModule {
     } catch {
       // Plan review is an operational section and must not break the Dashboard.
     }
+    let managerOrchestration = {
+      recent: 0,
+      degraded: 0,
+      lowConfidence: 0,
+      insufficientData: 0,
+      conflicts: 0,
+      operators: [] as string[],
+    };
+    try {
+      const executions = (await this.orchestrationRepository.findRecent({ limit: 20 }))
+        .filter((execution) => Boolean((execution.request as unknown as OrchestrationRequest).managerIntent));
+      const results = executions.flatMap((execution) => execution.result
+        ? [execution.result as unknown as OrchestrationResult] : []);
+      managerOrchestration = {
+        recent: executions.length,
+        degraded: results.filter(({ status }) => status !== 'completed').length,
+        lowConfidence: results.filter(({ evidence }) => evidence.confidence < 0.5).length,
+        insufficientData: results.filter(({ outcome }) => outcome === 'INSUFFICIENT_DATA').length,
+        conflicts: results.reduce((sum, result) => sum + (result.conflicts?.length ?? 0), 0),
+        operators: [...new Set(results.flatMap((result) =>
+          (result.operatorInvocations ?? []).map(({ operatorId }) => operatorId)))].slice(0, 12),
+      };
+    } catch {
+      // Manager history is diagnostic and must not break the Supervisor.
+    }
     let automations = { total: 0, active: 0, paused: 0, blocked: 0, error: 0, due: 0 };
     try {
       automations = await this.automationRepository.getOperationalSummary();
@@ -180,6 +208,7 @@ export class SupervisorModule {
       },
       outcomeReviews,
       orchestrationReviews,
+      managerOrchestration,
       automations: { ...automations, running, runtime: automationRuntimeHealth, governance },
       channelOperators,
       temporalIntelligence: {

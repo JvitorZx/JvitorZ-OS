@@ -1,6 +1,6 @@
 import type {
   CapabilityAccess,
-  OrchestrationIntent,
+  LegacyOrchestrationIntent,
   OrchestrationPlan,
   OrchestrationRequest,
   OrchestrationStep,
@@ -11,7 +11,7 @@ const searchable = (value: string): string => value
   .replace(/[\u0300-\u036f]/g, '')
   .toLowerCase();
 
-export const classifyOrchestrationIntent = (value: string): OrchestrationIntent => {
+export const classifyOrchestrationIntent = (value: string): LegacyOrchestrationIntent => {
   const text = searchable(value);
   if (/sincron/.test(text) && /(youtube|outcome|revis)/.test(text)) return 'controlled_sync_review';
   if (/(ctr|click.through)/.test(text) && /retenc|ficando|assistem/.test(text)) return 'channel_content_health';
@@ -33,7 +33,7 @@ type StepTemplate = [string, string, string[], CapabilityAccess, boolean?];
 const effectForAccess = (access: CapabilityAccess) => access === 'read'
   ? 'READ_ONLY' as const : access === 'write' ? 'INTERNAL_WRITE' as const : 'EXTERNAL_READ' as const;
 
-const TEMPLATES: Record<OrchestrationIntent, { objective: string; steps: StepTemplate[] }> = {
+const TEMPLATES: Record<LegacyOrchestrationIntent, { objective: string; steps: StepTemplate[] }> = {
   next_content: {
     objective: 'Recomendar o próximo teste editorial com base em evidências internas.',
     steps: [

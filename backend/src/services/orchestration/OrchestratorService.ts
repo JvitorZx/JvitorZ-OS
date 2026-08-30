@@ -9,8 +9,16 @@ import type {
   OrchestrationStepResult,
 } from '../../domains/orchestration';
 import { CapabilityNotFoundError, CapabilityRegistry } from './CapabilityRegistry';
-import { composeOrchestrationResponse, consolidateEvidence } from './EvidenceConsolidator';
+import {
+  calculateConsolidatedConfidence,
+  composeOrchestrationResponse,
+  consolidateEvidence,
+  createEvidenceItems,
+  createOperatorInvocations,
+  detectOrchestrationConflicts,
+} from './EvidenceConsolidator';
 import { createOrchestrationPlan } from './IntentRouter';
+import { createManagerOrchestrationPlan } from './ManagerPlanner';
 import { createDefaultCapabilityRegistry } from './OrchestrationComposition';
 import {
   PlanReviewConflictError,
@@ -104,7 +112,9 @@ export class OrchestratorService {
   }
 
   private createPlan(request: OrchestrationRequest): OrchestrationPlan {
-    const plan = createOrchestrationPlan(request);
+    const plan = request.managerIntent
+      ? createManagerOrchestrationPlan(request as OrchestrationRequest & { managerIntent: NonNullable<OrchestrationRequest['managerIntent']> }, this.registry)
+      : createOrchestrationPlan(request);
     return {
       ...plan,
       steps: plan.steps.map((step) => ({
@@ -127,7 +137,7 @@ export class OrchestratorService {
     if (!this.planReviewService) throw new PlanReviewConflictError('Plan review is not configured');
     const request = normalizeRequest(input);
     const plan = this.createPlan(request);
-    if (plan.missingData.length > 0) {
+    if (!request.managerIntent && plan.missingData.length > 0) {
       throw new OrchestrationValidationError(`missing required data: ${plan.missingData.join(', ')}`);
     }
     return this.planReviewService.preview(request, plan);
@@ -162,7 +172,7 @@ export class OrchestratorService {
     created: boolean;
   }> {
     const plan = this.createPlan(request);
-    if (plan.missingData.length > 0) {
+    if (!request.managerIntent && plan.missingData.length > 0) {
       throw new OrchestrationValidationError(`missing required data: ${plan.missingData.join(', ')}`);
     }
     if (this.planReviewService) {
@@ -265,16 +275,43 @@ export class OrchestratorService {
     const steps = [...results.values()];
     const failures = steps.filter(({ status }) => status === 'failed');
     const completed = steps.filter(({ status }) => status === 'completed');
-    const evidence = consolidateEvidence(steps);
+    const evidenceSteps = request.managerIntent
+      ? steps.filter(({ capabilityId }) => capabilityId !== 'planner.respond')
+      : steps;
+    const baseEvidence = consolidateEvidence(evidenceSteps);
+    const conflicts = detectOrchestrationConflicts(evidenceSteps);
+    const evidenceWithPlanGaps = {
+      ...baseEvidence,
+      missingData: [...new Set([...baseEvidence.missingData, ...plan.missingData])].slice(0, 12),
+    };
+    const confidence = calculateConsolidatedConfidence(steps, evidenceWithPlanGaps, conflicts);
+    const evidence = { ...evidenceWithPlanGaps, confidence: confidence.confidence };
     const plannerResponse = steps.find(({ capabilityId }) => capabilityId === 'planner.respond')?.output?.summary;
     const status = failures.length === 0 ? 'completed' : completed.length > 0 ? 'partial' : 'failed';
+    const insufficient = evidence.facts.length === 0 && evidence.recommendations.length === 0
+      && evidence.missingData.length > 0;
+    const outcome = insufficient ? 'INSUFFICIENT_DATA' : status === 'completed' ? 'ANSWERED' : 'DEGRADED';
+    const baseResponse = insufficient
+      ? `INSUFFICIENT_DATA: ${evidence.missingData.join(', ')}.`
+      : plannerResponse ?? composeOrchestrationResponse(evidence);
+    const response = request.managerIntent && conflicts.length
+      ? `${baseResponse}\nConflito preservado: ${conflicts.map(({ summary }) => summary).join(' ')}`
+      : baseResponse;
+    const decisionData = steps.find(({ capabilityId }) => capabilityId === 'creator-intelligence.decide')?.output?.data;
     const result: OrchestrationResult = {
       status,
       interpretation: plan.objective,
-      response: plannerResponse ?? composeOrchestrationResponse(evidence),
+      response,
       capabilities: plan.capabilities,
       steps,
       evidence,
+      correlationId: execution.id,
+      outcome,
+      operatorInvocations: createOperatorInvocations(plan, steps),
+      evidenceItems: createEvidenceItems(evidenceSteps),
+      conflicts,
+      confidenceBasis: confidence.basis,
+      decision: decisionData ? { ...decisionData } : null,
     };
     execution = await this.executions.complete(execution.id, {
       status,
@@ -309,7 +346,7 @@ export class OrchestratorService {
       }
       throw error;
     }
-    if (plan.missingData.length > 0) {
+    if (!request.managerIntent && plan.missingData.length > 0) {
       await this.planReviewService.recordExecutionBlocked(
         execution.id,
         `Plan no longer has required data: ${plan.missingData.join(', ')}`,

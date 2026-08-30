@@ -198,6 +198,35 @@ export const createApiClient = (baseUrl) => ({
     );
   },
 
+  async queryManager(input) {
+    if (!input || typeof input !== 'object' || Array.isArray(input)) {
+      throw new TypeError('manager query input must be an object');
+    }
+    return requestJson(`${baseUrl}/api/manager/query`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(input),
+    }, 'Erro ao consultar o Gerente');
+  },
+
+  async listManagerHistory({ projectId, conversationId, limit = 10 } = {}) {
+    if (!Number.isInteger(limit) || limit < 1 || limit > 50) throw new TypeError('limit must be an integer from 1 to 50');
+    const query = new URLSearchParams({ limit: String(limit) });
+    if (projectId) query.set('projectId', requireIdentifier(projectId, 'projectId'));
+    if (conversationId) query.set('conversationId', requireIdentifier(conversationId, 'conversationId'));
+    return requestJson(`${baseUrl}/api/manager/history?${query}`, undefined, 'Erro ao carregar historico do Gerente');
+  },
+
+  async getManagerHistory(executionId) {
+    const id = requireIdentifier(executionId, 'executionId');
+    return requestJson(`${baseUrl}/api/manager/history/${encodeURIComponent(id)}`, undefined, 'Erro ao abrir consulta do Gerente');
+  },
+
+  async getManagerDiagnostics(executionId) {
+    const id = requireIdentifier(executionId, 'executionId');
+    return requestJson(`${baseUrl}/api/manager/history/${encodeURIComponent(id)}/diagnostics`, undefined, 'Erro ao abrir diagnostico do Gerente');
+  },
+
   async planOrchestration(input) {
     return requestJson(
       `${baseUrl}/api/orchestrator/plan`,

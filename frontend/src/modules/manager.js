@@ -11,10 +11,20 @@ const renderManager = () => {
   const period = syncPeriod();
   return createPanel({
     eyebrow: 'Gerente',
-    title: 'Revisão de planos operacionais',
+    title: 'Gerente do canal',
     className: 'manager-panel',
     body: html`
       <div class="manager-feedback" data-manager-feedback role="status" aria-live="polite" hidden></div>
+      <section class="manager-query" aria-labelledby="manager-query-title">
+        <h3 id="manager-query-title">Consultar o Gerente</h3>
+        <form class="manager-form" data-manager-query-form>
+          <label for="managerQuestion">Pergunta sobre o canal</label>
+          <textarea id="managerQuestion" data-manager-question rows="3" maxlength="1000" required></textarea>
+          <button class="button" type="submit" data-manager-query>Consultar</button>
+        </form>
+      </section>
+      <details class="manager-controlled-plan">
+        <summary>Planejar operação controlada</summary>
       <form class="manager-form" data-manager-form>
         <label for="managerIntent">Solicitação</label>
         <textarea id="managerIntent" data-manager-intent rows="3" maxlength="1000" required></textarea>
@@ -37,6 +47,7 @@ const renderManager = () => {
           <button class="button" type="button" data-manager-execute>Executar plano aprovado</button>
         </div>
       </section>
+      </details>
       <section class="manager-result" data-manager-result aria-live="polite"></section>
       <section class="manager-history" aria-labelledby="manager-history-title">
         <h3 id="manager-history-title">Execuções recentes</h3>
@@ -72,6 +83,9 @@ export const createManagerController = ({ api }) => {
     const token = ++generation;
     const current = () => mounted === panel && generation === token;
     const form = panel.querySelector('[data-manager-form]');
+    const queryForm = panel.querySelector('[data-manager-query-form]');
+    const question = panel.querySelector('[data-manager-question]');
+    const queryButton = panel.querySelector('[data-manager-query]');
     const intent = panel.querySelector('[data-manager-intent]');
     const previewButton = panel.querySelector('[data-manager-preview]');
     const syncConfirm = panel.querySelector('[data-manager-sync-confirm]');
@@ -101,7 +115,7 @@ export const createManagerController = ({ api }) => {
 
     const setBusy = (value) => {
       busy = value;
-      for (const button of [previewButton, approveButton, rejectButton, executeButton]) {
+      for (const button of [queryButton, previewButton, approveButton, rejectButton, executeButton].filter(Boolean)) {
         button.disabled = value;
         button.setAttribute('aria-busy', String(value));
       }
@@ -164,6 +178,31 @@ export const createManagerController = ({ api }) => {
       result.replaceChildren(article);
     };
 
+    const renderManagerAnswer = (answer) => {
+      const article = document.createElement('article');
+      article.className = 'manager-result-content';
+      article.append(
+        text('small', `Intenção: ${answer.intent}`),
+        text('p', answer.answer),
+        text('strong', `Confiança: ${Math.round(Number(answer.confidence ?? 0) * 100)}%`),
+        text('small', `Operadores: ${(answer.operatorsUsed ?? []).map(({ operatorId }) => operatorId).join(', ') || '--'}`),
+      );
+      for (const [title, items, value] of [
+        ['Evidências', answer.evidence, (item) => `${item.classification}: ${item.summary}`],
+        ['Conflitos', answer.conflicts, (item) => item.summary],
+        ['Dados ausentes', answer.missingData, (item) => item],
+      ]) {
+        if (!Array.isArray(items) || items.length === 0) continue;
+        const section = document.createElement('section');
+        section.append(text('h4', title));
+        const list = document.createElement('ul');
+        list.append(...items.map((item) => text('li', value(item))));
+        section.append(list);
+        article.append(section);
+      }
+      result.replaceChildren(article);
+    };
+
     const renderHistory = (executions) => {
       if (!Array.isArray(executions) || executions.length === 0) {
         history.replaceChildren(text('p', 'Nenhuma execução registrada.', 'performance-empty'));
@@ -172,7 +211,7 @@ export const createManagerController = ({ api }) => {
       history.replaceChildren(...executions.map((execution) => {
         const row = document.createElement('article');
         row.className = 'manager-history-item';
-        row.append(text('strong', execution.objective), text('span', execution.status),
+        row.append(text('strong', execution.answer ?? execution.objective), text('span', execution.outcome ?? execution.status),
           text('small', new Date(execution.createdAt).toLocaleString('pt-BR')));
         return row;
       }));
@@ -180,7 +219,9 @@ export const createManagerController = ({ api }) => {
 
     const loadHistory = async () => {
       try {
-        const executions = await api.listOrchestrationExecutions({ limit: 10 });
+        const executions = typeof api.listManagerHistory === 'function'
+          ? await api.listManagerHistory({ limit: 10 })
+          : await api.listOrchestrationExecutions({ limit: 10 });
         if (current()) renderHistory(executions);
       } catch {
         if (current()) setFeedback('Não foi possível carregar o histórico do Gerente.', 'error');
@@ -243,6 +284,28 @@ export const createManagerController = ({ api }) => {
       }
     };
 
+    const submitQuery = async (event) => {
+      event.preventDefault();
+      if (!question?.value.trim() || busy || typeof api.queryManager !== 'function') return;
+      setBusy(true);
+      setFeedback('Consultando operadores necessários...');
+      try {
+        const answer = await api.queryManager({ message: question.value.trim() });
+        if (!current()) return;
+        renderManagerAnswer(answer);
+        setFeedback(answer.outcome === 'DEGRADED'
+          ? 'Resposta concluída em modo degradado.'
+          : answer.outcome === 'INSUFFICIENT_DATA'
+            ? 'Ainda faltam dados para uma conclusão segura.'
+            : 'Consulta concluída.', answer.outcome === 'ANSWERED' ? 'success' : 'warning');
+        await loadHistory();
+      } catch {
+        if (current()) setFeedback('Não foi possível consultar o Gerente. Tente novamente.', 'error');
+      } finally {
+        if (current()) setBusy(false);
+      }
+    };
+
     async function decide(decision) {
       if (!activePreview || busy) return;
       if (decision === 'reject' && !reason.value.trim()) {
@@ -290,6 +353,7 @@ export const createManagerController = ({ api }) => {
     };
 
     form.addEventListener('submit', submit);
+    queryForm?.addEventListener('submit', submitQuery);
     approveButton.addEventListener('click', approve);
     rejectButton.addEventListener('click', reject);
     executeButton.addEventListener('click', execute);
@@ -297,6 +361,7 @@ export const createManagerController = ({ api }) => {
     loadAutomations();
     cleanup = () => {
       form.removeEventListener('submit', submit);
+      queryForm?.removeEventListener('submit', submitQuery);
       approveButton.removeEventListener('click', approve);
       rejectButton.removeEventListener('click', reject);
       executeButton.removeEventListener('click', execute);
@@ -319,7 +384,7 @@ export const managerModule = {
   id: 'manager',
   route: '/manager',
   pageTitle: 'Gerente',
-  pageEyebrow: 'Orquestracao controlada',
+  pageEyebrow: 'Orquestração autônoma e controlada',
   label: 'Gerente',
   fullscreen: true,
   render: renderManager,
