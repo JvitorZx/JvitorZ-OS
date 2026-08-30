@@ -240,3 +240,16 @@ Os testes de domínio e migration usam SQLite isolado. O `backend/prisma/dev.db`
 A migration `20260905100000_planning_execution_guidance` acrescenta guidance e timestamps operacionais a `PlannedContentItem` e cria `PlanningExecutionEvent`. A migration é aditiva: itens legados são mapeados de `IN_PROGRESS`, `PAUSED`, `COMPLETED` e `CANCELLED`; planos, prioridades, posições e evidências existentes são preservados.
 
 `PlanningExecutionRepository` executa a transição, a promoção da fila e os journals dentro de uma transação Prisma. O índice parcial `PlannedContentItem_one_in_progress_per_plan` impede duas execuções ativas no mesmo plano. Eventos usam `ON DELETE CASCADE` com plano/item e guardam o snapshot estratégico necessário para auditoria; não guardam segredo, credencial nem payload externo bruto.
+
+### Strategic Planning Outcomes
+
+A migration `20260906120000_strategic_planning_outcomes` é aditiva e cria `PlanningOutcomeLink`, `PlanningOutcome` e `PlanningOutcomeAuditEvent`. Ela não reescreve planos, execuções ou snapshots existentes.
+
+- chaves únicas opcionais garantem um vínculo ativo por item e por vídeo;
+- desvincular preserva a linha e zera somente as chaves ativas;
+- `(linkId, snapshotId)` torna a captura idempotente;
+- FKs para execução e snapshots usam `RESTRICT`, preservando evidência auditável;
+- projeto opcional usa `SET NULL`; plano/item mantêm o ciclo de vida existente;
+- auditoria registra somente IDs, classificação e metadados seguros.
+
+O serviço usa transações Prisma para corrigir vínculo, registrar auditoria e criar outcome. Métricas ausentes permanecem `null` no snapshot e não são inventadas no JSON do outcome.

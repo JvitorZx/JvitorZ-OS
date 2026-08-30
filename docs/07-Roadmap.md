@@ -1269,4 +1269,30 @@ Limites preservados:
 - conclusão e skip não apagam o item; o histórico e o contexto permanecem auditáveis;
 - o vínculo com o resultado real futuro foi preparado, mas não automatizado nesta Sprint.
 
-Próximo checkpoint: **SPRINT 40 — NÃO INICIADA**.
+## Sprint 40 — Feedback Loop: Plano → Execução → Resultado Real — CONCLUÍDA
+
+**Objetivo:** ligar uma recomendação executada a um vídeo real e responder o que foi observado depois, com referência auditável e sem prever performance ou declarar causalidade.
+
+Entregas:
+
+- domínio `StrategicOutcome` separado do ranker e do `StrategicPlanningService`;
+- vínculo explícito e corrigível entre item concluído, evento de execução e vídeo sincronizado;
+- `PlanningOutcomeLink`, `PlanningOutcome` e `PlanningOutcomeAuditEvent` com FKs, idempotência e histórico append-only;
+- snapshots persistidos por vídeo e janela de observação, usando somente métricas existentes em `VideoPerformanceSnapshot`;
+- comparação conservadora somente entre vídeos de mesmo formato, duração da janela e idade de publicação;
+- estados `AWAITING_DATA`, `INSUFFICIENT_DATA`, `BELOW_REFERENCE`, `WITHIN_REFERENCE`, `ABOVE_REFERENCE` e `INCONCLUSIVE`;
+- baseline por mediana, mínimo explícito de dois vídeos comparáveis e banda neutra documentada de 10%;
+- qualidade, freshness, confiança, limitações e dados ausentes preservados em cada avaliação;
+- API de candidatos, associação/desassociação, captura e consulta de outcomes;
+- área Resultados em `#/planning`, com percurso Planejado → Executado → Publicado → Resultado;
+- migration aditiva, testes SQLite isolados e regressão completa sem rede externa.
+
+Limites preservados:
+
+- nenhuma associação é inferida por título; o vínculo é uma decisão explícita do usuário;
+- snapshots e avaliações não alteram o vídeo nem publicam conteúdo;
+- comparação observada descreve desempenho relativo durante uma janela compatível, não causa;
+- dados sem formato, janela, idade de publicação ou referência suficiente retornam dados insuficientes;
+- outcomes não alteram automaticamente o ranker nem a estratégia atual.
+
+Próximo checkpoint: **SPRINT 41 — NÃO INICIADA**.

@@ -5,6 +5,13 @@ import {
   PlannedContentItemNotFoundError,
   StrategicPlanningService,
   StrategicPlanningValidationError,
+  StrategicOutcomeConflictError,
+  StrategicOutcomeItemNotFoundError,
+  StrategicOutcomeNotFoundError,
+  StrategicOutcomeNotReadyError,
+  StrategicOutcomeService,
+  StrategicOutcomeSnapshotNotFoundError,
+  StrategicOutcomeValidationError,
 } from '../services/strategic-planning';
 import type { PlanningConstraint } from '../domains/strategic-planning';
 
@@ -27,6 +34,12 @@ const sendError = (res: Parameters<Parameters<Router['get']>[1]>[1], error: unkn
     return res.status(404).json({ error: error.message });
   }
   if (error instanceof PlanningExecutionConflictError) return res.status(409).json({ error: error.message });
+  if (error instanceof StrategicOutcomeValidationError) return res.status(400).json({ error: error.message });
+  if (error instanceof StrategicOutcomeItemNotFoundError
+    || error instanceof StrategicOutcomeSnapshotNotFoundError
+    || error instanceof StrategicOutcomeNotFoundError) return res.status(404).json({ error: error.message });
+  if (error instanceof StrategicOutcomeConflictError) return res.status(409).json({ error: error.message });
+  if (error instanceof StrategicOutcomeNotReadyError) return res.status(422).json({ error: error.message });
   const name = error instanceof Error ? error.name : 'UnknownError';
   console.error(`Strategic planning request failed (${name})`);
   return res.status(500).json({ error: 'Strategic planning request failed' });
@@ -34,6 +47,7 @@ const sendError = (res: Parameters<Parameters<Router['get']>[1]>[1], error: unkn
 
 export const createPlanningRouter = (
   service: StrategicPlanningService = new StrategicPlanningService(),
+  outcomeService: StrategicOutcomeService = new StrategicOutcomeService(),
 ): Router => {
   const router = Router();
 
@@ -190,6 +204,59 @@ export const createPlanningRouter = (
         ...(req.query.limit ? { limit: Number(req.query.limit) } : {}),
       }));
     } catch (error) { return sendError(res, error); }
+  });
+
+  router.get('/items/:id/video-candidates', async (req, res) => {
+    const id = req.params.id?.trim();
+    if (!id || Object.keys(req.query).length > 0) return res.status(400).json({ error: 'invalid planning item id' });
+    try { return res.status(200).json(await outcomeService.listVideoCandidates(id)); }
+    catch (error) { return sendError(res, error); }
+  });
+
+  router.get('/items/:id/outcome', async (req, res) => {
+    const id = req.params.id?.trim();
+    if (!id || Object.keys(req.query).length > 0) return res.status(400).json({ error: 'invalid planning item id' });
+    try { return res.status(200).json(await outcomeService.getItemOutcome(id)); }
+    catch (error) { return sendError(res, error); }
+  });
+
+  router.post('/items/:id/outcome/video', async (req, res) => {
+    const id = req.params.id?.trim();
+    if (!id || !isObject(req.body) || !hasOnly(req.body, ['snapshotId', 'reason'])
+      || typeof req.body.snapshotId !== 'string' || !optionalText(req.body.reason)) {
+      return res.status(400).json({ error: 'invalid planning video link payload' });
+    }
+    try {
+      const result = await outcomeService.associateVideo(id, { snapshotId: req.body.snapshotId, reason: req.body.reason });
+      return res.status(result.created ? 201 : 200).json(result);
+    } catch (error) { return sendError(res, error); }
+  });
+
+  router.delete('/items/:id/outcome/video', async (req, res) => {
+    const id = req.params.id?.trim();
+    if (!id || !isObject(req.body) || !hasOnly(req.body, ['reason']) || typeof req.body.reason !== 'string') {
+      return res.status(400).json({ error: 'invalid planning video unlink payload' });
+    }
+    try { return res.status(200).json(await outcomeService.unlinkVideo(id, req.body.reason)); }
+    catch (error) { return sendError(res, error); }
+  });
+
+  router.post('/items/:id/outcomes', async (req, res) => {
+    const id = req.params.id?.trim();
+    if (!id || !isObject(req.body) || !hasOnly(req.body, ['snapshotId']) || !optionalText(req.body.snapshotId)) {
+      return res.status(400).json({ error: 'invalid planning outcome payload' });
+    }
+    try {
+      const result = await outcomeService.captureOutcome(id, req.body.snapshotId);
+      return res.status(result.created ? 201 : 200).json(result);
+    } catch (error) { return sendError(res, error); }
+  });
+
+  router.get('/outcomes/:id', async (req, res) => {
+    const id = req.params.id?.trim();
+    if (!id || Object.keys(req.query).length > 0) return res.status(400).json({ error: 'invalid planning outcome id' });
+    try { return res.status(200).json(await outcomeService.getOutcome(id)); }
+    catch (error) { return sendError(res, error); }
   });
 
   router.get('/:id', async (req, res) => {

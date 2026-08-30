@@ -346,3 +346,21 @@ VideoPerformanceSnapshot 1 ─── N VideoSeriesLink
 ```
 
 `TrendSignal.key` identifica uma derivação temporal sem alterar a evidência de origem. `VideoSeriesLink` possui unicidade por série e snapshot, registra modo de vínculo e pode ser removido sem remover vídeo ou série. `ContentPattern.key` torna a associação derivada atualizável e mantém amostra, recência e evidências explícitas.
+
+## Strategic Planning Outcomes
+
+```text
+ContentPlan 1 --- N PlanningOutcomeLink
+PlannedContentItem 1 --- N PlanningOutcomeLink
+PlanningExecutionEvent 1 --- N PlanningOutcomeLink
+VideoPerformanceSnapshot 1 --- N PlanningOutcomeLink
+
+PlanningOutcomeLink 1 --- N PlanningOutcome
+VideoPerformanceSnapshot 1 --- N PlanningOutcome
+PlanningExecutionEvent 1 --- N PlanningOutcome
+
+ContentPlan 1 --- N PlanningOutcomeAuditEvent
+PlannedContentItem 1 --- N PlanningOutcomeAuditEvent
+```
+
+`PlanningOutcomeLink.activeItemKey` e `activeVideoKey` são únicos e opcionais: existem somente no vínculo atual. Remoção/correção mantém a linha histórica. `PlanningOutcome` usa `unique(linkId, snapshotId)`; janelas diferentes geram snapshots distintos. A auditoria é append-only. Essa estrutura registra comparação observada, não causalidade.

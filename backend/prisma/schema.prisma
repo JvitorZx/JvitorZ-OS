@@ -39,6 +39,8 @@ model Project {
   orchestrationExecutions OrchestrationExecution[]
   researchHistories ResearchHistory[]
   contentPlans     ContentPlan[]
+  planningOutcomeLinks PlanningOutcomeLink[]
+  planningOutcomes PlanningOutcome[]
   createdAt        DateTime           @default(now())
   updatedAt        DateTime           @updatedAt
 }
@@ -360,6 +362,8 @@ model VideoPerformanceSnapshot {
   decisionOutcomeSnapshots   EditorialDecisionOutcome[]
   outcomeReviewPreviousSnapshots EditorialDecisionOutcomeReview[] @relation("OutcomeReviewPreviousSnapshot")
   outcomeReviewCurrentSnapshots  EditorialDecisionOutcomeReview[] @relation("OutcomeReviewCurrentSnapshot")
+  planningOutcomeLinks           PlanningOutcomeLink[]             @relation("PlanningOutcomeLinkSource")
+  planningOutcomes               PlanningOutcome[]                 @relation("PlanningOutcomeSnapshot")
   seriesLinks                    VideoSeriesLink[]
   createdAt                  DateTime           @default(now())
   updatedAt                  DateTime           @updatedAt
@@ -530,6 +534,9 @@ model ContentPlan {
   items       PlannedContentItem[]
   history     PlanningHistory[]
   executionHistory PlanningExecutionEvent[]
+  outcomeLinks PlanningOutcomeLink[]
+  outcomes PlanningOutcome[]
+  outcomeAuditEvents PlanningOutcomeAuditEvent[]
   createdAt   DateTime             @default(now())
   updatedAt   DateTime             @updatedAt
 
@@ -575,6 +582,9 @@ model PlannedContentItem {
   completedAt                 DateTime?
   history                     PlanningHistory[]
   executionHistory            PlanningExecutionEvent[]
+  outcomeLinks                 PlanningOutcomeLink[]
+  outcomes                     PlanningOutcome[]
+  outcomeAuditEvents           PlanningOutcomeAuditEvent[]
   createdAt                   DateTime              @default(now())
   updatedAt                   DateTime              @updatedAt
 
@@ -617,10 +627,104 @@ model PlanningExecutionEvent {
   confidence       Float?
   strategicContext Json
   createdAt        DateTime           @default(now())
+  outcomeLinks     PlanningOutcomeLink[]
+  outcomes         PlanningOutcome[]
 
   @@index([planId, createdAt])
   @@index([itemId, createdAt])
   @@index([state, createdAt])
+}
+
+model PlanningOutcomeLink {
+  id               String                   @id @default(cuid())
+  projectId        String?
+  project          Project?                 @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  planId           String
+  plan             ContentPlan              @relation(fields: [planId], references: [id], onDelete: Cascade)
+  itemId           String
+  item             PlannedContentItem       @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  executionEventId String
+  executionEvent   PlanningExecutionEvent   @relation(fields: [executionEventId], references: [id], onDelete: Restrict)
+  sourceSnapshotId String
+  sourceSnapshot   VideoPerformanceSnapshot @relation("PlanningOutcomeLinkSource", fields: [sourceSnapshotId], references: [id], onDelete: Restrict)
+  videoId          String
+  videoTitle       String
+  publishedAt      DateTime?
+  activeItemKey    String?                  @unique
+  activeVideoKey   String?                  @unique
+  linkedAt         DateTime                 @default(now())
+  unlinkedAt       DateTime?
+  unlinkReason     String?
+  outcomes         PlanningOutcome[]
+  auditEvents      PlanningOutcomeAuditEvent[]
+
+  @@index([planId, linkedAt])
+  @@index([itemId, linkedAt])
+  @@index([videoId, linkedAt])
+  @@index([executionEventId])
+  @@index([sourceSnapshotId])
+}
+
+model PlanningOutcome {
+  id               String                   @id @default(cuid())
+  projectId        String?
+  project          Project?                 @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  planId           String
+  plan             ContentPlan              @relation(fields: [planId], references: [id], onDelete: Cascade)
+  itemId           String
+  item             PlannedContentItem       @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  executionEventId String
+  executionEvent   PlanningExecutionEvent   @relation(fields: [executionEventId], references: [id], onDelete: Restrict)
+  linkId           String
+  link             PlanningOutcomeLink      @relation(fields: [linkId], references: [id], onDelete: Cascade)
+  snapshotId       String
+  snapshot         VideoPerformanceSnapshot @relation("PlanningOutcomeSnapshot", fields: [snapshotId], references: [id], onDelete: Restrict)
+  videoId          String
+  observedAt       DateTime
+  windowStart      DateTime?
+  windowEnd        DateTime?
+  freshness        String
+  dataQuality      String
+  metrics          Json
+  benchmark        Json
+  comparison       Json
+  evidence         Json
+  classification   String
+  confidence       Float
+  limitations      Json
+  missingData      Json
+  evaluatedAt      DateTime                 @default(now())
+  updatedAt        DateTime                 @updatedAt
+  auditEvents      PlanningOutcomeAuditEvent[]
+
+  @@unique([linkId, snapshotId])
+  @@index([planId, evaluatedAt])
+  @@index([itemId, evaluatedAt])
+  @@index([videoId, observedAt])
+  @@index([snapshotId])
+  @@index([classification, evaluatedAt])
+}
+
+model PlanningOutcomeAuditEvent {
+  id        String               @id @default(cuid())
+  planId    String
+  plan      ContentPlan          @relation(fields: [planId], references: [id], onDelete: Cascade)
+  itemId    String
+  item      PlannedContentItem   @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  linkId    String?
+  link      PlanningOutcomeLink? @relation(fields: [linkId], references: [id], onDelete: SetNull)
+  outcomeId String?
+  outcome   PlanningOutcome?     @relation(fields: [outcomeId], references: [id], onDelete: SetNull)
+  event     String
+  reason    String?
+  data      Json
+  createdAt DateTime             @default(now())
+
+  @@index([planId, createdAt])
+  @@index([itemId, createdAt])
+  @@index([linkId, createdAt])
+  @@index([outcomeId, createdAt])
+  @@index([event, createdAt])
 }
 
 model VideoReachSnapshot {

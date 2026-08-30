@@ -317,6 +317,46 @@ export const createApiClient = (baseUrl) => ({
     return requestJson(`${baseUrl}/api/planning/execution-history${params.size ? `?${params}` : ''}`, undefined, 'Erro ao carregar historico de execucao');
   },
 
+  async listPlanningVideoCandidates(itemId) {
+    const id = requireIdentifier(itemId, 'itemId');
+    return requestJson(`${baseUrl}/api/planning/items/${encodeURIComponent(id)}/video-candidates`, undefined, 'Erro ao carregar videos candidatos');
+  },
+
+  async getPlanningItemOutcome(itemId) {
+    const id = requireIdentifier(itemId, 'itemId');
+    return requestJson(`${baseUrl}/api/planning/items/${encodeURIComponent(id)}/outcome`, undefined, 'Erro ao carregar resultado do planejamento');
+  },
+
+  async associatePlanningVideo(itemId, input) {
+    const id = requireIdentifier(itemId, 'itemId');
+    if (!input || typeof input !== 'object' || Array.isArray(input)) throw new TypeError('planning video link input must be an object');
+    return requestJson(`${baseUrl}/api/planning/items/${encodeURIComponent(id)}/outcome/video`, {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(input),
+    }, 'Erro ao associar video ao planejamento');
+  },
+
+  async unlinkPlanningVideo(itemId, reason) {
+    const id = requireIdentifier(itemId, 'itemId');
+    const normalizedReason = String(reason ?? '').trim();
+    if (!normalizedReason) throw new TypeError('reason must be a non-empty string');
+    return requestJson(`${baseUrl}/api/planning/items/${encodeURIComponent(id)}/outcome/video`, {
+      method: 'DELETE', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ reason: normalizedReason }),
+    }, 'Erro ao remover associacao do video');
+  },
+
+  async capturePlanningOutcome(itemId, snapshotId) {
+    const id = requireIdentifier(itemId, 'itemId');
+    const body = snapshotId === undefined ? {} : { snapshotId: requireIdentifier(snapshotId, 'snapshotId') };
+    return requestJson(`${baseUrl}/api/planning/items/${encodeURIComponent(id)}/outcomes`, {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body),
+    }, 'Erro ao avaliar resultado do planejamento');
+  },
+
+  async getPlanningOutcome(outcomeId) {
+    const id = requireIdentifier(outcomeId, 'outcomeId');
+    return requestJson(`${baseUrl}/api/planning/outcomes/${encodeURIComponent(id)}`, undefined, 'Erro ao abrir resultado do planejamento');
+  },
+
   async planOrchestration(input) {
     return requestJson(
       `${baseUrl}/api/orchestrator/plan`,

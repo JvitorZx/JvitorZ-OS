@@ -101,4 +101,11 @@ export class PlanningExecutionRepository {
       take: filters.limit ?? 100,
     });
   }
+
+  async findLatestCompleted(itemId: string): Promise<PlanningExecutionEvent | null> {
+    return this.client.planningExecutionEvent.findFirst({
+      where: { itemId, state: 'completed' },
+      orderBy: [{ createdAt: 'desc' }, { id: 'asc' }],
+    });
+  }
 }

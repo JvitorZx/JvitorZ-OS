@@ -719,3 +719,27 @@ O evento congela título, ação, motivo, confiança, evidências, riscos, dados
 Respostas tardias continuam protegidas pelo token de montagem/request do controller. A UI não calcula guidance nem promove itens por conta própria: aplica o plano persistido retornado pela API. O ciclo termina no registro interno da execução; publicação e resultado real futuro permanecem fora do fluxo atual.
 
 O Planner consulta somente o resumo do plano atual; o Gerente usa a capability registrada e pode solicitar geração quando não há plano; o Supervisor lê contagens e alertas de baixa confiança, excesso de experimentos, stale data, bloqueios e conflitos. A interpretação e o ranking permanecem no backend.
+
+## Feedback de resultado do planejamento — Sprint 40
+
+```text
+PlannedContentItem completed
+  -> PlanningExecutionEvent completed
+  -> seleção explícita de VideoPerformanceSnapshot
+  -> StrategicOutcomeService
+     -> PlanningOutcomeRepository (transação)
+        -> PlanningOutcomeLink ativo + PlanningOutcomeAuditEvent
+  -> captura de snapshot real do vídeo associado
+  -> StrategicOutcomeEvaluator
+     -> referências do mesmo projeto, formato, janela e idade de publicação
+     -> mediana + qualidade + freshness + limitações
+  -> PlanningOutcome persistido por link/snapshot
+  -> API client
+  -> Resultados em #/planning
+```
+
+O backend nunca relaciona item e vídeo por semelhança de título. Corrigir ou remover o vínculo zera somente as chaves ativas; registro anterior, outcomes e auditoria permanecem. Cada captura usa apenas métricas disponíveis no `VideoPerformanceSnapshot` e conserva a janela observada.
+
+Correlação observada significa que fatos ocorreram juntos; comparação de desempenho posiciona métricas frente a uma referência compatível; causalidade exigiria evidência experimental que este fluxo não produz. Outcomes não modificam o ranking nem prometem performance.
+
+No frontend, operações são single-flight e cada carga possui token de request/montagem. Troca de item ou unmount invalida respostas tardias. Conteúdo, evidências e títulos são inseridos como texto.

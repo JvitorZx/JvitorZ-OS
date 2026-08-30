@@ -439,3 +439,25 @@ SeriesDefinition 1 -> N PlannedContentItem
 ```
 
 Campos JSON preservam a evidência estruturada já produzida pelos domínios de origem; não guardam token, segredo ou payload externo bruto. Excluir referências opcionais usa `SET NULL`, enquanto excluir um plano remove somente seus itens e histórico em cascade.
+
+### PlanningOutcomeLink
+
+Vínculo explícito entre plano, item concluído, evento de execução e snapshot/vídeo real. `activeItemKey` e `activeVideoKey` são únicos enquanto o vínculo está ativo. Correções preenchem `unlinkedAt`/`unlinkReason` e preservam o registro histórico; a origem usa `ON DELETE RESTRICT`.
+
+### PlanningOutcome
+
+Observação estratégica idempotente por `(linkId, snapshotId)`. Guarda janela, momento observado, métricas reais, benchmark, comparações, evidências, classificação, confiança, freshness, qualidade, limitações e dados ausentes. Não guarda previsão nem conclusão causal.
+
+### PlanningOutcomeAuditEvent
+
+Journal append-only para `VIDEO_LINKED`, `VIDEO_RELINKED`, `VIDEO_UNLINKED` e `OUTCOME_CAPTURED`. Mantém plano/item, referências opcionais ao vínculo/outcome, razão e metadados operacionais seguros.
+
+```text
+ContentPlan 1 -> N PlanningOutcomeLink
+PlannedContentItem 1 -> N PlanningOutcomeLink
+PlanningExecutionEvent 1 -> N PlanningOutcomeLink
+VideoPerformanceSnapshot 1 -> N PlanningOutcomeLink
+PlanningOutcomeLink 1 -> N PlanningOutcome
+VideoPerformanceSnapshot 1 -> N PlanningOutcome
+ContentPlan/PlannedContentItem 1 -> N PlanningOutcomeAuditEvent
+```

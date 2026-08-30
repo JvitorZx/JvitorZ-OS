@@ -1481,6 +1481,17 @@ dd {
 .planning-detail-content ul { margin: 0; padding-left: 18px; }
 .planning-detail-content li + li { margin-top: 6px; }
 .planning-execution-history { margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--line); }
+.planning-outcomes { margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--line); }
+.planning-outcome-content { display: grid; gap: 18px; }
+.planning-outcome-content section { display: grid; gap: 8px; }
+.planning-outcome-content h4 { margin: 0; }
+.planning-outcome-content p { margin: 0; color: var(--muted); }
+.planning-outcome-timeline { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1px; margin: 0; padding: 0; list-style: none; }
+.planning-outcome-timeline li { padding: 9px 10px; border: 1px solid var(--line); color: var(--muted); font-size: 0.82rem; text-align: center; }
+.planning-outcome-timeline li[data-state="complete"] { border-color: var(--accent); color: var(--text); }
+.planning-outcome-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.planning-outcome-actions select { min-width: min(100%, 320px); }
+.planning-outcome-actions input { flex: 1 1 240px; }
 .planning-history-list { display: grid; gap: 10px; margin: 14px 0 0; padding: 0; list-style: none; }
 .planning-history-list li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 12px; padding: 10px 0; border-bottom: 1px solid var(--line); }
 .planning-history-list span { color: var(--muted); font-size: 0.8rem; }

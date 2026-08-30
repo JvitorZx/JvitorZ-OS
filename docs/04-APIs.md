@@ -1254,3 +1254,48 @@ Lista eventos de execução append-only, do mais recente para o mais antigo. Ace
 Abre um plano persistido com itens e histórico. Retorna `200`, `400` para ID/query inválidos ou `404` quando ausente.
 
 O contrato expõe fatos e decisões já persistidos. Ele não publica conteúdo, não prevê views e não envia credenciais, stack ou payload bruto de integrações.
+
+## Strategic Planning Outcomes
+
+Base: `/api/planning`. Todas as rotas usam IDs textuais não vazios, payload estrito e respostas sanitizadas. O frontend nunca envia métricas nem conteúdo editorial como origem do resultado; o backend lê snapshots reais já persistidos.
+
+### `GET /api/planning/items/:id/video-candidates`
+
+Lista a observação mais recente de cada vídeo do mesmo projeto, em ordem determinística. Cada candidato informa `snapshotId`, `videoId`, `title`, `format`, publicação, janela, coleta, confiança e `linkedItemId`. Títulos semelhantes não criam associação. Retorna `200`, `400`, `404` ou `422` quando a execução ainda não foi concluída.
+
+### `GET /api/planning/items/:id/outcome`
+
+Retorna `activeLink`, histórico de links, outcomes por janela e eventos de auditoria. Links removidos continuam no histórico. Retorna `200`, `400` ou `404`.
+
+### `POST /api/planning/items/:id/outcome/video`
+
+Associa explicitamente uma execução concluída a um snapshot/vídeo real.
+
+```json
+{
+  "snapshotId": "snapshot-id",
+  "reason": "Correção explícita do vídeo publicado."
+}
+```
+
+`reason` é opcional na primeira associação e obrigatório ao substituir outro vídeo. A mesma associação é idempotente. Retorna `201` ao criar, `200` quando já existia, `400` para payload inválido, `404` para item/snapshot ausente, `409` para conflito e `422` para execução não concluída.
+
+### `DELETE /api/planning/items/:id/outcome/video`
+
+Remove logicamente o vínculo ativo sem apagar histórico nem outcomes.
+
+```json
+{ "reason": "Associação corrigida após revisão manual." }
+```
+
+Retorna `200`; usa `400`, `404` e `500` sanitizado quando aplicável.
+
+### `POST /api/planning/items/:id/outcomes`
+
+Captura e avalia um snapshot do vídeo associado. `{}` usa o snapshot mais recente; `{ "snapshotId": "..." }` seleciona uma janela persistida específica. Retorna `201` para novo outcome, `200` para captura idempotente, `400`, `404`, `409` ou `422`.
+
+### `GET /api/planning/outcomes/:id`
+
+Abre um outcome persistido com snapshot, vínculo, evento de execução e auditoria. Retorna `200`, `400`, `404` ou `500` sanitizado.
+
+Classificações não representam causalidade. O benchmark usa mediana de pelo menos dois vídeos distintos com mesmo formato, duração de janela e idade de publicação; uma banda neutra explícita de 10% evita tratar pequenas oscilações como direção. Sem comparabilidade defensável, o resultado é `INSUFFICIENT_DATA`.

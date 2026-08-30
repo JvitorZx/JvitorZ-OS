@@ -533,3 +533,13 @@ Cada plano é uma nova versão persistida. Mudanças manuais de prioridade, stat
 O frontend usa o client central e o lifecycle genérico da workspace. O controller monta uma vez, remove listeners no unmount, ignora respostas obsoletas e apresenta apenas a análise recebida do backend. A workspace mostra ação atual e histórico auditável; Planner mostra guidance, Gerente consulta a capability de planning e Supervisor apresenta estado operacional e alertas. Nenhum deles recalcula ranking.
 
 Planning não publica, não prevê views e não garante performance. Dados stale/missing reduzem confiança e permanecem visíveis. A decisão editorial continua pertencendo ao `EditorialDecisionService`; Planning organiza a sequência de execução.
+
+### Strategic Outcome Tracking
+
+`StrategicOutcomeService` fecha o ciclo operacional sem assumir responsabilidades do `StrategicPlanningService`: valida item e execução, exige associação explícita com um `VideoPerformanceSnapshot`, coordena captura e delega persistência ao `PlanningOutcomeRepository`. O ranker não lê outcomes automaticamente nesta versão.
+
+`StrategicOutcomeEvaluator` é determinístico e sem I/O. Ele compara somente snapshots do mesmo projeto e formato com duração da janela e idade de publicação equivalentes. A referência é a mediana de no mínimo dois vídeos distintos; a banda neutra de 10% é pública no contrato. Freshness, qualidade da fonte, métricas ausentes e sinais mistos reduzem confiança ou tornam a avaliação inconclusiva.
+
+`PlanningOutcomeLink` representa o vínculo explícito atual. Chaves únicas ativas impedem um item com dois vídeos ou um vídeo atribuído a dois itens. Correções são soft-unlink seguidas por novo vínculo na mesma transação. `PlanningOutcome` é idempotente por vínculo/snapshot e `PlanningOutcomeAuditEvent` preserva associação, correção, remoção e captura.
+
+A UI Resultados é uma projeção do backend: Planejado → Executado → Publicado → Resultado. Ela não recalcula baseline, não infere vídeo por título e não transforma associação observada em causalidade.

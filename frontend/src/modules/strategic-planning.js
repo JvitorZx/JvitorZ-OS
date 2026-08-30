@@ -57,6 +57,12 @@ const renderStrategicPlanning = () => createPanel({
       </div>
       <div data-planning-execution-history><p class="performance-empty">Nenhuma ação executada neste plano.</p></div>
     </section>
+    <section class="planning-outcomes" aria-labelledby="planning-outcomes-title">
+      <div class="planning-section-heading">
+        <div><p class="eyebrow">Feedback loop</p><h3 id="planning-outcomes-title">Resultados</h3></div>
+      </div>
+      <div data-planning-outcomes><p class="performance-empty">Selecione um item concluido para acompanhar o resultado.</p></div>
+    </section>
   `,
 });
 
@@ -69,6 +75,9 @@ export const createStrategicPlanningController = ({ api }) => {
   let generating = false;
   let executionHistory = [];
   let historyRequest = 0;
+  let outcomeRequest = 0;
+  let outcomeState = null;
+  let outcomePending = false;
   const executionNotes = new Map();
   const pendingItems = new Set();
   let cleanup = () => {};
@@ -88,6 +97,7 @@ export const createStrategicPlanningController = ({ api }) => {
     const queue = panel.querySelector('[data-planning-queue]');
     const detail = panel.querySelector('[data-planning-detail]');
     const history = panel.querySelector('[data-planning-execution-history]');
+    const outcomes = panel.querySelector('[data-planning-outcomes]');
     if (![form, horizon, generateButton, feedback, meta, now, queue, detail].every(Boolean)) return;
 
     const setFeedback = (message = '', variant = '') => {
@@ -137,6 +147,74 @@ export const createStrategicPlanningController = ({ api }) => {
       }
       history.replaceChildren(list);
     };
+    const outcomeLabel = (classification) => ({
+      AWAITING_DATA: 'Aguardando dados',
+      INSUFFICIENT_DATA: 'Dados insuficientes',
+      BELOW_REFERENCE: 'Abaixo da referencia',
+      WITHIN_REFERENCE: 'Dentro da referencia',
+      ABOVE_REFERENCE: 'Acima da referencia',
+      INCONCLUSIVE: 'Resultado inconclusivo',
+    })[classification] ?? classification;
+    const renderOutcome = () => {
+      if (!outcomes) return;
+      const item = itemById(selectedItemId);
+      if (!item || item.executionState !== 'completed') {
+        outcomes.replaceChildren(text('p', 'Selecione um item concluido para acompanhar o resultado.', 'performance-empty'));
+        return;
+      }
+      if (!outcomeState || outcomeState.itemId !== item.id) {
+        outcomes.replaceChildren(text('p', 'Carregando resultado...', 'performance-empty'));
+        return;
+      }
+      const article = document.createElement('article'); article.className = 'planning-outcome-content';
+      const timeline = document.createElement('ol'); timeline.className = 'planning-outcome-timeline';
+      const activeLink = outcomeState.bundle?.activeLink ?? null;
+      const latestOutcome = activeLink?.outcomes?.[0] ?? null;
+      for (const [label, done] of [['Planejado', true], ['Executado', true], ['Publicado', Boolean(activeLink)], ['Resultado', Boolean(latestOutcome)]]) {
+        const step = text('li', label); step.dataset.state = done ? 'complete' : 'pending'; timeline.append(step);
+      }
+      article.append(timeline);
+      const linkSection = document.createElement('section'); linkSection.append(text('h4', 'Video publicado'));
+      if (activeLink) {
+        linkSection.append(text('strong', activeLink.videoTitle), text('p', `Video ID: ${activeLink.videoId}`),
+          text('small', `Associado em ${new Date(activeLink.linkedAt).toLocaleString('pt-BR')}`));
+      } else linkSection.append(text('p', 'Nenhum video associado. A associacao e sempre explicita.', 'performance-empty'));
+      const controls = document.createElement('div'); controls.className = 'planning-outcome-actions';
+      const select = document.createElement('select'); select.dataset.planningVideoCandidate = item.id;
+      select.setAttribute('aria-label', `Video publicado para ${item.title}`);
+      const placeholder = document.createElement('option'); placeholder.value = ''; placeholder.textContent = 'Selecionar video sincronizado'; select.append(placeholder);
+      for (const candidate of outcomeState.candidates ?? []) {
+        const option = document.createElement('option'); option.value = candidate.snapshotId;
+        option.textContent = `${candidate.title} - ${candidate.format ?? 'formato ausente'}${candidate.linkedItemId && candidate.linkedItemId !== item.id ? ' - ja associado' : ''}`;
+        option.disabled = Boolean(candidate.linkedItemId && candidate.linkedItemId !== item.id); select.append(option);
+      }
+      const reason = document.createElement('input'); reason.type = 'text'; reason.dataset.planningOutcomeReason = item.id;
+      reason.placeholder = activeLink ? 'Motivo da correcao/remocao' : 'Nota da associacao (opcional)'; reason.maxLength = 500;
+      reason.setAttribute('aria-label', `Motivo da associacao de ${item.title}`);
+      controls.append(select, reason,
+        button(activeLink ? 'Corrigir video' : 'Associar video', 'Associar video sincronizado', { planningOutcomeLink: item.id }, 'button secondary'));
+      if (activeLink) {
+        controls.append(button('Atualizar resultado', 'Capturar snapshot e avaliar resultado', { planningOutcomeCapture: item.id }, 'button'));
+        controls.append(button('Remover vinculo', 'Remover associacao atual', { planningOutcomeUnlink: item.id }, 'button secondary'));
+      }
+      for (const control of controls.children) control.disabled = outcomePending;
+      linkSection.append(controls); article.append(linkSection);
+      const resultSection = document.createElement('section'); resultSection.append(text('h4', 'Resultado observado'));
+      if (!latestOutcome) resultSection.append(text('p', activeLink ? 'Ainda nao ha snapshot avaliado para este video.' : 'Associe um video antes de avaliar.', 'performance-empty'));
+      else {
+        resultSection.append(text('strong', outcomeLabel(latestOutcome.classification)),
+          text('p', `Confianca ${Math.round(Number(latestOutcome.confidence ?? 0) * 100)}% - ${latestOutcome.dataQuality} - ${latestOutcome.freshness}`),
+          text('small', `Janela: ${latestOutcome.windowStart ? new Date(latestOutcome.windowStart).toLocaleDateString('pt-BR') : 'ausente'} a ${latestOutcome.windowEnd ? new Date(latestOutcome.windowEnd).toLocaleDateString('pt-BR') : 'ausente'}`));
+        const benchmark = latestOutcome.benchmark ?? {};
+        resultSection.append(text('p', `Referencia: ${benchmark.comparableVideos ?? 0} videos do mesmo formato, janela e idade de publicacao.`));
+        const metrics = Object.entries(latestOutcome.metrics ?? {}).filter(([, value]) => value !== null);
+        const metricList = renderList('Metricas observadas', metrics, ([name, value]) => `${name}: ${value}`);
+        const evidenceList = renderList('Evidencias', latestOutcome.evidence, (entry) => `${entry.classification}: ${entry.summary}`);
+        const limitationList = renderList('Limitacoes', latestOutcome.limitations);
+        resultSection.append(...[metricList, evidenceList, limitationList].filter(Boolean));
+      }
+      article.append(resultSection); outcomes.replaceChildren(article);
+    };
     const actionBar = (item, index, allItems) => {
       const actions = document.createElement('div'); actions.className = 'planning-item-actions';
       const open = button('Detalhes', 'Abrir detalhes', { planningOpen: item.id }, 'button secondary'); actions.append(open);
@@ -177,7 +255,7 @@ export const createStrategicPlanningController = ({ api }) => {
         }
         return group;
       });
-      queue.replaceChildren(...groups); renderDetail();
+      queue.replaceChildren(...groups); renderDetail(); renderOutcome();
     };
     const renderPlan = () => {
       if (!plan) {
@@ -220,6 +298,41 @@ export const createStrategicPlanningController = ({ api }) => {
         setFeedback('O plano foi carregado, mas o histórico de execução está indisponível.', 'warning');
       }
     };
+    const loadOutcome = async (itemId) => {
+      const item = itemById(itemId); const request = ++outcomeRequest;
+      if (!item || item.executionState !== 'completed' || typeof api.getPlanningItemOutcome !== 'function') {
+        outcomeState = item ? { itemId, bundle: null, candidates: [] } : null; renderOutcome(); return;
+      }
+      outcomeState = null; renderOutcome();
+      try {
+        const [bundle, candidates] = await Promise.all([
+          api.getPlanningItemOutcome(itemId),
+          typeof api.listPlanningVideoCandidates === 'function' ? api.listPlanningVideoCandidates(itemId) : [],
+        ]);
+        if (!current() || request !== outcomeRequest || selectedItemId !== itemId) return;
+        outcomeState = { itemId, bundle, candidates: Array.isArray(candidates) ? candidates : [] }; renderOutcome();
+      } catch {
+        if (!current() || request !== outcomeRequest || selectedItemId !== itemId) return;
+        outcomeState = { itemId, bundle: null, candidates: [] }; renderOutcome();
+        setFeedback('Nao foi possivel carregar os resultados deste item.', 'error');
+      }
+    };
+    const performOutcomeAction = async (itemId, operation, successMessage) => {
+      if (outcomePending || selectedItemId !== itemId) return;
+      outcomePending = true; renderOutcome();
+      try {
+        await operation();
+        if (!current() || selectedItemId !== itemId) return;
+        setFeedback(successMessage, 'success'); await loadOutcome(itemId);
+      } catch (error) {
+        if (!current() || selectedItemId !== itemId) return;
+        const message = error?.status === 404 ? 'O item ou video nao esta mais disponivel.'
+          : error?.status === 409 ? 'Este video ja esta associado ou a correcao conflita com outro item.'
+            : error?.status === 422 ? 'Conclua a execucao antes de associar um resultado.'
+              : 'Nao foi possivel atualizar o resultado. Tente novamente.';
+        setFeedback(message, 'error');
+      } finally { outcomePending = false; if (current() && selectedItemId === itemId) renderOutcome(); }
+    };
     const load = async () => {
       const request = ++loadRequest; panel.setAttribute('aria-busy', 'true');
       try {
@@ -257,6 +370,7 @@ export const createStrategicPlanningController = ({ api }) => {
           executionHistory = [updated.event, ...executionHistory.filter((entry) => entry.id !== updated.event.id)];
           renderHistory();
         }
+        if (updated?.item?.executionState === 'completed' || updated?.executionState === 'completed') loadOutcome(id);
       } catch { if (current()) setFeedback('Não foi possível atualizar o item. Tente novamente.', 'error'); }
       finally { pendingItems.delete(id); if (current()) renderQueue(); }
     };
@@ -283,7 +397,7 @@ export const createStrategicPlanningController = ({ api }) => {
     };
     const handleClick = (event) => {
       const open = event.target.closest?.('[data-planning-open]');
-      if (open) { selectedItemId = open.dataset.planningOpen; renderDetail(); return; }
+      if (open) { selectedItemId = open.dataset.planningOpen; renderDetail(); loadOutcome(selectedItemId); return; }
       const move = event.target.closest?.('[data-planning-move]');
       if (move) { reorder(move.dataset.planningMove, move.dataset.direction); return; }
       const complete = event.target.closest?.('[data-planning-complete]');
@@ -294,6 +408,26 @@ export const createStrategicPlanningController = ({ api }) => {
       if (execution) transitionExecution(execution.dataset.planningExecution, execution.dataset.state,
         executionNotes.get(execution.dataset.planningExecution)?.trim()
           || (execution.dataset.state === 'skipped' ? 'Item pulado pela interface.' : 'Execução iniciada pela interface.'));
+      const link = event.target.closest?.('[data-planning-outcome-link]');
+      if (link) {
+        const itemId = link.dataset.planningOutcomeLink;
+        const candidate = outcomes?.querySelector?.(`[data-planning-video-candidate="${itemId}"]`);
+        const reason = outcomes?.querySelector?.(`[data-planning-outcome-reason="${itemId}"]`)?.value?.trim() || undefined;
+        if (!candidate?.value) { setFeedback('Selecione um video sincronizado.', 'warning'); return; }
+        performOutcomeAction(itemId, () => api.associatePlanningVideo(itemId, { snapshotId: candidate.value, ...(reason ? { reason } : {}) }), 'Video associado ao item.'); return;
+      }
+      const capture = event.target.closest?.('[data-planning-outcome-capture]');
+      if (capture) {
+        const itemId = capture.dataset.planningOutcomeCapture;
+        performOutcomeAction(itemId, () => api.capturePlanningOutcome(itemId), 'Resultado atualizado com dados observados.'); return;
+      }
+      const unlink = event.target.closest?.('[data-planning-outcome-unlink]');
+      if (unlink) {
+        const itemId = unlink.dataset.planningOutcomeUnlink;
+        const reason = outcomes?.querySelector?.(`[data-planning-outcome-reason="${itemId}"]`)?.value?.trim();
+        if (!reason) { setFeedback('Informe o motivo para remover ou corrigir o vinculo.', 'warning'); return; }
+        performOutcomeAction(itemId, () => api.unlinkPlanningVideo(itemId, reason), 'Associacao removida sem apagar o historico.');
+      }
     };
     const handleChange = (event) => {
       const noteId = event.target?.dataset?.planningNote;
@@ -302,11 +436,12 @@ export const createStrategicPlanningController = ({ api }) => {
       if (id) updateItem(id, () => api.updatePlannedContentItem(id, { priority: event.target.value, reason: 'Prioridade alterada pela interface.' }));
     };
     form.addEventListener('submit', generate); queue.addEventListener('click', handleClick); queue.addEventListener('change', handleChange);
-    cleanup = () => { form.removeEventListener('submit', generate); queue.removeEventListener('click', handleClick); queue.removeEventListener('change', handleChange); };
+    outcomes?.addEventListener('click', handleClick);
+    cleanup = () => { form.removeEventListener('submit', generate); queue.removeEventListener('click', handleClick); queue.removeEventListener('change', handleChange); outcomes?.removeEventListener('click', handleClick); };
     load();
   };
 
-  const unmount = () => { cleanup(); cleanup = () => {}; mounted = null; generation += 1; loadRequest += 1; historyRequest += 1; pendingItems.clear(); executionNotes.clear(); };
+  const unmount = () => { cleanup(); cleanup = () => {}; mounted = null; generation += 1; loadRequest += 1; historyRequest += 1; outcomeRequest += 1; outcomeState = null; outcomePending = false; pendingItems.clear(); executionNotes.clear(); };
   return { mount, unmount };
 };
 
