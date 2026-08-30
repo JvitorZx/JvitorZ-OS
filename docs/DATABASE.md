@@ -253,3 +253,15 @@ A migration `20260906120000_strategic_planning_outcomes` é aditiva e cria `Plan
 - auditoria registra somente IDs, classificação e metadados seguros.
 
 O serviço usa transações Prisma para corrigir vínculo, registrar auditoria e criar outcome. Métricas ausentes permanecem `null` no snapshot e não são inventadas no JSON do outcome.
+
+### Strategic Learning Memory
+
+A migration `20260907120000_strategic_learning_memory` e aditiva. Cria `StrategicLearning`, `StrategicLearningEvidence` e `StrategicLearningRevision` sem reescrever outcomes, planos, execucoes, snapshots ou dados locais.
+
+- `StrategicLearning.key` e unica e torna o grupo analitico estavel;
+- `(learningId, outcomeId)` impede evidencia duplicada;
+- evidencias referenciam outcomes por FK e revisoes sao append-only;
+- `analysisFingerprint` torna reavaliacoes sem dados novos idempotentes;
+- `projectId` opcional usa `SET NULL`; evidencia e revisao seguem o aprendizado por cascade.
+
+Testes executam a migration em SQLite `:memory:`. O `backend/prisma/dev.db` continua local, recebe migration somente apos backup e nunca entra no commit.

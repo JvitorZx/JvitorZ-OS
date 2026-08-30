@@ -364,3 +364,14 @@ PlannedContentItem 1 --- N PlanningOutcomeAuditEvent
 ```
 
 `PlanningOutcomeLink.activeItemKey` e `activeVideoKey` são únicos e opcionais: existem somente no vínculo atual. Remoção/correção mantém a linha histórica. `PlanningOutcome` usa `unique(linkId, snapshotId)`; janelas diferentes geram snapshots distintos. A auditoria é append-only. Essa estrutura registra comparação observada, não causalidade.
+
+## Strategic Learning Memory
+
+```text
+Project 1 --- N StrategicLearning
+StrategicLearning 1 --- N StrategicLearningEvidence
+PlanningOutcome 1 --- N StrategicLearningEvidence
+StrategicLearning 1 --- N StrategicLearningRevision
+```
+
+`StrategicLearning.key` identifica o grupo estruturado e comparavel. `StrategicLearningEvidence` possui unicidade `(learningId, outcomeId)`. A trilha ate outcome, snapshot, execucao, item e video e reconstruivel por FKs.

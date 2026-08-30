@@ -1299,3 +1299,15 @@ Captura e avalia um snapshot do vídeo associado. `{}` usa o snapshot mais recen
 Abre um outcome persistido com snapshot, vínculo, evento de execução e auditoria. Retorna `200`, `400`, `404` ou `500` sanitizado.
 
 Classificações não representam causalidade. O benchmark usa mediana de pelo menos dois vídeos distintos com mesmo formato, duração de janela e idade de publicação; uma banda neutra explícita de 10% evita tratar pequenas oscilações como direção. Sem comparabilidade defensável, o resultado é `INSUFFICIENT_DATA`.
+
+## Strategic Learning Memory
+
+`GET /api/planning/learnings` lista aprendizados em ordem de confianca, amostra e atualizacao. Aceita `projectId`, `status`, `dimension` e `limit` (1-200). Retorna `200` ou `400`.
+
+`POST /api/planning/learnings/refresh` reavalia outcomes ativos. Body estrito: `{}` ou `{ "projectId": "..." }`. Retorna `200` com `created`, `updated`, `unchanged`, `retired`, `insufficientData` e os aprendizados avaliados. A mesma entrada nao cria revisao artificial.
+
+`GET /api/planning/learnings/:id` abre o aprendizado com evidencias e revisoes. `GET /api/planning/learnings/:id/evidence` retorna a trilha ate outcome, execution, planning item e video. `GET /api/planning/learnings/:id/history` retorna mudancas materiais de interpretacao. Retornam `200`, `400` ou `404`.
+
+Consultas relacionadas usam `GET /api/planning/items/:id/learnings`, `/plans/:id/learnings`, `/outcomes/:id/learnings` e `/videos/:id/learnings`. Elas nao recalculam nem alteram o planejamento.
+
+Os contratos nunca afirmam causalidade. `confidence` representa cobertura, consistencia, qualidade e freshness das evidencias comparaveis; nao e probabilidade de sucesso.

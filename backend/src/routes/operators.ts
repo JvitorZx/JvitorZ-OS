@@ -32,6 +32,7 @@ import { OutcomeRefreshService } from '../services/creator-intelligence/OutcomeR
 import { createCreatorIntelligenceRouter } from './creatorIntelligence';
 import { OrchestratorService } from '../services/orchestration/OrchestratorService';
 import { ManagerOrchestratorService } from '../services/orchestration/ManagerOrchestratorService';
+import { StrategicLearningService } from '../services/strategic-learning';
 
 const createDefaultPlannerService = (
   creatorIntelligenceService: CreatorIntelligenceService,
@@ -48,6 +49,7 @@ const createDefaultPlannerService = (
     editorialDecisionService,
     orchestratorService,
     new ManagerOrchestratorService(orchestratorService),
+    new StrategicLearningService(),
   );
 
 const toLibraryItemResponse = ({

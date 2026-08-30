@@ -41,6 +41,7 @@ model Project {
   contentPlans     ContentPlan[]
   planningOutcomeLinks PlanningOutcomeLink[]
   planningOutcomes PlanningOutcome[]
+  strategicLearnings StrategicLearning[]
   createdAt        DateTime           @default(now())
   updatedAt        DateTime           @updatedAt
 }
@@ -696,6 +697,7 @@ model PlanningOutcome {
   evaluatedAt      DateTime                 @default(now())
   updatedAt        DateTime                 @updatedAt
   auditEvents      PlanningOutcomeAuditEvent[]
+  learningEvidence StrategicLearningEvidence[]
 
   @@unique([linkId, snapshotId])
   @@index([planId, evaluatedAt])
@@ -703,6 +705,71 @@ model PlanningOutcome {
   @@index([videoId, observedAt])
   @@index([snapshotId])
   @@index([classification, evaluatedAt])
+}
+
+model StrategicLearning {
+  id                   String                      @id @default(cuid())
+  projectId            String?
+  project              Project?                    @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  key                  String                      @unique
+  dimension            String
+  subject              String
+  comparisonContext    Json
+  description          String
+  direction            String
+  status               String
+  observationCount     Int
+  favorableCount       Int
+  neutralCount          Int
+  contraryCount        Int
+  confidence           Float
+  freshness            String
+  benchmark             Json
+  limitations           Json
+  analysisFingerprint  String
+  firstObservedAt      DateTime
+  lastObservedAt       DateTime
+  evidence             StrategicLearningEvidence[]
+  revisions            StrategicLearningRevision[]
+  createdAt            DateTime                    @default(now())
+  updatedAt            DateTime                    @updatedAt
+
+  @@index([projectId, status, confidence])
+  @@index([dimension, subject])
+  @@index([freshness, updatedAt])
+}
+
+model StrategicLearningEvidence {
+  id          String            @id @default(cuid())
+  learningId  String
+  learning    StrategicLearning @relation(fields: [learningId], references: [id], onDelete: Cascade)
+  outcomeId   String
+  outcome     PlanningOutcome   @relation(fields: [outcomeId], references: [id], onDelete: Cascade)
+  stance      String
+  summary     String
+  createdAt   DateTime          @default(now())
+
+  @@unique([learningId, outcomeId])
+  @@index([outcomeId])
+  @@index([learningId, stance])
+}
+
+model StrategicLearningRevision {
+  id                 String            @id @default(cuid())
+  learningId         String
+  learning           StrategicLearning @relation(fields: [learningId], references: [id], onDelete: Cascade)
+  event              String
+  reason             String
+  previousStatus     String?
+  currentStatus      String
+  previousConfidence Float?
+  currentConfidence  Float
+  before             Json?
+  after              Json
+  createdAt          DateTime          @default(now())
+
+  @@index([learningId, createdAt])
+  @@index([event, createdAt])
 }
 
 model PlanningOutcomeAuditEvent {

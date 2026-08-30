@@ -1295,4 +1295,29 @@ Limites preservados:
 - dados sem formato, janela, idade de publicação ou referência suficiente retornam dados insuficientes;
 - outcomes não alteram automaticamente o ranker nem a estratégia atual.
 
-Próximo checkpoint: **SPRINT 41 — NÃO INICIADA**.
+## Sprint 41 - Strategic Learning Memory - CONCLUIDA
+
+**Objetivo:** transformar outcomes auditaveis em memoria estrategica consultavel, sem ML, causalidade artificial ou alteracao autonoma do ranking.
+
+Entregas:
+
+- dominio `strategic-learning` com estados `WEAK`, `EMERGING`, `SUPPORTED`, `STALE` e `CONTRADICTED`;
+- agrupamento apenas por dimensoes estruturadas existentes: formato, serie, jogo, tipo de conteudo, prioridade e dia de publicacao;
+- comparabilidade herdada do outcome: projeto, formato, janela de observacao, idade de publicacao e benchmark;
+- `StrategicLearning`, `StrategicLearningEvidence` e `StrategicLearningRevision`, com FKs e trilha auditavel;
+- reavaliacao idempotente e serializada; fingerprint igual nao duplica evidencia nem revisao;
+- contradicoes, freshness, confianca, limitacoes e amostra insuficiente explicitas;
+- API de lista, detalhe, evidencias, historico, reavaliacao e relacoes com plano/item/outcome/video;
+- area Aprendizados em `#/planning`, com texto seguro, lifecycle e protecao contra respostas obsoletas;
+- Planner consultando memoria curta em modo somente leitura, sem tocar no ranker;
+- migration aditiva, testes em SQLite isolado e documentacao completa.
+
+Limites preservados:
+
+- observacao nao e padrao; padrao nao e causalidade;
+- aprendizado estrategico nao e decisao automatica;
+- um video isolado permanece `WEAK`;
+- ausencia de evidencias comparaveis retorna dados insuficientes;
+- nenhuma prioridade, score, plano ou video e alterado automaticamente.
+
+Proximo checkpoint: **SPRINT 42 - NAO INICIADA**.

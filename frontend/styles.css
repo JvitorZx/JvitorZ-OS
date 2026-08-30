@@ -1482,6 +1482,11 @@ dd {
 .planning-detail-content li + li { margin-top: 6px; }
 .planning-execution-history { margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--line); }
 .planning-outcomes { margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--line); }
+.planning-learnings { margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--line); }
+.planning-learning-workspace { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(280px, 0.9fr); gap: 20px; align-items: start; }
+.planning-learning-list { display: grid; gap: 10px; }
+.planning-learning-item { display: grid; gap: 6px; padding: 12px 0; border-bottom: 1px solid var(--line); }
+.planning-learning-item .button { justify-self: start; }
 .planning-outcome-content { display: grid; gap: 18px; }
 .planning-outcome-content section { display: grid; gap: 8px; }
 .planning-outcome-content h4 { margin: 0; }
@@ -1500,6 +1505,7 @@ dd {
 @media (max-width: 900px) {
   .planning-workspace { grid-template-columns: 1fr; }
   .planning-detail { position: static; border-left: 0; border-top: 1px solid var(--line); padding: 18px 0 0; }
+  .planning-learning-workspace { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 560px) {

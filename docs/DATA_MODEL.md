@@ -461,3 +461,18 @@ PlanningOutcomeLink 1 -> N PlanningOutcome
 VideoPerformanceSnapshot 1 -> N PlanningOutcome
 ContentPlan/PlannedContentItem 1 -> N PlanningOutcomeAuditEvent
 ```
+
+## Strategic Learning Memory
+
+`StrategicLearning` representa um grupo de projeto, dimensao, assunto e contexto comparavel. Armazena descricao factual, direcao, status, contagens, confianca, freshness, benchmark, limitacoes, fingerprint e intervalo observado.
+
+`StrategicLearningEvidence` liga o aprendizado a um `PlanningOutcome` com stance `FAVORABLE`, `NEUTRAL` ou `CONTRARY`; `(learningId, outcomeId)` e unico. `StrategicLearningRevision` e o journal append-only de criacao, reavaliacao material e stale.
+
+```text
+Project 1 -> N StrategicLearning
+StrategicLearning 1 -> N StrategicLearningEvidence
+PlanningOutcome 1 -> N StrategicLearningEvidence
+StrategicLearning 1 -> N StrategicLearningRevision
+```
+
+Observacao nao e padrao, padrao nao e causalidade e aprendizado estrategico nao e decisao automatica.

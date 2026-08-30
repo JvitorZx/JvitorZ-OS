@@ -63,6 +63,16 @@ const renderStrategicPlanning = () => createPanel({
       </div>
       <div data-planning-outcomes><p class="performance-empty">Selecione um item concluido para acompanhar o resultado.</p></div>
     </section>
+    <section class="planning-learnings" aria-labelledby="planning-learnings-title">
+      <div class="planning-section-heading">
+        <div><p class="eyebrow">Memoria estrategica</p><h3 id="planning-learnings-title">Aprendizados</h3></div>
+        <button class="button secondary" type="button" data-planning-learning-refresh>Atualizar aprendizados</button>
+      </div>
+      <div class="planning-learning-workspace">
+        <div data-planning-learnings aria-live="polite"><p class="performance-empty">Carregando aprendizados...</p></div>
+        <aside data-planning-learning-detail><p class="performance-empty">Selecione um aprendizado para ver as evidencias.</p></aside>
+      </div>
+    </section>
   `,
 });
 
@@ -78,6 +88,11 @@ export const createStrategicPlanningController = ({ api }) => {
   let outcomeRequest = 0;
   let outcomeState = null;
   let outcomePending = false;
+  let learningRequest = 0;
+  let learningDetailRequest = 0;
+  let learningPending = false;
+  let strategicLearnings = [];
+  let selectedLearningId = null;
   const executionNotes = new Map();
   const pendingItems = new Set();
   let cleanup = () => {};
@@ -98,6 +113,9 @@ export const createStrategicPlanningController = ({ api }) => {
     const detail = panel.querySelector('[data-planning-detail]');
     const history = panel.querySelector('[data-planning-execution-history]');
     const outcomes = panel.querySelector('[data-planning-outcomes]');
+    const learnings = panel.querySelector('[data-planning-learnings]');
+    const learningDetail = panel.querySelector('[data-planning-learning-detail]');
+    const learningRefresh = panel.querySelector('[data-planning-learning-refresh]');
     if (![form, horizon, generateButton, feedback, meta, now, queue, detail].every(Boolean)) return;
 
     const setFeedback = (message = '', variant = '') => {
@@ -214,6 +232,84 @@ export const createStrategicPlanningController = ({ api }) => {
         resultSection.append(...[metricList, evidenceList, limitationList].filter(Boolean));
       }
       article.append(resultSection); outcomes.replaceChildren(article);
+    };
+    const learningStatus = (status) => ({
+      WEAK: 'Observacao individual', EMERGING: 'Padrao emergente', SUPPORTED: 'Aprendizado sustentado',
+      STALE: 'Evidencia stale', CONTRADICTED: 'Evidencia contraditoria',
+    })[status] ?? status;
+    const renderLearningDetail = (learning = null) => {
+      if (!learningDetail) return;
+      if (!learning) { learningDetail.replaceChildren(text('p', 'Selecione um aprendizado para ver as evidencias.', 'performance-empty')); return; }
+      const article = document.createElement('article'); article.className = 'planning-detail-content';
+      article.append(text('strong', learning.description),
+        text('p', `${learningStatus(learning.status)} - confianca ${Math.round(Number(learning.confidence ?? 0) * 100)}% - ${learning.freshness}`),
+        text('small', `${learning.dimension}: ${learning.subject}`));
+      const counts = text('p', `${learning.observationCount} observacoes comparaveis: ${learning.favorableCount} acima, ${learning.neutralCount} dentro e ${learning.contraryCount} abaixo da referencia.`);
+      article.append(counts);
+      const evidenceList = document.createElement('ul');
+      for (const entry of learning.evidence ?? []) {
+        const row = document.createElement('li');
+        row.append(text('span', `${entry.stance}: ${entry.summary}`));
+        const itemId = entry.outcome?.itemId;
+        if (itemId && itemById(itemId)) row.append(button('Ver resultado', 'Abrir outcome que sustenta este aprendizado', { planningLearningOutcome: itemId }, 'button secondary'));
+        evidenceList.append(row);
+      }
+      if (evidenceList.children.length) article.append(text('h4', 'Evidencias rastreaveis'), evidenceList);
+      const limitations = renderList('Limitacoes', learning.limitations);
+      const revisions = renderList('Mudancas de interpretacao', learning.revisions, (entry) => `${entry.event}: ${entry.previousStatus ?? 'novo'} -> ${entry.currentStatus}`);
+      article.append(...[limitations, revisions].filter(Boolean)); learningDetail.replaceChildren(article);
+    };
+    const renderLearnings = () => {
+      if (!learnings) return;
+      if (!strategicLearnings.length) {
+        learnings.replaceChildren(text('p', 'Ainda nao temos dados suficientes para formar aprendizados estrategicos.', 'performance-empty'));
+        selectedLearningId = null; renderLearningDetail(); return;
+      }
+      const list = document.createElement('div'); list.className = 'planning-learning-list';
+      for (const learning of strategicLearnings) {
+        const row = document.createElement('article'); row.className = 'planning-learning-item'; row.dataset.planningLearning = learning.id;
+        row.append(text('strong', learning.description), text('span', `${learningStatus(learning.status)} - ${Math.round(Number(learning.confidence ?? 0) * 100)}%`),
+          text('small', `${learning.observationCount} observacoes - ${learning.freshness}`),
+          button('Evidencias', 'Abrir evidencias e historico do aprendizado', { planningLearningOpen: learning.id }, 'button secondary'));
+        list.append(row);
+      }
+      learnings.replaceChildren(list);
+    };
+    const loadLearnings = async () => {
+      if (!learnings || typeof api.listStrategicLearnings !== 'function') return;
+      const request = ++learningRequest;
+      try {
+        const loaded = await api.listStrategicLearnings({ limit: 100 });
+        if (!current() || request !== learningRequest) return;
+        strategicLearnings = Array.isArray(loaded) ? loaded : []; renderLearnings();
+      } catch {
+        if (!current() || request !== learningRequest) return;
+        strategicLearnings = []; renderLearnings(); setFeedback('Nao foi possivel carregar os aprendizados estrategicos.', 'warning');
+      }
+    };
+    const openLearning = async (id) => {
+      if (typeof api.getStrategicLearning !== 'function') return;
+      selectedLearningId = id; const request = ++learningDetailRequest;
+      learningDetail?.replaceChildren(text('p', 'Carregando evidencias...', 'performance-empty'));
+      try {
+        const loaded = await api.getStrategicLearning(id);
+        if (!current() || request !== learningDetailRequest || selectedLearningId !== id) return;
+        renderLearningDetail(loaded);
+      } catch {
+        if (!current() || request !== learningDetailRequest || selectedLearningId !== id) return;
+        renderLearningDetail(); setFeedback('Nao foi possivel abrir este aprendizado.', 'error');
+      }
+    };
+    const refreshLearnings = async () => {
+      if (learningPending || typeof api.refreshStrategicLearnings !== 'function') return;
+      learningPending = true; learningRefresh.disabled = true; learningRefresh.setAttribute('aria-busy', 'true');
+      try {
+        const result = await api.refreshStrategicLearnings({});
+        if (!current()) return;
+        setFeedback(result.insufficientData ? 'Ainda nao existem outcomes comparaveis suficientes.' : 'Aprendizados reavaliados com os outcomes atuais.', result.insufficientData ? 'warning' : 'success');
+        await loadLearnings();
+      } catch { if (current()) setFeedback('Nao foi possivel reavaliar os aprendizados.', 'error'); }
+      finally { learningPending = false; if (current()) { learningRefresh.disabled = false; learningRefresh.setAttribute('aria-busy', 'false'); } }
     };
     const actionBar = (item, index, allItems) => {
       const actions = document.createElement('div'); actions.className = 'planning-item-actions';
@@ -396,6 +492,10 @@ export const createStrategicPlanningController = ({ api }) => {
       finally { pendingItems.delete(id); if (current()) renderQueue(); }
     };
     const handleClick = (event) => {
+      const learningOpen = event.target.closest?.('[data-planning-learning-open]');
+      if (learningOpen) { openLearning(learningOpen.dataset.planningLearningOpen); return; }
+      const learningOutcome = event.target.closest?.('[data-planning-learning-outcome]');
+      if (learningOutcome) { selectedItemId = learningOutcome.dataset.planningLearningOutcome; renderDetail(); loadOutcome(selectedItemId); return; }
       const open = event.target.closest?.('[data-planning-open]');
       if (open) { selectedItemId = open.dataset.planningOpen; renderDetail(); loadOutcome(selectedItemId); return; }
       const move = event.target.closest?.('[data-planning-move]');
@@ -437,11 +537,13 @@ export const createStrategicPlanningController = ({ api }) => {
     };
     form.addEventListener('submit', generate); queue.addEventListener('click', handleClick); queue.addEventListener('change', handleChange);
     outcomes?.addEventListener('click', handleClick);
-    cleanup = () => { form.removeEventListener('submit', generate); queue.removeEventListener('click', handleClick); queue.removeEventListener('change', handleChange); outcomes?.removeEventListener('click', handleClick); };
-    load();
+    learnings?.addEventListener('click', handleClick); learningDetail?.addEventListener('click', handleClick); learningRefresh?.addEventListener('click', refreshLearnings);
+    cleanup = () => { form.removeEventListener('submit', generate); queue.removeEventListener('click', handleClick); queue.removeEventListener('change', handleChange); outcomes?.removeEventListener('click', handleClick);
+      learnings?.removeEventListener('click', handleClick); learningDetail?.removeEventListener('click', handleClick); learningRefresh?.removeEventListener('click', refreshLearnings); };
+    load(); loadLearnings();
   };
 
-  const unmount = () => { cleanup(); cleanup = () => {}; mounted = null; generation += 1; loadRequest += 1; historyRequest += 1; outcomeRequest += 1; outcomeState = null; outcomePending = false; pendingItems.clear(); executionNotes.clear(); };
+  const unmount = () => { cleanup(); cleanup = () => {}; mounted = null; generation += 1; loadRequest += 1; historyRequest += 1; outcomeRequest += 1; learningRequest += 1; learningDetailRequest += 1; outcomeState = null; outcomePending = false; learningPending = false; strategicLearnings = []; selectedLearningId = null; pendingItems.clear(); executionNotes.clear(); };
   return { mount, unmount };
 };
 

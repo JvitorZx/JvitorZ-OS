@@ -13,6 +13,11 @@ import {
   StrategicOutcomeSnapshotNotFoundError,
   StrategicOutcomeValidationError,
 } from '../services/strategic-planning';
+import {
+  StrategicLearningNotFoundError,
+  StrategicLearningService,
+  StrategicLearningValidationError,
+} from '../services/strategic-learning';
 import type { PlanningConstraint } from '../domains/strategic-planning';
 
 const isObject = (value: unknown): value is Record<string, unknown> =>
@@ -40,6 +45,8 @@ const sendError = (res: Parameters<Parameters<Router['get']>[1]>[1], error: unkn
     || error instanceof StrategicOutcomeNotFoundError) return res.status(404).json({ error: error.message });
   if (error instanceof StrategicOutcomeConflictError) return res.status(409).json({ error: error.message });
   if (error instanceof StrategicOutcomeNotReadyError) return res.status(422).json({ error: error.message });
+  if (error instanceof StrategicLearningValidationError) return res.status(400).json({ error: error.message });
+  if (error instanceof StrategicLearningNotFoundError) return res.status(404).json({ error: error.message });
   const name = error instanceof Error ? error.name : 'UnknownError';
   console.error(`Strategic planning request failed (${name})`);
   return res.status(500).json({ error: 'Strategic planning request failed' });
@@ -48,6 +55,7 @@ const sendError = (res: Parameters<Parameters<Router['get']>[1]>[1], error: unkn
 export const createPlanningRouter = (
   service: StrategicPlanningService = new StrategicPlanningService(),
   outcomeService: StrategicOutcomeService = new StrategicOutcomeService(),
+  learningService: StrategicLearningService = new StrategicLearningService(),
 ): Router => {
   const router = Router();
 
@@ -258,6 +266,56 @@ export const createPlanningRouter = (
     try { return res.status(200).json(await outcomeService.getOutcome(id)); }
     catch (error) { return sendError(res, error); }
   });
+
+  router.get('/learnings', async (req, res) => {
+    if (!hasOnly(req.query as Record<string, unknown>, ['projectId', 'status', 'dimension', 'limit'])
+      || !optionalText(req.query.projectId) || !optionalText(req.query.status) || !optionalText(req.query.dimension)
+      || (req.query.limit !== undefined && (typeof req.query.limit !== 'string' || !/^\d+$/.test(req.query.limit)))) {
+      return res.status(400).json({ error: 'invalid strategic learning query' });
+    }
+    try { return res.status(200).json(await learningService.list({
+      ...('projectId' in req.query ? { projectId: req.query.projectId || null } : {}),
+      ...(req.query.status ? { status: req.query.status } : {}),
+      ...(req.query.dimension ? { dimension: req.query.dimension } : {}),
+      ...(req.query.limit ? { limit: Number(req.query.limit) } : {}),
+    })); } catch (error) { return sendError(res, error); }
+  });
+
+  router.post('/learnings/refresh', async (req, res) => {
+    if (!isObject(req.body) || !hasOnly(req.body, ['projectId']) || !optionalText(req.body.projectId)) {
+      return res.status(400).json({ error: 'invalid strategic learning refresh payload' });
+    }
+    try { return res.status(200).json(await learningService.refresh('projectId' in req.body ? req.body.projectId || null : undefined)); }
+    catch (error) { return sendError(res, error); }
+  });
+
+  router.get('/learnings/:id/evidence', async (req, res) => {
+    const id = req.params.id?.trim();
+    if (!id || Object.keys(req.query).length) return res.status(400).json({ error: 'invalid strategic learning id' });
+    try { return res.status(200).json(await learningService.evidence(id)); } catch (error) { return sendError(res, error); }
+  });
+
+  router.get('/learnings/:id/history', async (req, res) => {
+    const id = req.params.id?.trim();
+    if (!id || Object.keys(req.query).length) return res.status(400).json({ error: 'invalid strategic learning id' });
+    try { return res.status(200).json(await learningService.history(id)); } catch (error) { return sendError(res, error); }
+  });
+
+  router.get('/learnings/:id', async (req, res) => {
+    const id = req.params.id?.trim();
+    if (!id || Object.keys(req.query).length) return res.status(400).json({ error: 'invalid strategic learning id' });
+    try { return res.status(200).json(await learningService.get(id)); } catch (error) { return sendError(res, error); }
+  });
+
+  const related = (kind: 'itemId' | 'planId' | 'outcomeId' | 'videoId') => async (req: Parameters<Parameters<Router['get']>[1]>[0], res: Parameters<Parameters<Router['get']>[1]>[1]) => {
+    const id = req.params.id?.trim();
+    if (!id || Object.keys(req.query).length) return res.status(400).json({ error: 'invalid strategic learning relation id' });
+    try { return res.status(200).json(await learningService.related(kind, id)); } catch (error) { return sendError(res, error); }
+  };
+  router.get('/items/:id/learnings', related('itemId'));
+  router.get('/plans/:id/learnings', related('planId'));
+  router.get('/outcomes/:id/learnings', related('outcomeId'));
+  router.get('/videos/:id/learnings', related('videoId'));
 
   router.get('/:id', async (req, res) => {
     const id = req.params.id?.trim();

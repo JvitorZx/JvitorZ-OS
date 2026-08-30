@@ -743,3 +743,24 @@ O backend nunca relaciona item e vídeo por semelhança de título. Corrigir ou 
 Correlação observada significa que fatos ocorreram juntos; comparação de desempenho posiciona métricas frente a uma referência compatível; causalidade exigiria evidência experimental que este fluxo não produz. Outcomes não modificam o ranking nem prometem performance.
 
 No frontend, operações são single-flight e cada carga possui token de request/montagem. Troca de item ou unmount invalida respostas tardias. Conteúdo, evidências e títulos são inseridos como texto.
+
+## Strategic Learning Memory - Sprint 41
+
+```text
+PlanningOutcome comparavel e ativo
+  -> StrategicLearningService.refresh()
+     -> dimensoes estruturadas do snapshot/item
+     -> contexto de comparabilidade do benchmark persistido
+     -> StrategicLearningAnalyzer
+     -> StrategicLearningRepository (transacao)
+        -> StrategicLearning
+        -> StrategicLearningEvidence -> PlanningOutcome
+        -> StrategicLearningRevision
+  -> /api/planning/learnings
+     -> Aprendizados em #/planning
+     -> contexto limitado e somente leitura no Planner
+```
+
+Somente outcomes acima, dentro ou abaixo da referencia com vinculo ativo participam. Cada video conta uma vez por grupo comparavel. Formato, janela e idade de publicacao permanecem separados; Shorts e long-form nao sao misturados. Uma reavaliacao com o mesmo fingerprint nao grava evidencias ou revisoes novas.
+
+O Planner recebe no maximo cinco resumos observacionais como contexto. Essa leitura nao chama o ranker, nao muda `executionScore`, prioridade, fila ou plano. Auditabilidade: `Learning -> Evidence -> Outcome -> Execution -> Planning Item -> Video/Snapshot`.

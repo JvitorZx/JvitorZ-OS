@@ -84,6 +84,13 @@ export interface PlannerChannelLearning {
   evidence: unknown;
 }
 
+export interface PlannerStrategicLearningProvider {
+  listForPlanner(projectId: string | null, limit?: number): Promise<Array<{
+    id: string; dimension: string; subject: string; description: string; status: string;
+    confidence: number; freshness: string; limitations: unknown;
+  }>>;
+}
+
 export class PlannerService {
   private conversationRepository?: ConversationRepository;
   private messageRepository?: MessageRepository;
@@ -93,6 +100,7 @@ export class PlannerService {
   private readonly editorialDecisionService?: EditorialDecisionService;
   private readonly orchestrator?: Pick<OrchestratorService, 'run'>;
   private readonly manager?: Pick<ManagerOrchestratorService, 'query'>;
+  private readonly strategicLearningMemory?: PlannerStrategicLearningProvider;
 
   constructor(
     conversationRepository?: ConversationRepository,
@@ -103,6 +111,7 @@ export class PlannerService {
     editorialDecisionService?: EditorialDecisionService,
     orchestrator?: Pick<OrchestratorService, 'run'>,
     manager?: Pick<ManagerOrchestratorService, 'query'>,
+    strategicLearningMemory?: PlannerStrategicLearningProvider,
   ) {
     this.conversationRepository = conversationRepository;
     this.messageRepository = messageRepository;
@@ -112,6 +121,7 @@ export class PlannerService {
     this.editorialDecisionService = editorialDecisionService;
     this.orchestrator = orchestrator;
     this.manager = manager;
+    this.strategicLearningMemory = strategicLearningMemory;
   }
 
   private get repository(): ConversationRepository {
@@ -293,7 +303,25 @@ export class PlannerService {
     const artifacts = this.conversationLibraryService
       ? await this.conversationLibraryService.listLinkedItems(conversation.id)
       : [];
-    const input = mapConversationToLanguageInput({ ...conversation, artifacts });
+    let learningMessage = null;
+    if (this.strategicLearningMemory) {
+      try {
+        const learnings = await this.strategicLearningMemory.listForPlanner(conversation.projectId, 5);
+        if (learnings.length) {
+          learningMessage = {
+            sender: 'system',
+            createdAt: new Date(),
+            text: ['Memoria estrategica observacional do canal. Use apenas como contexto, cite a incerteza e nao trate correlacao como causalidade:',
+              ...learnings.map((entry) => `- [${entry.status}/${entry.dimension}] ${entry.description} Confianca ${Math.round(entry.confidence * 100)}%; freshness ${entry.freshness}.`),
+            ].join('\n').slice(0, 3_000),
+          };
+        }
+      } catch {
+        // Strategic memory is optional context; a read failure must not block the persisted chat flow.
+      }
+    }
+    const input = mapConversationToLanguageInput({ ...conversation,
+      messages: learningMessage ? [...conversation.messages, learningMessage] : conversation.messages, artifacts });
     let generatedText: unknown;
 
     try {

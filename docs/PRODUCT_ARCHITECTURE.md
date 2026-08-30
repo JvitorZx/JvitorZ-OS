@@ -543,3 +543,11 @@ Planning não publica, não prevê views e não garante performance. Dados stale
 `PlanningOutcomeLink` representa o vínculo explícito atual. Chaves únicas ativas impedem um item com dois vídeos ou um vídeo atribuído a dois itens. Correções são soft-unlink seguidas por novo vínculo na mesma transação. `PlanningOutcome` é idempotente por vínculo/snapshot e `PlanningOutcomeAuditEvent` preserva associação, correção, remoção e captura.
 
 A UI Resultados é uma projeção do backend: Planejado → Executado → Publicado → Resultado. Ela não recalcula baseline, não infere vídeo por título e não transforma associação observada em causalidade.
+
+### Strategic Learning Memory
+
+`StrategicLearningService` le outcomes auditaveis e delega a interpretacao deterministica ao dominio `strategic-learning`. O repository e o unico componente que escreve aprendizado, evidencias e revisoes. Rotas e frontend nao acessam Prisma.
+
+Os grupos usam somente metadata estruturada; nenhum titulo e analisado por heuristica. As regras sao publicas: uma observacao e `WEAK`; duas ou tres com dominancia minima de dois tercos podem ser `EMERGING`; quatro ou mais com dominancia de 75% podem ser `SUPPORTED`; dois sinais favoraveis e dois contrarios produzem `CONTRADICTED`. Freshness reutiliza as janelas publicas do Strategic Outcome.
+
+O Planner recebe uma dependencia opcional `listForPlanner()` e consulta no maximo cinco resumos. `StrategicPlanningRanker`, prioridade e fila nao importam nem consultam a memoria. Fingerprint, chave unica e lock por escopo impedem duplicacao e historico artificial.

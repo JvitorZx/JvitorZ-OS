@@ -357,6 +357,47 @@ export const createApiClient = (baseUrl) => ({
     return requestJson(`${baseUrl}/api/planning/outcomes/${encodeURIComponent(id)}`, undefined, 'Erro ao abrir resultado do planejamento');
   },
 
+  async listStrategicLearnings(filters = {}) {
+    const params = new URLSearchParams();
+    for (const field of ['projectId', 'status', 'dimension']) {
+      if (filters[field] !== undefined) params.set(field, requireIdentifier(filters[field], field));
+    }
+    if (filters.limit !== undefined) {
+      if (!Number.isInteger(filters.limit) || filters.limit < 1 || filters.limit > 200) throw new TypeError('limit must be an integer from 1 to 200');
+      params.set('limit', String(filters.limit));
+    }
+    return requestJson(`${baseUrl}/api/planning/learnings${params.size ? `?${params}` : ''}`, undefined, 'Erro ao carregar aprendizados estrategicos');
+  },
+
+  async refreshStrategicLearnings(input = {}) {
+    if (!input || typeof input !== 'object' || Array.isArray(input)) throw new TypeError('strategic learning input must be an object');
+    return requestJson(`${baseUrl}/api/planning/learnings/refresh`, {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(input),
+    }, 'Erro ao atualizar aprendizados estrategicos');
+  },
+
+  async getStrategicLearning(learningId) {
+    const id = requireIdentifier(learningId, 'learningId');
+    return requestJson(`${baseUrl}/api/planning/learnings/${encodeURIComponent(id)}`, undefined, 'Erro ao abrir aprendizado estrategico');
+  },
+
+  async getStrategicLearningEvidence(learningId) {
+    const id = requireIdentifier(learningId, 'learningId');
+    return requestJson(`${baseUrl}/api/planning/learnings/${encodeURIComponent(id)}/evidence`, undefined, 'Erro ao carregar evidencias do aprendizado');
+  },
+
+  async getStrategicLearningHistory(learningId) {
+    const id = requireIdentifier(learningId, 'learningId');
+    return requestJson(`${baseUrl}/api/planning/learnings/${encodeURIComponent(id)}/history`, undefined, 'Erro ao carregar historico do aprendizado');
+  },
+
+  async listStrategicLearningsFor(kind, referenceId) {
+    const routes = { item: 'items', plan: 'plans', outcome: 'outcomes', video: 'videos' };
+    if (!routes[kind]) throw new TypeError('strategic learning relation kind is invalid');
+    const id = requireIdentifier(referenceId, `${kind}Id`);
+    return requestJson(`${baseUrl}/api/planning/${routes[kind]}/${encodeURIComponent(id)}/learnings`, undefined, 'Erro ao carregar aprendizados relacionados');
+  },
+
   async planOrchestration(input) {
     return requestJson(
       `${baseUrl}/api/orchestrator/plan`,
