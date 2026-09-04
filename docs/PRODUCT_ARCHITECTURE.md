@@ -574,6 +574,12 @@ Planning / Learning / Experiments
 
 O frontend apresenta dados calculados pelo backend e nao recalcula severidade. Respostas tardias, filtros e transicoes usam tokens de request/montagem e single-flight. `statePanel` continua global; falhas do monitoramento usam feedback local.
 
-`StrategicMonitoringJob` participa do tick unico de `AutomationSchedulerService`. Ele nao possui timer proprio, fica desabilitado por padrao (`STRATEGIC_MONITORING_ENABLED=false`), respeita intervalo explicito e retry limitado do runtime. O job apenas chama `evaluate`; nao cria plano, nao executa automacao e nao chama integracao externa. Falha fica contida e o scheduler continua avaliando as automacoes normais.
+`MonitoringControlService` controla a configuracao singleton persistida, a cadencia, o lease de execucao, a recuperacao apos restart e os timestamps operacionais. `StrategicMonitoringJob` e somente um adaptador do tick unico de `AutomationSchedulerService`: nao possui timer nem configuracao em memoria e chama `runScheduled()`, que reutiliza `StrategicMonitoringService.evaluate()`.
+
+O registro nasce desativado e nenhuma migration, inicializacao ou abertura da UI o ativa. `enabled` representa o desejo persistido; o estado apresentado tambem informa se o Automation Runtime compartilhado esta realmente ativo. `runNow()` usa o mesmo pipeline, funciona com periodicidade desligada e nao cria agendamento. Claims atomicos, singleton e reconciliacao impedem jobs e execucoes duplicados.
+
+O workspace `#/monitoring` apresenta status, cadencia suportada, ultima e proxima execucao, runtime efetivo, ativacao/desativacao e execucao imediata. Todas as operacoes sao single-flight, usam feedback local e ignoram respostas obsoletas apos unmount.
+
+O job nao cria plano, nao executa automacao e nao chama integracao externa. Falha fica contida e o scheduler continua avaliando as automacoes normais.
 
 Sinal e correlacao operacional, nao causalidade. Severidade prioriza revisao humana, nao estima impacto futuro. O monitoramento nao muda ranking ou aprendizado automaticamente.

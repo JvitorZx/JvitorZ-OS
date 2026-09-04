@@ -1330,6 +1330,16 @@ Status: `400` payload invalido, `404` ausente, `409` conflito, `422` bloqueio e 
 
 Todos os contratos usam o prefixo `/api/monitoring`. Respostas de erro sao sanitizadas e nunca incluem stack, payload de fonte, token ou credencial.
 
+### Monitoring Control Plane
+
+- `GET /api/monitoring/control`: retorna configuracao persistida, estado operacional reconciliado, cadencia, ultima execucao/sucesso/falha, proxima execucao efetiva e saude resumida do Automation Runtime.
+- `PATCH /api/monitoring/control`: body estrito `{ "intervalMs": 21600000 }`. Aceita somente 15 min, 30 min, 1 h, 6 h, 12 h, 24 h ou 7 dias e reprograma a unica configuracao existente.
+- `POST /api/monitoring/control/enable`: body `{}`; ativa explicitamente a periodicidade de forma idempotente.
+- `POST /api/monitoring/control/disable`: body `{}`; desativa de forma idempotente e remove a proxima execucao.
+- `POST /api/monitoring/control/run`: body `{}`; executa imediatamente pelo mesmo pipeline da Sprint 43, mesmo quando a periodicidade esta desligada, sem ativa-la.
+
+Todas retornam `200` em sucesso. Payload/configuracao invalida retorna `400`, execucao simultanea retorna `409` e falha inesperada retorna `500` sanitizado. `enabled: true` expressa a configuracao desejada; `scheduler.active` e `operationalState` informam se o runtime compartilhado esta efetivamente executando ticks. Sem ativacao explicita, o registro nasce `enabled: false`.
+
 ### `GET /api/monitoring/signals`
 
 Lista sinais em ordem persistida. Filtros opcionais: `projectId`, `state`, `severity`, `type` e `limit` (1 a 200). Retorna `200` com array; query invalida retorna `400`.
@@ -1340,7 +1350,7 @@ Abre um sinal com suas evidencias. Retorna `200`, `400` para ID invalido ou `404
 
 ### `POST /api/monitoring/evaluate`
 
-Executa uma avaliacao manual controlada. Body estrito: `{}` ou `{ "projectId": "..." }`. Retorna `200` com snapshot, contagens `created`, `updated`, `resolved`, flag `unchanged` e sinais atuais. Nao executa acao externa.
+Contrato legado compativel para avaliacao manual controlada. Body estrito: `{}` ou `{ "projectId": "..." }`. Delega ao mesmo `MonitoringControlService.runNow()` e retorna `200` com snapshot, contagens `created`, `updated`, `resolved`, flag `unchanged` e sinais atuais. Nao executa acao externa nem ativa periodicidade.
 
 ### Transicoes de estado
 

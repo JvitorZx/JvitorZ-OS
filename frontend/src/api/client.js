@@ -478,6 +478,35 @@ export const createApiClient = (baseUrl) => ({
     return requestJson(`${baseUrl}/api/monitoring/signals/${encodeURIComponent(id)}`, undefined, 'Erro ao abrir sinal estrategico');
   },
 
+  async getMonitoringControl() {
+    return requestJson(`${baseUrl}/api/monitoring/control`, undefined, 'Erro ao carregar controle do monitoramento');
+  },
+
+  async updateMonitoringCadence(intervalMs) {
+    if (!Number.isInteger(intervalMs) || intervalMs <= 0) throw new TypeError('intervalMs must be a positive integer');
+    return requestJson(`${baseUrl}/api/monitoring/control`, {
+      method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ intervalMs }),
+    }, 'Erro ao atualizar cadencia do monitoramento');
+  },
+
+  async enableStrategicMonitoring() {
+    return requestJson(`${baseUrl}/api/monitoring/control/enable`, {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}',
+    }, 'Erro ao ativar monitoramento estrategico');
+  },
+
+  async disableStrategicMonitoring() {
+    return requestJson(`${baseUrl}/api/monitoring/control/disable`, {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}',
+    }, 'Erro ao desativar monitoramento estrategico');
+  },
+
+  async runStrategicMonitoringNow() {
+    return requestJson(`${baseUrl}/api/monitoring/control/run`, {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}',
+    }, 'Erro ao executar monitoramento estrategico');
+  },
+
   async evaluateStrategicMonitoring(projectId) {
     const body = projectId === undefined || projectId === null || projectId === ''
       ? {}

@@ -401,6 +401,12 @@ MonitoringSnapshot 1 --- N SignalEvidence
 MonitoringRule
   code UNIQUE
 
+MonitoringControl
+  id = strategic-monitoring
+  enabled + intervalMs + operationalState
+  lastRunAt + lastSuccessfulRunAt + lastFailureAt
+  nextRunAt
+
 MonitoringSnapshot
   evaluationFingerprint UNIQUE
 
@@ -409,3 +415,5 @@ StrategicSignal
 ```
 
 `SignalEvidence.signalId` usa `ON DELETE CASCADE`; `snapshotId` e opcional e usa `SET NULL`. `projectId` opcional em sinal/snapshot usa `SET NULL`. A modelagem preserva lifecycle e auditoria sem converter sinais em acoes automaticas.
+
+`MonitoringControl` e singleton e nao representa um segundo scheduler. Ele fornece configuracao persistente, lease operacional e timestamps para o unico `AutomationRuntimeService` existente.

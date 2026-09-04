@@ -20,12 +20,14 @@ export class YouTubeAudienceSyncService {
   private readonly snapshots: AudienceSnapshotRepository;
   private readonly states: AudienceSyncStateRepository;
   private readonly quality = new DataQualityService();
+  private readonly now: () => Date;
 
-  constructor(dependencies: { googleService?: GoogleService; provider?: YouTubeAudienceProvider; snapshotRepository?: AudienceSnapshotRepository; stateRepository?: AudienceSyncStateRepository } = {}) {
+  constructor(dependencies: { googleService?: GoogleService; provider?: YouTubeAudienceProvider; snapshotRepository?: AudienceSnapshotRepository; stateRepository?: AudienceSyncStateRepository; now?: () => Date } = {}) {
     this.google = dependencies.googleService ?? new GoogleService();
     this.provider = dependencies.provider ?? new GoogleYouTubeAudienceProvider({ googleService: this.google });
     this.snapshots = dependencies.snapshotRepository ?? new AudienceSnapshotRepository(DatabaseService.client);
     this.states = dependencies.stateRepository ?? new AudienceSyncStateRepository(DatabaseService.client);
+    this.now = dependencies.now ?? (() => new Date());
   }
 
   validate(input: { startDate: string; endDate: string; projectId?: string | null }) {
@@ -36,7 +38,7 @@ export class YouTubeAudienceSyncService {
   }
 
   async getQuality(projectId?: string | null): Promise<DataQualityReport> {
-    return this.quality.evaluateAudience(await this.snapshots.findAll({ projectId: projectId?.trim() || null }), AUDIENCE_DIMENSIONS);
+    return this.quality.evaluateAudience(await this.snapshots.findAll({ projectId: projectId?.trim() || null }), AUDIENCE_DIMENSIONS, this.now());
   }
 
   async getStatus() {
@@ -69,7 +71,7 @@ export class YouTubeAudienceSyncService {
       }
       const quality = await this.getQuality(validated.projectId);
       const state = result.availableDimensions.length && result.missingDimensions.length ? 'partial' : result.availableDimensions.length ? 'synchronized' : 'missing';
-      await this.states.save({ source: YOUTUBE_AUDIENCE_SOURCE, state, lastSyncAt: new Date(), lastErrorType: null, missingData: result.missingDimensions as unknown as Prisma.InputJsonValue });
+      await this.states.save({ source: YOUTUBE_AUDIENCE_SOURCE, state, lastSyncAt: this.now(), lastErrorType: null, missingData: result.missingDimensions as unknown as Prisma.InputJsonValue });
       return { state, created, updated, availableDimensions: result.availableDimensions, missingDimensions: result.missingDimensions, quality };
     } catch (error) {
       const previous = await this.states.find(YOUTUBE_AUDIENCE_SOURCE);

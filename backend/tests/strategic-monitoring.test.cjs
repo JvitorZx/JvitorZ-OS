@@ -19,6 +19,7 @@ const { createDefaultCapabilityRegistry } = require('../dist/services/orchestrat
 const { SupervisorModule } = require('../dist/modules/dashboard/supervisor/SupervisorModule');
 
 const migration = fs.readFileSync(path.resolve(__dirname, '../prisma/migrations/20260909120000_strategic_monitoring/migration.sql'), 'utf8');
+const controlMigration = fs.readFileSync(path.resolve(__dirname, '../prisma/migrations/20260910120000_monitoring_control_plane/migration.sql'), 'utf8');
 const fact = (overrides = {}) => ({ type: 'TREND_DECLINING', source: 'TRENDS', sourceId: 'ctr-channel', subject: 'CTR do canal',
   stateValue: 'DECLINING', summary: 'CTR foi classificado como DECLINING em janelas comparaveis.', impact: 'Revisar antes de repetir.',
   confidence: .8, limitations: [], evidence: ['Amostra comparavel.'], observedAt: new Date('2026-09-09T10:00:00Z'), ...overrides });
@@ -30,6 +31,7 @@ describe('strategic monitoring', { concurrency: false }, () => {
     await client.$executeRawUnsafe('PRAGMA foreign_keys = ON');
     await client.$executeRawUnsafe('CREATE TABLE "Project" ("id" TEXT NOT NULL PRIMARY KEY)');
     for (const statement of migration.split(';').map((entry) => entry.trim()).filter(Boolean)) await client.$executeRawUnsafe(statement);
+    for (const statement of controlMigration.split(';').map((entry) => entry.trim()).filter(Boolean)) await client.$executeRawUnsafe(statement);
     source = { result: { facts: [fact()], evaluatedSources: ['TRENDS'], sourceState: { TRENDS: 'AVAILABLE' } },
       collect: async () => source.result };
     now = new Date('2026-09-09T12:00:00Z');

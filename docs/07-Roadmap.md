@@ -1356,4 +1356,22 @@ Entregas:
 
 Limites preservados: sinal nao demonstra causalidade; severidade nao preve impacto; avaliacao proativa nao executa acoes; `HIGH`/`CRITICAL` apenas priorizam atencao; falha de fonte pode deixar o sinal `STALE`; o monitoramento nao altera ranking, video, YouTube ou automacao externa.
 
-Proximo checkpoint: **SPRINT 44 - NAO INICIADA**.
+Checkpoint de entrada encerrado: a Sprint 44 foi iniciada a partir desta base validada.
+
+## Sprint 44 - Monitoring Control Plane - CONCLUIDA
+
+**Objetivo:** oferecer controle persistente, explicito e observavel da avaliacao periodica criada na Sprint 43, sem criar outro scheduler ou liberar acoes externas.
+
+Entregas:
+
+- `MonitoringControl` singleton, desativado por padrao, com cadencia, estado operacional e timestamps de execucao;
+- `MonitoringControlRepository` e `MonitoringControlService` como fonte unica de configuracao, lock e reconciliacao;
+- ativacao/desativacao idempotentes e atualizacao de cadencia sem acumular jobs;
+- execucao manual independente de periodicidade e pelo mesmo pipeline `StrategicMonitoringService`;
+- recuperacao de lease `RUNNING` interrompido no startup;
+- `StrategicMonitoringJob` reduzido a adaptador do `AutomationSchedulerService` existente;
+- API estrita para estado, cadencia, ativacao, desativacao e execucao imediata;
+- area Controle do Monitoramento em `#/monitoring`, com estado desejado/efetivo, datas, loading e single-flight;
+- migration aditiva e testes de repository/service, concorrencia, API, runtime, UI e regressao.
+
+Limites preservados: ativar monitoramento nao autoriza automacoes externas; periodicidade efetiva depende do Automation Runtime compartilhado; avaliacao manual nao ativa o job; sinal nao e causalidade; nenhuma acao externa, publicacao ou novo agente foi adicionado.

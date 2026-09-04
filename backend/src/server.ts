@@ -2,6 +2,7 @@ import { loadEnv } from './core/config/loadEnv';
 import app from './app';
 import { automationRuntime, readAutomationRuntimeConfig } from './services/automation/AutomationRuntimeService';
 import { DatabaseService } from './database/DatabaseService';
+import { MonitoringControlService } from './services/strategic-monitoring';
 
 loadEnv();
 
@@ -13,11 +14,16 @@ const server = app.listen(port, host, () => {
   const listeningPort = typeof address === 'object' && address ? address.port : port;
 
   console.log(`JvitorZ OS backend running at http://${host}:${listeningPort}`);
-  if (readAutomationRuntimeConfig().enabled) {
-    void automationRuntime.start().catch((error) => {
-      console.error(`Automation runtime startup failed (${error instanceof Error ? error.name : 'UnknownError'})`);
+  const monitoringControl = new MonitoringControlService(
+    undefined, undefined, undefined, undefined, () => automationRuntime.getHealth(),
+  );
+  void monitoringControl.reconcile()
+    .then(async () => {
+      if (readAutomationRuntimeConfig().enabled) await automationRuntime.start();
+    })
+    .catch((error) => {
+      console.error(`Operational runtime startup failed (${error instanceof Error ? error.name : 'UnknownError'})`);
     });
-  }
 });
 
 let shuttingDown = false;

@@ -1485,6 +1485,14 @@ dd {
 .planning-learnings { margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--line); }
 .planning-experiments { margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--line); }
 .strategic-monitoring-panel { max-width: 1280px; margin: 0 auto; }
+.monitoring-control { padding-bottom: 20px; margin-bottom: 18px; border-bottom: 1px solid var(--line); }
+.monitoring-control-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; }
+.monitoring-control-grid > div, .monitoring-control-grid > label { display: grid; align-content: start; gap: 5px; min-width: 0; }
+.monitoring-control-grid span, .monitoring-control-grid label { color: var(--muted); font-size: .82rem; }
+.monitoring-control-grid strong { overflow-wrap: anywhere; }
+.monitoring-control-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; }
+.monitoring-control-status.active { color: #73c991; }
+.monitoring-control-status.disabled { color: var(--muted); }
 .monitoring-toolbar { display: flex; flex-wrap: wrap; align-items: end; gap: 10px; padding-bottom: 18px; border-bottom: 1px solid var(--line); }
 .monitoring-toolbar label { display: grid; gap: 6px; color: var(--muted); font-size: 0.82rem; }
 .monitoring-toolbar select { min-width: 160px; }
@@ -1526,6 +1534,7 @@ dd {
 .planning-history-list p { grid-column: 1 / -1; margin: 0; color: var(--muted); }
 
 @media (max-width: 900px) {
+  .monitoring-control-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .planning-workspace { grid-template-columns: 1fr; }
   .planning-detail { position: static; border-left: 0; border-top: 1px solid var(--line); padding: 18px 0 0; }
   .monitoring-workspace { grid-template-columns: 1fr; }
@@ -1535,6 +1544,7 @@ dd {
 }
 
 @media (max-width: 560px) {
+  .monitoring-control-grid { grid-template-columns: 1fr; }
   .planning-toolbar, .planning-section-heading { align-items: stretch; flex-direction: column; }
   .planning-toolbar select, .planning-toolbar .button { width: 100%; }
   .planning-item { grid-template-columns: 1fr; }

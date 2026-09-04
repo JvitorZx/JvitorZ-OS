@@ -32,6 +32,7 @@ const service = (records = complete(), error = null) => new YouTubeAudienceSyncS
   provider: { async fetch() { if (error) throw error; return { records, availableDimensions: [...new Set(records.map(({ dimension }) => dimension))], missingDimensions: ['traffic_source','search_term','country','device_type','subscribed_status'].filter((value) => !records.some(({ dimension }) => dimension === value)) }; } },
   snapshotRepository: snapshots,
   stateRepository: states,
+  now: () => now,
 });
 
 before(async () => {
@@ -75,7 +76,7 @@ describe('Audience persistence, quality and intelligence', { concurrency: false 
 
   test('summary separates facts, signals, missing data and confidence', async () => {
     await service().sync({ startDate: '2026-08-01', endDate: '2026-08-07' });
-    const summary = await new AudienceIntelligenceService(snapshots).summary();
+    const summary = await new AudienceIntelligenceService(snapshots, undefined, () => now).summary();
     assert.equal(summary.trafficSources[0].segment, 'YT_SEARCH');
     assert.equal(summary.countries[0].segment, 'BR');
     assert.equal(summary.countries[0].averageViewDurationSeconds, 180);
@@ -90,12 +91,12 @@ describe('Audience persistence, quality and intelligence', { concurrency: false 
 
   test('partial and absent datasets remain explicit instead of being invented', async () => {
     await service([raw('traffic_source', 'BROWSE', 10)]).sync({ startDate: '2026-08-01', endDate: '2026-08-07' });
-    const summary = await new AudienceIntelligenceService(snapshots).summary();
+    const summary = await new AudienceIntelligenceService(snapshots, undefined, () => now).summary();
     assert.equal(summary.quality.state, 'PARTIAL');
     assert.ok(summary.missingData.includes('search_term'));
     assert.deepEqual(summary.searchTerms, []);
     await client.audienceSnapshot.deleteMany();
-    assert.equal((await new AudienceIntelligenceService(snapshots).summary()).quality.state, 'MISSING');
+    assert.equal((await new AudienceIntelligenceService(snapshots, undefined, () => now).summary()).quality.state, 'MISSING');
   });
 
   test('data quality detects stale and inconsistent rows', () => {
@@ -114,7 +115,7 @@ describe('Audience persistence, quality and intelligence', { concurrency: false 
   test('compares equivalent periods and reports a changed traffic mix', async () => {
     await service([raw('traffic_source', 'BROWSE', 100, { periodStart: '2026-08-01', periodEnd: '2026-08-08' })]).sync({ startDate: '2026-08-01', endDate: '2026-08-07' });
     await service([raw('traffic_source', 'YT_SEARCH', 200, { periodStart: '2026-07-24', periodEnd: '2026-08-01' })]).sync({ startDate: '2026-07-24', endDate: '2026-07-31' });
-    const result = await new AudienceIntelligenceService(snapshots).compare({ currentStart: new Date('2026-08-01T00:00:00Z'), currentEnd: new Date('2026-08-08T00:00:00Z'), previousStart: new Date('2026-07-24T00:00:00Z'), previousEnd: new Date('2026-08-01T00:00:00Z') });
+    const result = await new AudienceIntelligenceService(snapshots, undefined, () => now).compare({ currentStart: new Date('2026-08-01T00:00:00Z'), currentEnd: new Date('2026-08-08T00:00:00Z'), previousStart: new Date('2026-07-24T00:00:00Z'), previousEnd: new Date('2026-08-01T00:00:00Z') });
     assert.equal(result.current.traffic[0].segment, 'BROWSE');
     assert.equal(result.previous.traffic[0].segment, 'YT_SEARCH');
     assert.equal(result.changes.principalTrafficChanged, true);

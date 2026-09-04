@@ -21,12 +21,16 @@ const group = (rows: AudienceSnapshot[]) => {
 };
 
 export class AudienceIntelligenceService {
-  constructor(private readonly snapshots = new AudienceSnapshotRepository(DatabaseService.client), private readonly quality = new DataQualityService()) {}
+  constructor(
+    private readonly snapshots = new AudienceSnapshotRepository(DatabaseService.client),
+    private readonly quality = new DataQualityService(),
+    private readonly now: () => Date = () => new Date(),
+  ) {}
   async summary(projectId?: string | null) {
     const rows = currentPeriod(await this.snapshots.findAll({ projectId: projectId?.trim() || null }));
     const byDimension = (dimension: string) => group(rows.filter((row) => row.dimension === dimension));
     const trafficSources = byDimension('traffic_source'); const countries = byDimension('country'); const devices = byDimension('device_type'); const subscribed = byDimension('subscribed_status'); const searchTerms = byDimension('search_term');
-    const quality = this.quality.evaluateAudience(rows, AUDIENCE_DIMENSIONS);
+    const quality = this.quality.evaluateAudience(rows, AUDIENCE_DIMENSIONS, this.now());
     const missingData = AUDIENCE_DIMENSIONS.filter((dimension) => !rows.some((row) => row.dimension === dimension));
     const top = trafficSources[0]; const concentration = trafficSources.reduce((sum, item) => sum + item.viewShare ** 2, 0);
     const facts = [top ? `Principal fonte: ${top.segment} (${Math.round(top.viewShare * 100)}% das views no período).` : null, countries[0] ? `Principal país: ${countries[0].segment} (${Math.round(countries[0].viewShare * 100)}%).` : null, devices[0] ? `Principal dispositivo: ${devices[0].segment} (${Math.round(devices[0].viewShare * 100)}%).` : null].filter((value): value is string => Boolean(value));
@@ -39,6 +43,6 @@ export class AudienceIntelligenceService {
     const summarize = (rows: AudienceSnapshot[]) => ({ views: total(rows, 'views'), watchTimeMinutes: total(rows, 'watchTimeMinutes'), traffic: group(rows.filter((row) => row.dimension === 'traffic_source')), countries: group(rows.filter((row) => row.dimension === 'country')), devices: group(rows.filter((row) => row.dimension === 'device_type')) });
     const a = summarize(current); const b = summarize(previous);
     const changed = (left?: { segment: string }, right?: { segment: string }) => left?.segment && right?.segment ? left.segment !== right.segment : null;
-    return { current: a, previous: b, changes: { views: b.views ? (a.views - b.views) / b.views : null, watchTimeMinutes: b.watchTimeMinutes ? (a.watchTimeMinutes - b.watchTimeMinutes) / b.watchTimeMinutes : null, principalTrafficChanged: changed(a.traffic[0], b.traffic[0]), principalCountryChanged: changed(a.countries[0], b.countries[0]), principalDeviceChanged: changed(a.devices[0], b.devices[0]) }, quality: this.quality.evaluateAudience(current, AUDIENCE_DIMENSIONS), missingData: [...(!current.length ? ['current period'] : []), ...(!previous.length ? ['previous period'] : [])] };
+    return { current: a, previous: b, changes: { views: b.views ? (a.views - b.views) / b.views : null, watchTimeMinutes: b.watchTimeMinutes ? (a.watchTimeMinutes - b.watchTimeMinutes) / b.watchTimeMinutes : null, principalTrafficChanged: changed(a.traffic[0], b.traffic[0]), principalCountryChanged: changed(a.countries[0], b.countries[0]), principalDeviceChanged: changed(a.devices[0], b.devices[0]) }, quality: this.quality.evaluateAudience(current, AUDIENCE_DIMENSIONS, this.now()), missingData: [...(!current.length ? ['current period'] : []), ...(!previous.length ? ['previous period'] : [])] };
   }
 }

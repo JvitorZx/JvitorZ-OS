@@ -485,6 +485,10 @@ Somente metricas existentes em `PlanningOutcome.metrics` sao aceitas. A trilha e
 
 ## Strategic Monitoring
 
+### MonitoringControl
+
+Configuracao singleton (`id = strategic-monitoring`) e fonte de verdade do ciclo operacional. Guarda `enabled`, `intervalMs`, `operationalState`, `lastRunAt`, `lastSuccessfulRunAt`, `lastFailureAt`, `lastErrorType` e `nextRunAt`. O registro nasce desativado. O lock de `RUNNING` e adquirido atomicamente e evita execucoes concorrentes; o startup reconcilia locks interrompidos.
+
 ### MonitoringRule
 
 Catalogo persistido das regras deterministicas: codigo unico, tipo de sinal, severidade padrao, cooldown e descricao.
@@ -502,6 +506,8 @@ Project 1 -> N StrategicSignal
 Project 1 -> N MonitoringSnapshot
 StrategicSignal 1 -> N SignalEvidence
 MonitoringSnapshot 1 -> N SignalEvidence
+
+MonitoringControl (singleton)
 ```
 
 Sinais antigos nao sao apagados. `STALE` preserva o last-known-good quando uma fonte falha. Confidence mede qualidade/cobertura da observacao; nao e probabilidade nem previsao.

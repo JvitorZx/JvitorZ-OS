@@ -917,6 +917,22 @@ model MonitoringRule {
   @@index([enabled, signalType])
 }
 
+model MonitoringControl {
+  id                  String   @id @default("strategic-monitoring")
+  enabled             Boolean  @default(false)
+  intervalMs          Int      @default(21600000)
+  operationalState    String   @default("DISABLED")
+  lastRunAt           DateTime?
+  lastSuccessfulRunAt DateTime?
+  lastFailureAt       DateTime?
+  lastErrorType       String?
+  nextRunAt           DateTime?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@index([enabled, nextRunAt])
+}
+
 model StrategicSignal {
   id             String           @id @default(cuid())
   projectId      String?

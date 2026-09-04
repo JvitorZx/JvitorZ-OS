@@ -800,10 +800,15 @@ A avaliacao manual e a periodica usam o mesmo servico. Quando explicitamente hab
 ```text
 AutomationRuntimeService tick
   -> AutomationSchedulerService.runDueAutomations()
-     -> StrategicMonitoringJob (intervalo + retry limitado)
-     -> StrategicMonitoringService.evaluate()
+     -> StrategicMonitoringJob (adaptador fino)
+     -> MonitoringControlService.runScheduled()
+        -> claim atomico da configuracao persistida
+        -> StrategicMonitoringService.evaluate()
+        -> sucesso/falha + proxima execucao
      -> automacoes vencidas normais
   -> AutomationRuntimeEvent sanitizado
 ```
 
-Nao existe scheduler paralelo. Repetir os mesmos fatos conserva o fingerprint e nao multiplica sinais ou evidencias. Falha de uma fonte nao invalida as demais e nao dispara acao externa.
+O controle operacional usa uma unica linha `MonitoringControl`. Ativar, desativar e alterar cadencia reconciliam essa fonte persistente; o scheduler apenas a consulta. No startup, `reconcile()` recupera eventual estado `RUNNING` interrompido sem disparar trabalho duplicado. A execucao manual usa `runNow()` e o mesmo `StrategicMonitoringService`, mas independe de `enabled` e nunca cria periodicidade.
+
+Nao existe scheduler paralelo. Repetir os mesmos fatos conserva o fingerprint e nao multiplica sinais ou evidencias. Falha de uma fonte nao invalida as demais e nao dispara acao externa. A periodicidade nasce desligada e depende do Automation Runtime compartilhado estar configurado e ativo.

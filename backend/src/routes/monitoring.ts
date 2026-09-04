@@ -1,17 +1,24 @@
 import { Router } from 'express';
 import {
+  MonitoringControlConflictError,
+  MonitoringControlService,
+  MonitoringControlValidationError,
   StrategicMonitoringService,
   StrategicMonitoringValidationError,
   StrategicSignalConflictError,
   StrategicSignalNotFoundError,
 } from '../services/strategic-monitoring';
+import { automationRuntime } from '../services/automation/AutomationRuntimeService';
 
 const isObject = (value: unknown): value is Record<string, unknown> => Boolean(value && typeof value === 'object' && !Array.isArray(value));
 const hasOnly = (value: Record<string, unknown>, fields: readonly string[]) => Object.keys(value).every((field) => fields.includes(field));
 const optionalText = (value: unknown): value is string | null | undefined => value == null || typeof value === 'string';
+const emptyBody = (value: unknown) => value === undefined || (isObject(value) && Object.keys(value).length === 0);
 
 const sendError = (res: Parameters<Parameters<Router['get']>[1]>[1], error: unknown) => {
   if (error instanceof StrategicMonitoringValidationError) return res.status(400).json({ error: error.message });
+  if (error instanceof MonitoringControlValidationError) return res.status(400).json({ error: error.message });
+  if (error instanceof MonitoringControlConflictError) return res.status(409).json({ error: error.message });
   if (error instanceof StrategicSignalNotFoundError) return res.status(404).json({ error: error.message });
   if (error instanceof StrategicSignalConflictError) return res.status(409).json({ error: error.message });
   const name = error instanceof Error ? error.name : 'UnknownError';
@@ -21,8 +28,45 @@ const sendError = (res: Parameters<Parameters<Router['get']>[1]>[1], error: unkn
 
 export const createMonitoringRouter = (
   service: StrategicMonitoringService = new StrategicMonitoringService(),
+  providedControl?: MonitoringControlService,
 ): Router => {
   const router = Router();
+  const control = providedControl ?? new MonitoringControlService(
+    undefined, service, undefined, undefined, () => automationRuntime.getHealth(),
+  );
+
+  router.get('/control', async (req, res) => {
+    if (Object.keys(req.query).length) return res.status(400).json({ error: 'invalid monitoring control query' });
+    try { return res.status(200).json(await control.getState()); }
+    catch (error) { return sendError(res, error); }
+  });
+
+  router.patch('/control', async (req, res) => {
+    if (!isObject(req.body) || !hasOnly(req.body, ['intervalMs']) || Object.keys(req.body).length !== 1
+      || !Number.isInteger(req.body.intervalMs)) {
+      return res.status(400).json({ error: 'invalid monitoring control payload' });
+    }
+    try { return res.status(200).json(await control.updateCadence(req.body.intervalMs as number)); }
+    catch (error) { return sendError(res, error); }
+  });
+
+  router.post('/control/enable', async (req, res) => {
+    if (!emptyBody(req.body)) return res.status(400).json({ error: 'monitoring enable body must be empty' });
+    try { return res.status(200).json(await control.enable()); }
+    catch (error) { return sendError(res, error); }
+  });
+
+  router.post('/control/disable', async (req, res) => {
+    if (!emptyBody(req.body)) return res.status(400).json({ error: 'monitoring disable body must be empty' });
+    try { return res.status(200).json(await control.disable()); }
+    catch (error) { return sendError(res, error); }
+  });
+
+  router.post('/control/run', async (req, res) => {
+    if (!emptyBody(req.body)) return res.status(400).json({ error: 'monitoring run body must be empty' });
+    try { return res.status(200).json(await control.runNow()); }
+    catch (error) { return sendError(res, error); }
+  });
 
   router.get('/signals', async (req, res) => {
     if (!hasOnly(req.query as Record<string, unknown>, ['projectId', 'state', 'severity', 'type', 'limit'])
@@ -46,7 +90,10 @@ export const createMonitoringRouter = (
     if (!isObject(req.body) || !hasOnly(req.body, ['projectId']) || !optionalText(req.body.projectId)) {
       return res.status(400).json({ error: 'invalid monitoring evaluation payload' });
     }
-    try { return res.status(200).json(await service.evaluate('projectId' in req.body ? req.body.projectId || null : undefined)); }
+    try {
+      const result = await control.runNow('projectId' in req.body ? req.body.projectId || null : undefined);
+      return res.status(200).json(result.evaluation);
+    }
     catch (error) { return sendError(res, error); }
   });
 
