@@ -1392,3 +1392,19 @@ Entregas:
 - migration aditiva, testes SQLite isolados e regressao completa.
 
 Limites preservados: contexto auxilia decisoes, mas nao e ordem rigida; hipotese nao vira fato; correlacao nao vira causalidade; Bilibili permanece apenas como possibilidade registrada; nenhuma publicacao, scraping, alteracao do YouTube ou agente futuro foi implementado.
+
+## Sprint 46 - Packaging Intelligence & Experiment Memory - CONCLUIDA
+
+**Objetivo:** transformar acontecimentos reais e memoria do canal em variantes auditaveis de titulo, brief de thumbnail, descricao e tags, preservando a escolha do criador.
+
+Entregas:
+
+- dominio `packaging` com geracao deterministica, revisao de fidelidade e score exclusivamente comparativo;
+- perfis atuais de City Car Driving 2.0 e Forza Horizon 6 consumidos como contexto revisavel;
+- `ContentPackaging`, `PackagingVariant`, `PackagingHistory`, `PackagingMetricSnapshot` e `PackagingExperiment`;
+- selecao, rejeicao, edicao manual e publicacao local com historico append-only;
+- captura idempotente de metricas reais existentes e ausencia de dados explicita;
+- experimentos e aprendizados vinculados a Creator Memory;
+- capability no Gerente, revisao no Supervisor, API estrita e workspace `#/packaging`.
+
+Limites: nao gera imagem final, nao publica ou modifica videos, nao executa A/B nativo, nao inventa metricas, nao preve performance e nao transforma associacao em causalidade.

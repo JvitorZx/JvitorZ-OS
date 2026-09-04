@@ -285,3 +285,9 @@ Testes de migration, controle e runtime usam SQLite isolado. `backend/prisma/dev
 A migration `20260911120000_channel_context_memory` e aditiva. Ela cria `ChannelContextEntry` e `ChannelContextRelation`, sem reescrever dados anteriores. Projeto e predecessor usam `SET NULL`; relacoes seguem o contexto por cascade. Chaves unicas em `stableKey`, `supersedesId` e na relacao composta garantem bootstrap, sucessao e vinculos idempotentes.
 
 O bootstrap de aplicacao cria somente entradas ausentes por chave estavel. Ele nao faz update destrutivo e nao transforma o conteudo inicial em verdade eterna: cada registro continua atualizavel, rejeitavel ou supersedivel. Testes de migration usam SQLite `:memory:`; `backend/prisma/dev.db` permanece local e fora do Git.
+
+### Packaging Intelligence
+
+A migration `20260912120000_packaging_intelligence` cria de forma aditiva `ContentPackaging`, `PackagingVariant`, `PackagingHistory`, `PackagingMetricSnapshot` e `PackagingExperiment`.
+
+Variantes sao unicas por `(packagingId, key)` e metricas por `ingestionKey`. Projeto e snapshot opcional usam `SET NULL`; filhos internos usam cascade. O journal nao e sobrescrito por selecao ou edicao. Testes usam SQLite em memoria; `dev.db` recebe a migration somente apos backup validado e fica fora do Git.

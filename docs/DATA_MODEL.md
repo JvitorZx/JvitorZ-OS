@@ -523,3 +523,11 @@ Registro temporal de memoria do canal. `stableKey` garante idempotencia de boots
 Vinculo genérico e auditavel entre uma entrada de contexto e uma entidade existente. A chave composta `(contextId, relation, entityType, entityId)` torna a relacao idempotente. O vinculo segue a entrada por cascade; a entidade externa nao e alterada.
 
 Sinais antigos nao sao apagados. `STALE` preserva o last-known-good quando uma fonte falha. Confidence mede qualidade/cobertura da observacao; nao e probabilidade nem previsao.
+
+## Packaging Intelligence
+
+`ContentPackaging` identifica o conteudo e guarda as dimensoes editoriais e o snapshot limitado de contexto usado. `PackagingVariant` persiste titulo, brief estruturado de thumbnail, descricao, tags, racional, risco de clickbait, score relativo, edicoes manuais e estado.
+
+`PackagingHistory` registra geracao, edicao, selecao, rejeicao, publicacao e experimento sem sobrescrever eventos. `PackagingMetricSnapshot` copia apenas metricas observadas, com fonte e janela. `PackagingExperiment` referencia a entrada da Creator Memory sem duplicar o dominio de memoria.
+
+Status: `DRAFT`, `SELECTED`, `REJECTED`, `PUBLISHED`, `ARCHIVED`.

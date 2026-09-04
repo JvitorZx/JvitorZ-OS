@@ -29,6 +29,7 @@ export type ManagerIntent =
   | 'CONTENT_PLANNING'
   | 'EXPERIMENT_STATUS'
   | 'STRATEGIC_MONITORING'
+  | 'PACKAGING'
   | 'OPPORTUNITY_DISCOVERY'
   | 'RESEARCH_DISCOVERY'
   | 'RISK_ANALYSIS'
@@ -57,6 +58,7 @@ export type OperatorCapability =
   | 'experimentation'
   | 'monitoring'
   | 'creator-context'
+  | 'packaging'
   | 'response';
 
 export type CapabilityAccess = 'read' | 'write' | 'external_side_effect';

@@ -20,6 +20,7 @@ export const extractComparisonCandidates = (message: string): string[] => {
 
 export const classifyManagerIntent = (message: string): ManagerIntent => {
   const text = searchable(message);
+  if (/(titulo|thumbnail|thumb|embalagem|descricao|tags)/.test(text) && /(ajuda|cria|gera|opcao|variante|video|conteudo)/.test(text)) return 'PACKAGING';
   if (!text) return 'UNKNOWN';
   if (/(sinais? estrategic|alertas? estrategic|o que mudou|mudou no canal|precisa.*atencao|monitoramento)/.test(text)) return 'STRATEGIC_MONITORING';
   if (/(o que estamos testando|experimento|hipotese|resultado do teste|o que aprendemos.*teste|hipotese.*confirmada)/.test(text)) return 'EXPERIMENT_STATUS';

@@ -601,3 +601,9 @@ O workspace `#/monitoring` apresenta status, cadencia suportada, ultima e proxim
 O job nao cria plano, nao executa automacao e nao chama integracao externa. Falha fica contida e o scheduler continua avaliando as automacoes normais.
 
 Sinal e correlacao operacional, nao causalidade. Severidade prioriza revisao humana, nao estima impacto futuro. O monitoramento nao muda ranking ou aprendizado automaticamente.
+
+## Packaging Intelligence
+
+`PackagingGenerator` e puro e deterministico. `PackagingService` coordena contexto, validacao, memoria e observacoes; `PackagingRepository` encapsula Prisma. O `ChannelContextResolver` fornece identidade, decisoes, hipoteses e aprendizados relevantes, cujos IDs e recorte limitado ficam auditados na embalagem.
+
+Selecao e edicao pertencem ao criador. `PackagingMetricSnapshot` referencia performance persistida e preserva Reach no payload tipado com fonte e periodo, sem recalcular CTR. Gerente usa `packaging.read`, Planner alcanca a capability pelo roteamento natural e Supervisor recebe resumo operacional. A UI `#/packaging` reutiliza lifecycle, feedback local e protecao contra respostas obsoletas.

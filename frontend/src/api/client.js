@@ -68,6 +68,24 @@ const transitionStrategicSignal = (baseUrl, signalId, action, reason) => {
 };
 
 export const createApiClient = (baseUrl) => ({
+  async listPackagings(filters = {}) {
+    const params = new URLSearchParams();
+    for (const key of ['projectId', 'game', 'series', 'status']) if (filters[key] !== undefined) params.set(key, requireIdentifier(filters[key], key));
+    if (filters.limit !== undefined) { if (!Number.isInteger(filters.limit) || filters.limit < 1 || filters.limit > 200) throw new TypeError('limit is invalid'); params.set('limit', String(filters.limit)); }
+    const query = params.toString(); return requestJson(`${baseUrl}/api/packaging${query ? `?${query}` : ''}`, undefined, 'Erro ao carregar embalagens');
+  },
+
+  async generatePackaging(input) { return requestJson(`${baseUrl}/api/packaging`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(input) }, 'Erro ao gerar embalagem'); },
+  async getPackaging(id) { return requestJson(`${baseUrl}/api/packaging/${encodeURIComponent(requireIdentifier(id, 'packagingId'))}`, undefined, 'Erro ao abrir embalagem'); },
+  async getPackagingHistory(id) { return requestJson(`${baseUrl}/api/packaging/${encodeURIComponent(requireIdentifier(id, 'packagingId'))}/history`, undefined, 'Erro ao carregar historico da embalagem'); },
+  async editPackagingVariant(id, input) { return requestJson(`${baseUrl}/api/packaging/variants/${encodeURIComponent(requireIdentifier(id, 'variantId'))}`, { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify(input) }, 'Erro ao editar variante'); },
+  async selectPackagingVariant(id, reason = '') { return requestJson(`${baseUrl}/api/packaging/variants/${encodeURIComponent(requireIdentifier(id, 'variantId'))}/select`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(reason ? { reason } : {}) }, 'Erro ao selecionar variante'); },
+  async rejectPackagingVariant(id, reason = '') { return requestJson(`${baseUrl}/api/packaging/variants/${encodeURIComponent(requireIdentifier(id, 'variantId'))}/reject`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(reason ? { reason } : {}) }, 'Erro ao rejeitar variante'); },
+  async publishPackagingVariant(id, input) { return requestJson(`${baseUrl}/api/packaging/variants/${encodeURIComponent(requireIdentifier(id, 'variantId'))}/publish`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(input) }, 'Erro ao registrar publicacao'); },
+  async observePackagingVariant(id) { return requestJson(`${baseUrl}/api/packaging/variants/${encodeURIComponent(requireIdentifier(id, 'variantId'))}/observe`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' }, 'Erro ao observar embalagem'); },
+  async reviewPackagingVariant(id) { return requestJson(`${baseUrl}/api/packaging/variants/${encodeURIComponent(requireIdentifier(id, 'variantId'))}/review`, undefined, 'Erro ao revisar embalagem'); },
+  async createPackagingExperiment(id, input) { return requestJson(`${baseUrl}/api/packaging/${encodeURIComponent(requireIdentifier(id, 'packagingId'))}/experiments`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(input) }, 'Erro ao criar experimento de embalagem'); },
+  async recordPackagingLearning(id) { return requestJson(`${baseUrl}/api/packaging/${encodeURIComponent(requireIdentifier(id, 'packagingId'))}/learning`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' }, 'Erro ao registrar aprendizado de embalagem'); },
   async getIntegrationStatus() {
     return requestJson(`${baseUrl}/api/integrations/status`, undefined, 'Erro ao consultar integracoes');
   },

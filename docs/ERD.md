@@ -431,3 +431,17 @@ ChannelContextRelation --- entityType + entityId
 ```
 
 `stableKey` e unico. `supersedesId` tambem e unico, impedindo duas sucessoras diretas para a mesma entrada. `ChannelContextRelation` possui unicidade por contexto, relacao e entidade; ela registra rastreabilidade sem assumir ownership nem FK sobre dominios heterogeneos.
+
+## Packaging Intelligence
+
+```text
+Project 1 --- N ContentPackaging
+ContentPackaging 1 --- N PackagingVariant
+ContentPackaging 1 --- N PackagingHistory
+ContentPackaging 1 --- N PackagingExperiment
+PackagingVariant 1 --- N PackagingMetricSnapshot
+VideoPerformanceSnapshot 1 --- N PackagingMetricSnapshot
+Packaging / Variant --- ChannelContextRelation --- ChannelContextEntry
+```
+
+`PackagingVariant(packagingId, key)` e unico. `PackagingMetricSnapshot.ingestionKey` impede captura duplicada. A Creator Memory usa relacoes heterogeneas auditaveis sem duplicar ownership.

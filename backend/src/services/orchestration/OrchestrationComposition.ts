@@ -22,6 +22,7 @@ import { StrategicPlanningService } from '../strategic-planning';
 import { ExperimentationService } from '../strategic-experimentation';
 import { StrategicMonitoringService } from '../strategic-monitoring';
 import { ChannelContextResolver } from '../channel-context';
+import { PackagingService } from '../packaging';
 
 export interface OrchestrationDependencies {
   intelligence: Pick<CreatorIntelligenceService,
@@ -39,6 +40,7 @@ export interface OrchestrationDependencies {
   experimentation: Pick<ExperimentationService, 'list'>;
   monitoring: Pick<StrategicMonitoringService, 'list'>;
   channelContext: Pick<ChannelContextResolver, 'resolve'>;
+  packaging: Pick<PackagingService, 'list'>;
 }
 
 const previousOutputs = (results: ReadonlyMap<string, OrchestrationStepResult>): CapabilityOutput[] =>
@@ -66,6 +68,7 @@ export const createDefaultOrchestrationDependencies = (): OrchestrationDependenc
     experimentation: new ExperimentationService(),
     monitoring: new StrategicMonitoringService(),
     channelContext: new ChannelContextResolver(),
+    packaging: new PackagingService(),
   };
 };
 
@@ -73,6 +76,22 @@ export const createDefaultCapabilityRegistry = (
   dependencies: OrchestrationDependencies = createDefaultOrchestrationDependencies(),
 ): CapabilityRegistry => {
   const registry = new CapabilityRegistry();
+
+  registry.register({
+    id: 'packaging.read', responsibility: 'Consultar variantes persistidas e seu contexto sem prever performance ou alterar a escolha do criador.',
+    inputs: ['intent', 'projectId'], outputs: ['packaging variants', 'rationale', 'missing data'], availability: 'available',
+    dependencies: [], access: 'read', sideEffect: 'READ_ONLY', persistentMutation: false, capabilityTags: ['packaging'],
+  }, async ({ request }) => {
+    const rows = await dependencies.packaging.list({ projectId: request.projectId, limit: 5 });
+    const latest = rows[0];
+    return {
+      summary: latest ? `${latest.variants.length} variante(s) de embalagem disponiveis para ${latest.game ?? latest.series ?? 'o conteudo mais recente'}.` : 'Nenhuma embalagem persistida; informe o acontecimento real no workspace Packaging antes de gerar opcoes.',
+      facts: latest?.variants.slice(0, 5).map(({ key, title, status }) => `${key}: ${title} (${status}).`) ?? [],
+      recommendations: latest?.variants.filter(({ status }) => status !== 'REJECTED').slice(0, 3).map(({ title, rationale }) => `${title}: ${rationale}`) ?? [],
+      missingData: latest ? [] : ['acontecimento principal e resumo do conteudo'], confidence: latest ? 0.85 : 0,
+      data: latest ? { packagingId: latest.id, variantIds: latest.variants.map(({ id }) => id) } : {},
+    };
+  });
 
   registry.register({
     id: 'channel-context.read', responsibility: 'Selecionar memoria temporal relevante do canal sem despejar todo o historico.',

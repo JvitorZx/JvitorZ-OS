@@ -834,3 +834,24 @@ Monitoring fact
 O bootstrap usa chaves `bootstrap:sprint45:*`; uma segunda execucao retorna os registros existentes e nao apaga atualizacoes. Fatos numericos de Shorts permanecem em entradas separadas das interpretacoes. Hipoteses abertas mantem tipo proprio, confianca e dados ausentes. Supersessao preserva a entrada antiga na timeline e impede seu uso como contexto atual.
 
 Nao existe scheduler paralelo. Repetir os mesmos fatos conserva o fingerprint e nao multiplica sinais ou evidencias. Falha de uma fonte nao invalida as demais e nao dispara acao externa. A periodicidade nasce desligada e depende do Automation Runtime compartilhado estar configurado e ativo.
+
+## Packaging Intelligence
+
+```text
+conteudo + acontecimento real + objetivo
+  -> ChannelContextResolver
+  -> PackagingGenerator
+  -> PackagingService -> PackagingRepository -> Prisma -> SQLite
+  -> API -> workspace #/packaging
+
+selecao / edicao / experimento / publicacao
+  -> PackagingHistory
+  -> ChannelContextService (DECISION / EXPERIMENT / FACT)
+
+video associado + snapshots existentes
+  -> VideoPerformanceSnapshot + VideoReachSnapshot
+  -> PackagingMetricSnapshot
+  -> LEARNING somente com multiplas observacoes
+```
+
+CTR e Analytics continuam donos das metricas. Gerente consulta variantes persistidas; Supervisor apresenta o estado e findings sem substituir a escolha humana.

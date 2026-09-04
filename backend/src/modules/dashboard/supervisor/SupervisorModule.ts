@@ -26,6 +26,7 @@ import { StrategicPlanningService } from '../../../services/strategic-planning';
 import { ExperimentationService } from '../../../services/strategic-experimentation';
 import { StrategicMonitoringService } from '../../../services/strategic-monitoring';
 import { ChannelContextResolver } from '../../../services/channel-context';
+import { PackagingService } from '../../../services/packaging';
 
 const operatorSummary = (operator: { id: string; status: string; missingData: string[]; sampleSize: number }): string => {
   if (operator.status === 'AVAILABLE') {
@@ -56,6 +57,7 @@ export class SupervisorModule {
     private readonly experimentationService: Pick<ExperimentationService, 'getOperationalSummary'> = new ExperimentationService(),
     private readonly strategicMonitoringService: Pick<StrategicMonitoringService, 'getOperationalSummary'> = new StrategicMonitoringService(),
     private readonly channelContextResolver: Pick<ChannelContextResolver, 'resolve'> = new ChannelContextResolver(),
+    private readonly packagingService: Pick<PackagingService, 'getOperationalSummary'> = new PackagingService(),
   ) {}
 
   async getSupervisorOverview() {
@@ -203,6 +205,9 @@ export class SupervisorModule {
     let channelContext = { totalCandidates: 0, truncated: false, entries: [] as Array<{ id: string; type: string; status: string; subject: string; statement: string; confidence: number }> };
     try { channelContext = await this.channelContextResolver.resolve({ text: 'estrategia riscos decisoes experimentos plataforma producao', limit: 8, maxCharacters: 4_000 }); }
     catch { /* Creator context is local read-only guidance and cannot break the Supervisor. */ }
+    let packaging = { total: 0, selected: 0, published: 0, experiments: 0, needingReview: 0 };
+    try { packaging = await this.packagingService.getOperationalSummary(); }
+    catch { /* Packaging is local and cannot break the Supervisor or Dashboard. */ }
     const byId = new Map(channelOperators.map((operator) => [operator.id, operator]));
     const analyticsQuality = youtubeAnalytics.state === 'synchronized' || youtubeAnalytics.state === 'connected' ? 'GOOD'
       : youtubeAnalytics.lastSyncAt ? 'STALE' : youtubeAnalytics.state === 'temporary_error' ? 'ERROR' : 'MISSING';
@@ -229,6 +234,8 @@ export class SupervisorModule {
       summary: strategicMonitoring.active
         ? `${strategicMonitoring.active} sinal(is) ativo(s), ${strategicMonitoring.high} HIGH e ${strategicMonitoring.critical} CRITICAL.`
         : 'Nenhum sinal estrategico ativo.' },
+      { area: 'Packaging', state: packaging.needingReview > 0 ? 'PARTIAL' : packaging.total > 0 ? 'GOOD' : 'MISSING',
+        summary: packaging.total ? `${packaging.total} embalagem(ns), ${packaging.selected} selecionada(s) e ${packaging.published} publicada(s).` : 'Nenhuma embalagem persistida.' },
     ];
     return {
       alerts: dataQuality.filter(({ state }) => ['STALE', 'INCONSISTENT', 'ERROR'].includes(state)).map(({ area, summary }) => `${area}: ${summary}`),
@@ -271,6 +278,7 @@ export class SupervisorModule {
       experimentation,
       strategicMonitoring,
       channelContext,
+      packaging,
       audience,
     };
   }

@@ -1389,3 +1389,20 @@ Cria uma sucessora com o mesmo contrato de criacao e marca a anterior como `SUPE
 ### `POST /api/context/:id/relations`
 
 Body estrito: `{ "relation": "INFORMS", "entityType": "STRATEGIC_SIGNAL", "entityId": "..." }`. A mesma relacao e idempotente. Retorna `200`, `400`, `404` ou `500` sanitizado.
+
+## Packaging Intelligence
+
+Base: `/api/packaging`. Payloads sao estritos e nenhuma rota escreve no YouTube. Erros esperados usam `400`, `404` ou `409`; falhas inesperadas retornam `500` sanitizado.
+
+- `POST /api/packaging`: gera 2-5 variantes. Requer `summary` e `keyEvents`; aceita dimensoes editoriais, objetivo, restricoes e quantidade. Retorna `201`.
+- `GET /api/packaging`: lista por atualizacao; filtros `projectId`, `game`, `series`, `status` e `limit`.
+- `GET /api/packaging/:id` e `GET /api/packaging/:id/history`: detalhe completo ou journal append-only.
+- `PATCH /api/packaging/variants/:id`: edita titulo, brief, descricao e tags, com motivo opcional.
+- `POST /api/packaging/variants/:id/select` e `/reject`: registram escolha sem apagar alternativas.
+- `POST /api/packaging/variants/:id/publish`: registra localmente `videoId` e `publishedAt`; nao altera o video remoto.
+- `POST /api/packaging/variants/:id/observe`: body `{}`; copia snapshots Analytics/Reach existentes de forma idempotente.
+- `GET /api/packaging/variants/:id/review`: revisa fidelidade, clickbait, complementaridade e contexto.
+- `POST /api/packaging/:id/experiments`: registra hipotese e pelo menos duas variantes como `EXPERIMENT`.
+- `POST /api/packaging/:id/learning`: exige pelo menos duas observacoes reais de CTR e registra `LEARNING` nao causal.
+
+`internalScore` e ranking relativo do conjunto, nao CTR previsto nem probabilidade de sucesso.
