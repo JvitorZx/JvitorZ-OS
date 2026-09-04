@@ -417,3 +417,17 @@ StrategicSignal
 `SignalEvidence.signalId` usa `ON DELETE CASCADE`; `snapshotId` e opcional e usa `SET NULL`. `projectId` opcional em sinal/snapshot usa `SET NULL`. A modelagem preserva lifecycle e auditoria sem converter sinais em acoes automaticas.
 
 `MonitoringControl` e singleton e nao representa um segundo scheduler. Ele fornece configuracao persistente, lease operacional e timestamps para o unico `AutomationRuntimeService` existente.
+
+## Channel Context & Creator Memory
+
+```text
+Project 1 --- N ChannelContextEntry
+
+ChannelContextEntry 0..1 --- 0..1 ChannelContextEntry
+  supersedes / supersededBy
+
+ChannelContextEntry 1 --- N ChannelContextRelation
+ChannelContextRelation --- entityType + entityId
+```
+
+`stableKey` e unico. `supersedesId` tambem e unico, impedindo duas sucessoras diretas para a mesma entrada. `ChannelContextRelation` possui unicidade por contexto, relacao e entidade; ela registra rastreabilidade sem assumir ownership nem FK sobre dominios heterogeneos.

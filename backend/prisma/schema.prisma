@@ -45,6 +45,7 @@ model Project {
   strategicExperiments StrategicExperiment[]
   strategicSignals StrategicSignal[]
   monitoringSnapshots MonitoringSnapshot[]
+  channelContextEntries ChannelContextEntry[]
   createdAt        DateTime           @default(now())
   updatedAt        DateTime           @updatedAt
 }
@@ -302,6 +303,57 @@ model ChannelInsight {
   updatedAt      DateTime @updatedAt
 
   @@index([projectId, category])
+}
+
+model ChannelContextEntry {
+  id             String                   @id @default(cuid())
+  projectId      String?
+  project        Project?                 @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  stableKey      String                   @unique
+  channelId      String?
+  type           String
+  status         String                   @default("ACTIVE")
+  category       String
+  subject        String
+  statement      String
+  confidence     Float                    @default(1)
+  source         String
+  sourceReference String?
+  occurredAt     DateTime?
+  periodStart    DateTime?
+  periodEnd      DateTime?
+  entityType     String?
+  entityId       String?
+  game           String?
+  series         String?
+  format         String?
+  metadata       Json?
+  supersedesId   String?                  @unique
+  supersedes     ChannelContextEntry?     @relation("ChannelContextSupersession", fields: [supersedesId], references: [id], onDelete: SetNull)
+  supersededBy   ChannelContextEntry?     @relation("ChannelContextSupersession")
+  relations      ChannelContextRelation[]
+  createdAt      DateTime                 @default(now())
+  updatedAt      DateTime                 @updatedAt
+
+  @@index([projectId, type, status])
+  @@index([channelId, occurredAt])
+  @@index([category, subject])
+  @@index([entityType, entityId])
+  @@index([game, series, format])
+}
+
+model ChannelContextRelation {
+  id          String              @id @default(cuid())
+  contextId   String
+  context     ChannelContextEntry @relation(fields: [contextId], references: [id], onDelete: Cascade)
+  relation    String
+  entityType  String
+  entityId    String
+  createdAt   DateTime            @default(now())
+
+  @@unique([contextId, relation, entityType, entityId])
+  @@index([entityType, entityId])
+  @@index([contextId, createdAt])
 }
 
 model PerformanceSignal {

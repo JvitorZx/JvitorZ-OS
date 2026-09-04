@@ -279,3 +279,9 @@ Os repositories encapsulam Prisma. Avaliacoes repetidas sao idempotentes, sinais
 A migration aditiva `20260910120000_monitoring_control_plane` cria `MonitoringControl` e insere exatamente uma configuracao `strategic-monitoring`, desativada e com cadencia inicial de seis horas. Ela nao altera sinais, snapshots nem dados anteriores. O repository usa atualizacao condicional de `operationalState` para serializar execucoes e preserva ultima execucao, sucesso, falha e proxima cadencia.
 
 Testes de migration, controle e runtime usam SQLite isolado. `backend/prisma/dev.db` permanece local e fora do commit.
+
+### Channel Context & Creator Memory
+
+A migration `20260911120000_channel_context_memory` e aditiva. Ela cria `ChannelContextEntry` e `ChannelContextRelation`, sem reescrever dados anteriores. Projeto e predecessor usam `SET NULL`; relacoes seguem o contexto por cascade. Chaves unicas em `stableKey`, `supersedesId` e na relacao composta garantem bootstrap, sucessao e vinculos idempotentes.
+
+O bootstrap de aplicacao cria somente entradas ausentes por chave estavel. Ele nao faz update destrutivo e nao transforma o conteudo inicial em verdade eterna: cada registro continua atualizavel, rejeitavel ou supersedivel. Testes de migration usam SQLite `:memory:`; `backend/prisma/dev.db` permanece local e fora do Git.

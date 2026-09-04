@@ -101,6 +101,18 @@ export interface CreatorIntelligenceContext {
     rationale: string;
   }>;
   creatorConstraints: string[];
+  temporalContext: Array<{
+    id: string;
+    type: string;
+    status: string;
+    category: string;
+    subject: string;
+    statement: string;
+    confidence: number;
+    occurredAt: Date | null;
+    periodStart: Date | null;
+    periodEnd: Date | null;
+  }>;
 };
 
 export const clampScore = (value: number): number =>

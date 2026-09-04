@@ -3,6 +3,7 @@ import app from './app';
 import { automationRuntime, readAutomationRuntimeConfig } from './services/automation/AutomationRuntimeService';
 import { DatabaseService } from './database/DatabaseService';
 import { MonitoringControlService } from './services/strategic-monitoring';
+import { ChannelContextBootstrap } from './services/channel-context';
 
 loadEnv();
 
@@ -14,6 +15,9 @@ const server = app.listen(port, host, () => {
   const listeningPort = typeof address === 'object' && address ? address.port : port;
 
   console.log(`JvitorZ OS backend running at http://${host}:${listeningPort}`);
+  void new ChannelContextBootstrap().run()
+    .then(({ created, existing }) => console.log(`Channel context bootstrap ready (${created} created, ${existing} existing)`))
+    .catch((error) => console.error(`Channel context bootstrap failed (${error instanceof Error ? error.name : 'UnknownError'})`));
   const monitoringControl = new MonitoringControlService(
     undefined, undefined, undefined, undefined, () => automationRuntime.getHealth(),
   );

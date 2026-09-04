@@ -22,6 +22,7 @@ import {
 } from './creator-intelligence/EditorialDecisionService';
 import type { OrchestratorService } from './orchestration/OrchestratorService';
 import type { ManagerOrchestratorService } from './orchestration/ManagerOrchestratorService';
+import type { ChannelContextResolver } from './channel-context';
 
 export interface CreateConversationInput {
   title?: string;
@@ -117,6 +118,7 @@ export class PlannerService {
   private readonly strategicLearningMemory?: PlannerStrategicLearningProvider;
   private readonly experimentation?: PlannerExperimentationProvider;
   private readonly strategicMonitoring?: PlannerStrategicMonitoringProvider;
+  private readonly channelContext?: Pick<ChannelContextResolver, 'resolve'>;
 
   constructor(
     conversationRepository?: ConversationRepository,
@@ -130,6 +132,7 @@ export class PlannerService {
     strategicLearningMemory?: PlannerStrategicLearningProvider,
     experimentation?: PlannerExperimentationProvider,
     strategicMonitoring?: PlannerStrategicMonitoringProvider,
+    channelContext?: Pick<ChannelContextResolver, 'resolve'>,
   ) {
     this.conversationRepository = conversationRepository;
     this.messageRepository = messageRepository;
@@ -142,6 +145,7 @@ export class PlannerService {
     this.strategicLearningMemory = strategicLearningMemory;
     this.experimentation = experimentation;
     this.strategicMonitoring = strategicMonitoring;
+    this.channelContext = channelContext;
   }
 
   private get repository(): ConversationRepository {
@@ -364,9 +368,29 @@ export class PlannerService {
         // Monitoring is optional read-only context and cannot block persisted Planner replies.
       }
     }
+    let creatorContextMessage = null;
+    if (this.channelContext) {
+      try {
+        const resolved = await this.channelContext.resolve({
+          projectId: conversation.projectId,
+          text: latestUserMessage?.text ?? conversation.context ?? '',
+          limit: 8,
+          maxCharacters: 4_000,
+        });
+        if (resolved.entries.length) creatorContextMessage = {
+          sender: 'system', createdAt: new Date(), text: [
+            'Contexto temporal selecionado do canal. Preserve a diferenca entre fato, hipotese, decisao, experimento e aprendizado; nao trate correlacao como causalidade:',
+            ...resolved.entries.map((entry) => `- [${entry.type}/${entry.status}] ${entry.subject}: ${entry.statement} Confianca ${Math.round(entry.confidence * 100)}%.`),
+          ].join('\n').slice(0, 4_000),
+        };
+      } catch {
+        // Creator context is optional read-only guidance and cannot block a persisted Planner reply.
+      }
+    }
     const input = mapConversationToLanguageInput({ ...conversation,
       messages: [...conversation.messages, ...(learningMessage ? [learningMessage] : []),
-        ...(experimentationMessage ? [experimentationMessage] : []), ...(monitoringMessage ? [monitoringMessage] : [])], artifacts });
+        ...(experimentationMessage ? [experimentationMessage] : []), ...(monitoringMessage ? [monitoringMessage] : []),
+        ...(creatorContextMessage ? [creatorContextMessage] : [])], artifacts });
     let generatedText: unknown;
 
     try {

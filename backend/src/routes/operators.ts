@@ -35,6 +35,7 @@ import { ManagerOrchestratorService } from '../services/orchestration/ManagerOrc
 import { StrategicLearningService } from '../services/strategic-learning';
 import { ExperimentationService } from '../services/strategic-experimentation';
 import { StrategicMonitoringService } from '../services/strategic-monitoring';
+import { ChannelContextResolver } from '../services/channel-context';
 
 const createDefaultPlannerService = (
   creatorIntelligenceService: CreatorIntelligenceService,
@@ -54,6 +55,7 @@ const createDefaultPlannerService = (
     new StrategicLearningService(),
     new ExperimentationService(),
     new StrategicMonitoringService(),
+    new ChannelContextResolver(),
   );
 
 const toLibraryItemResponse = ({

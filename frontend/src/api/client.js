@@ -516,6 +516,54 @@ export const createApiClient = (baseUrl) => ({
     }, 'Erro ao avaliar monitoramento estrategico');
   },
 
+  async listChannelContext(filters = {}) {
+    if (!filters || typeof filters !== 'object' || Array.isArray(filters)) throw new TypeError('context filters must be an object');
+    const query = new URLSearchParams();
+    for (const field of ['projectId', 'type', 'status', 'category', 'entityType', 'entityId', 'periodFrom', 'periodTo']) {
+      if (filters[field] !== undefined && filters[field] !== '') query.set(field, requireIdentifier(filters[field], field));
+    }
+    if (filters.currentOnly !== undefined) query.set('currentOnly', String(Boolean(filters.currentOnly)));
+    if (filters.limit !== undefined) {
+      if (!Number.isInteger(filters.limit) || filters.limit < 1 || filters.limit > 200) throw new TypeError('limit must be an integer from 1 to 200');
+      query.set('limit', String(filters.limit));
+    }
+    return requestJson(`${baseUrl}/api/context${query.size ? `?${query}` : ''}`, undefined, 'Erro ao carregar contexto do canal');
+  },
+
+  async resolveChannelContext(filters = {}) {
+    if (!filters || typeof filters !== 'object' || Array.isArray(filters)) throw new TypeError('context resolver filters must be an object');
+    const query = new URLSearchParams();
+    for (const field of ['projectId', 'text', 'type', 'entityType', 'entityId', 'game', 'series', 'format', 'subject']) {
+      if (filters[field] !== undefined && filters[field] !== '') query.set(field, requireIdentifier(filters[field], field));
+    }
+    if (filters.limit !== undefined) query.set('limit', String(filters.limit));
+    return requestJson(`${baseUrl}/api/context/resolve${query.size ? `?${query}` : ''}`, undefined, 'Erro ao resolver contexto do canal');
+  },
+
+  async getChannelContext(contextId) {
+    const id = requireIdentifier(contextId, 'contextId');
+    return requestJson(`${baseUrl}/api/context/${encodeURIComponent(id)}`, undefined, 'Erro ao abrir contexto do canal');
+  },
+
+  async createChannelContext(input) {
+    return requestJson(`${baseUrl}/api/context`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(input) }, 'Erro ao criar contexto do canal');
+  },
+
+  async updateChannelContext(contextId, input) {
+    const id = requireIdentifier(contextId, 'contextId');
+    return requestJson(`${baseUrl}/api/context/${encodeURIComponent(id)}`, { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify(input) }, 'Erro ao atualizar contexto do canal');
+  },
+
+  async supersedeChannelContext(contextId, input) {
+    const id = requireIdentifier(contextId, 'contextId');
+    return requestJson(`${baseUrl}/api/context/${encodeURIComponent(id)}/supersede`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(input) }, 'Erro ao substituir contexto do canal');
+  },
+
+  async relateChannelContext(contextId, input) {
+    const id = requireIdentifier(contextId, 'contextId');
+    return requestJson(`${baseUrl}/api/context/${encodeURIComponent(id)}/relations`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(input) }, 'Erro ao relacionar contexto do canal');
+  },
+
   async acknowledgeStrategicSignal(signalId, reason) {
     return transitionStrategicSignal(baseUrl, signalId, 'acknowledge', reason);
   },

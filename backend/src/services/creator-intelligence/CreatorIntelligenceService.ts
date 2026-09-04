@@ -30,6 +30,7 @@ import { ManualPerformanceProvider } from '../../domains/performance-intelligenc
 import { VideoPerformanceSnapshotRepository } from '../../database/repositories/VideoPerformanceSnapshotRepository';
 import { PerformanceBaselineService } from '../performance-intelligence/PerformanceBaselineService';
 import { PerformanceIngestionService } from '../performance-intelligence/PerformanceIngestionService';
+import { ChannelContextResolver } from '../channel-context';
 
 export interface RegisterVideoIdeaInput {
   projectId?: string;
@@ -82,6 +83,7 @@ export interface CreatorIntelligenceServiceOptions {
   snapshotRepository?: VideoPerformanceSnapshotRepository;
   performanceIngestionService?: PerformanceIngestionService;
   performanceBaselineService?: PerformanceBaselineService;
+  channelContextResolver?: Pick<ChannelContextResolver, 'resolve'>;
 }
 
 export class CreatorIntelligenceError extends Error {
@@ -168,6 +170,7 @@ export class CreatorIntelligenceService implements PlannerEditorialIntelligenceP
   private snapshotRepository?: VideoPerformanceSnapshotRepository;
   private performanceIngestionService?: PerformanceIngestionService;
   private performanceBaselineService?: PerformanceBaselineService;
+  private readonly channelContextResolver: Pick<ChannelContextResolver, 'resolve'>;
 
   constructor(options: CreatorIntelligenceServiceOptions = {}) {
     this.ideaRepository = options.ideaRepository;
@@ -181,6 +184,7 @@ export class CreatorIntelligenceService implements PlannerEditorialIntelligenceP
     this.snapshotRepository = options.snapshotRepository;
     this.performanceIngestionService = options.performanceIngestionService;
     this.performanceBaselineService = options.performanceBaselineService;
+    this.channelContextResolver = options.channelContextResolver ?? new ChannelContextResolver();
   }
 
   private get ideas(): VideoIdeaRepository {
@@ -376,11 +380,12 @@ export class CreatorIntelligenceService implements PlannerEditorialIntelligenceP
 
   async buildContext(projectId?: string | null): Promise<CreatorIntelligenceContext> {
     const normalizedProjectId = projectId?.trim() || null;
-    const [ideas, insights, opportunities, decisions] = await Promise.all([
+    const [ideas, insights, opportunities, decisions, temporal] = await Promise.all([
       this.ideas.findAll(normalizedProjectId),
       this.memory.listMemory(normalizedProjectId),
       this.opportunities.findAll(),
       this.decisions.findAll(),
+      this.channelContextResolver.resolve({ projectId: normalizedProjectId, text: 'analytics estrategia formatos performance plataforma', limit: 10, maxCharacters: 5_000 }).catch(() => ({ entries: [] })),
     ]);
     const selectedIdeas = ideas.slice(0, 5);
     const selectedIds = new Set(selectedIdeas.map(({ id }) => id));
@@ -431,6 +436,9 @@ export class CreatorIntelligenceService implements PlannerEditorialIntelligenceP
         .filter(({ category }) => category === 'creator_preference')
         .slice(0, 5)
         .map(({ statement }) => statement),
+      temporalContext: temporal.entries.map(({ id, type, status, category, subject, statement, confidence, occurredAt, periodStart, periodEnd }) => ({
+        id, type, status, category, subject, statement, confidence, occurredAt, periodStart, periodEnd,
+      })),
     };
   }
 

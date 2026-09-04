@@ -13,6 +13,7 @@ import {
 } from '../../domains/strategic-monitoring';
 import { ChannelOperatorService } from '../channel-operators';
 import { SeriesIntelligenceService } from '../trend-intelligence/SeriesIntelligenceService';
+import { ChannelContextResolver } from '../channel-context';
 
 const strings = (value: unknown): string[] => Array.isArray(value)
   ? value.flatMap((entry) => typeof entry === 'string' ? [entry] : [])
@@ -30,6 +31,7 @@ export class PersistedStrategicMonitoringSource implements StrategicMonitoringSo
     private readonly learnings = new StrategicLearningRepository(DatabaseService.client),
     private readonly experiments = new ExperimentRepository(DatabaseService.client),
     private readonly operators: Pick<ChannelOperatorService, 'run'> = new ChannelOperatorService(),
+    private readonly contextResolver: Pick<ChannelContextResolver, 'resolve'> = new ChannelContextResolver(),
   ) {}
 
   async collect(projectId: string | null, now: Date): Promise<MonitoringSourceResult> {
@@ -189,6 +191,17 @@ export class PersistedStrategicMonitoringSource implements StrategicMonitoringSo
       }
     });
 
+    for (const fact of facts) {
+      try {
+        const related = await this.contextResolver.resolve({
+          projectId, text: `${fact.subject} ${fact.summary}`, entityType: fact.source, entityId: fact.sourceId,
+          limit: 3, maxCharacters: 2_000,
+        });
+        if (related.entries.length) fact.metadata = { ...(fact.metadata ?? {}), channelContextIds: related.entries.map(({ id }) => id) };
+      } catch {
+        // Context linkage is optional enrichment and cannot hide a valid monitoring fact.
+      }
+    }
     return { facts, evaluatedSources: [...new Set(evaluatedSources)].sort(), sourceState };
   }
 }

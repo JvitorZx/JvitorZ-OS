@@ -335,7 +335,7 @@ test('sidebar navigation changes hash, activates the module and keeps one hash l
 
 test('registered shell routes match the operational navigation contract', () => {
   assert.deepEqual(dashboardModules.map(({ route }) => route), [
-    '/dashboard', '/channel', '/analytics', '/planner', '/planning', '/monitoring', '/library', '/research', '/manager',
+    '/dashboard', '/channel', '/analytics', '/planner', '/planning', '/monitoring', '/context', '/library', '/research', '/manager',
     '/supervisor', '/automations', '/operators', '/settings',
   ]);
 });

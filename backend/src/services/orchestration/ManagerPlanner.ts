@@ -48,11 +48,11 @@ export const createManagerOrchestrationPlan = (
   const template = TEMPLATES[request.managerIntent];
   const selected: CapabilityDefinition[] = [];
   const unavailable: string[] = [];
-  for (const tag of [...template.capabilities, 'response' as const]) {
+  for (const tag of [...template.capabilities, 'creator-context' as const, 'response' as const]) {
     const definition = choose(registry, tag);
     if (!definition) {
       const reason = registry.findUnavailableByCapability(tag)[0]?.unavailableReason;
-      unavailable.push(reason ? `${tag}: ${reason}` : `${tag} operator`);
+      if (tag !== 'creator-context') unavailable.push(reason ? `${tag}: ${reason}` : `${tag} operator`);
       continue;
     }
     if (!selected.some(({ id }) => id === definition.id)) selected.push(definition);

@@ -21,6 +21,7 @@ import { ResearchService } from '../research';
 import { StrategicPlanningService } from '../strategic-planning';
 import { ExperimentationService } from '../strategic-experimentation';
 import { StrategicMonitoringService } from '../strategic-monitoring';
+import { ChannelContextResolver } from '../channel-context';
 
 export interface OrchestrationDependencies {
   intelligence: Pick<CreatorIntelligenceService,
@@ -37,6 +38,7 @@ export interface OrchestrationDependencies {
   planning: Pick<StrategicPlanningService, 'getOrGenerateCurrent'>;
   experimentation: Pick<ExperimentationService, 'list'>;
   monitoring: Pick<StrategicMonitoringService, 'list'>;
+  channelContext: Pick<ChannelContextResolver, 'resolve'>;
 }
 
 const previousOutputs = (results: ReadonlyMap<string, OrchestrationStepResult>): CapabilityOutput[] =>
@@ -63,6 +65,7 @@ export const createDefaultOrchestrationDependencies = (): OrchestrationDependenc
     planning: new StrategicPlanningService(),
     experimentation: new ExperimentationService(),
     monitoring: new StrategicMonitoringService(),
+    channelContext: new ChannelContextResolver(),
   };
 };
 
@@ -70,6 +73,24 @@ export const createDefaultCapabilityRegistry = (
   dependencies: OrchestrationDependencies = createDefaultOrchestrationDependencies(),
 ): CapabilityRegistry => {
   const registry = new CapabilityRegistry();
+
+  registry.register({
+    id: 'channel-context.read', responsibility: 'Selecionar memoria temporal relevante do canal sem despejar todo o historico.',
+    inputs: ['intent', 'projectId'], outputs: ['typed creator context', 'provenance'], availability: 'available',
+    dependencies: [], access: 'read', sideEffect: 'READ_ONLY', persistentMutation: false, capabilityTags: ['creator-context'],
+  }, async ({ request }) => {
+    const resolved = await dependencies.channelContext.resolve({ projectId: request.projectId, text: request.intent, limit: 8, maxCharacters: 4_000 });
+    const facts = resolved.entries.filter(({ type }) => type === 'FACT').map(({ subject, statement }) => `${subject}: ${statement}`);
+    const inferences = resolved.entries.filter(({ type }) => ['HYPOTHESIS', 'LEARNING', 'PLATFORM_CHANGE'].includes(type))
+      .map(({ type, subject, statement }) => `[${type}] ${subject}: ${statement}`);
+    const recommendations = resolved.entries.filter(({ type }) => type === 'DECISION').map(({ subject, statement }) => `${subject}: ${statement}`);
+    return {
+      summary: resolved.entries.length ? `${resolved.entries.length} registros temporais relevantes selecionados.` : 'Nenhum contexto temporal relevante disponivel.',
+      facts, inferences, recommendations, confidence: resolved.entries.length
+        ? Math.min(...resolved.entries.map(({ confidence }) => confidence)) : 0,
+      data: { contextIds: resolved.entries.map(({ id }) => id), types: resolved.entries.map(({ type }) => type), truncated: resolved.truncated },
+    };
+  });
 
   registry.register({
     id: 'strategic-monitoring.read', responsibility: 'Consultar sinais estrategicos ativos, evidencias e limitacoes sem executar acoes externas.',

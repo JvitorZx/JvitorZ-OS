@@ -25,6 +25,7 @@ import { ResearchService } from '../../../services/research';
 import { StrategicPlanningService } from '../../../services/strategic-planning';
 import { ExperimentationService } from '../../../services/strategic-experimentation';
 import { StrategicMonitoringService } from '../../../services/strategic-monitoring';
+import { ChannelContextResolver } from '../../../services/channel-context';
 
 const operatorSummary = (operator: { id: string; status: string; missingData: string[]; sampleSize: number }): string => {
   if (operator.status === 'AVAILABLE') {
@@ -54,6 +55,7 @@ export class SupervisorModule {
     private readonly strategicPlanningService: Pick<StrategicPlanningService, 'getOperationalSummary'> = new StrategicPlanningService(),
     private readonly experimentationService: Pick<ExperimentationService, 'getOperationalSummary'> = new ExperimentationService(),
     private readonly strategicMonitoringService: Pick<StrategicMonitoringService, 'getOperationalSummary'> = new StrategicMonitoringService(),
+    private readonly channelContextResolver: Pick<ChannelContextResolver, 'resolve'> = new ChannelContextResolver(),
   ) {}
 
   async getSupervisorOverview() {
@@ -198,6 +200,9 @@ export class SupervisorModule {
       signals: [] as Array<{ id: string; type: string; severity: string; subject: string; summary: string; confidence: number; detectedAt: Date }> };
     try { strategicMonitoring = await this.strategicMonitoringService.getOperationalSummary(); }
     catch { /* Monitoring is local and cannot break the Supervisor or Dashboard. */ }
+    let channelContext = { totalCandidates: 0, truncated: false, entries: [] as Array<{ id: string; type: string; status: string; subject: string; statement: string; confidence: number }> };
+    try { channelContext = await this.channelContextResolver.resolve({ text: 'estrategia riscos decisoes experimentos plataforma producao', limit: 8, maxCharacters: 4_000 }); }
+    catch { /* Creator context is local read-only guidance and cannot break the Supervisor. */ }
     const byId = new Map(channelOperators.map((operator) => [operator.id, operator]));
     const analyticsQuality = youtubeAnalytics.state === 'synchronized' || youtubeAnalytics.state === 'connected' ? 'GOOD'
       : youtubeAnalytics.lastSyncAt ? 'STALE' : youtubeAnalytics.state === 'temporary_error' ? 'ERROR' : 'MISSING';
@@ -265,6 +270,7 @@ export class SupervisorModule {
       planning,
       experimentation,
       strategicMonitoring,
+      channelContext,
       audience,
     };
   }

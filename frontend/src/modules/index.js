@@ -11,6 +11,7 @@ import { libraryModule } from './library.js';
 import { researchModule } from './research.js';
 import { strategicPlanningModule } from './strategic-planning.js';
 import { monitoringModule } from './monitoring.js';
+import { channelContextModule } from './channel-context.js';
 
 export const dashboardModules = [
   homeModule,
@@ -19,6 +20,7 @@ export const dashboardModules = [
   plannerModule,
   strategicPlanningModule,
   monitoringModule,
+  channelContextModule,
   libraryModule,
   researchModule,
   managerModule,

@@ -576,6 +576,24 @@ O frontend apresenta dados calculados pelo backend e nao recalcula severidade. R
 
 `MonitoringControlService` controla a configuracao singleton persistida, a cadencia, o lease de execucao, a recuperacao apos restart e os timestamps operacionais. `StrategicMonitoringJob` e somente um adaptador do tick unico de `AutomationSchedulerService`: nao possui timer nem configuracao em memoria e chama `runScheduled()`, que reutiliza `StrategicMonitoringService.evaluate()`.
 
+## Channel Context & Creator Memory
+
+`ChannelContextEntry` complementa, sem substituir, `ChannelInsight` e `StrategicLearning`. Insights continuam sendo derivados de performance e learnings continuam sendo derivados de outcomes; Channel Context registra fatos, hipoteses, decisoes, experimentos, aprendizados editoriais e mudancas externas com origem e periodo explicitos.
+
+```text
+API / bootstrap / futuras fontes internas
+  -> ChannelContextService
+    -> ChannelContextRepository
+      -> ChannelContextEntry + ChannelContextRelation
+        -> ChannelContextResolver
+          -> Planner / Gerente / Supervisor / Monitoring / Analytics
+          -> workspace #/context
+```
+
+Supersessao e uma transacao: a entrada anterior passa a `SUPERSEDED`, a sucessora aponta para ela e ambas permanecem consultaveis. O resolver consulta apenas `ACTIVE`/`CONFIRMED` sem sucessora para uso operacional, ranqueia relevancia de forma deterministica e aplica limites de itens e caracteres. Ele nunca envia a memoria inteira a um consumidor.
+
+O Gerente usa a capability read-only `channel-context.read`; o Planner injeta um bloco tipado e limitado apenas na geracao; o Supervisor apresenta tipos sem reclassifica-los; Analytics inclui o recorte temporal no contexto de inteligencia; Monitoring registra relacoes `INFORMS` entre entradas selecionadas e sinais persistidos. Nenhuma dessas integracoes altera ranking ou executa acao externa.
+
 O registro nasce desativado e nenhuma migration, inicializacao ou abertura da UI o ativa. `enabled` representa o desejo persistido; o estado apresentado tambem informa se o Automation Runtime compartilhado esta realmente ativo. `runNow()` usa o mesmo pipeline, funciona com periodicidade desligada e nao cria agendamento. Claims atomicos, singleton e reconciliacao impedem jobs e execucoes duplicados.
 
 O workspace `#/monitoring` apresenta status, cadencia suportada, ultima e proxima execucao, runtime efetivo, ativacao/desativacao e execucao imediata. Todas as operacoes sao single-flight, usam feedback local e ignoram respostas obsoletas apos unmount.

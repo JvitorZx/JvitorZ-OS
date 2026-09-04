@@ -56,6 +56,7 @@ export type OperatorCapability =
   | 'planning'
   | 'experimentation'
   | 'monitoring'
+  | 'creator-context'
   | 'response';
 
 export type CapabilityAccess = 'read' | 'write' | 'external_side_effect';

@@ -811,4 +811,26 @@ AutomationRuntimeService tick
 
 O controle operacional usa uma unica linha `MonitoringControl`. Ativar, desativar e alterar cadencia reconciliam essa fonte persistente; o scheduler apenas a consulta. No startup, `reconcile()` recupera eventual estado `RUNNING` interrompido sem disparar trabalho duplicado. A execucao manual usa `runNow()` e o mesmo `StrategicMonitoringService`, mas independe de `enabled` e nunca cria periodicidade.
 
+## Channel Context & Creator Memory - Sprint 45
+
+```text
+Bootstrap idempotente / API validada
+  -> ChannelContextService
+    -> ChannelContextRepository -> Prisma -> SQLite
+
+Pergunta ou tarefa operacional
+  -> ChannelContextResolver
+    -> filtra estado atual
+    -> pontua entidade + jogo/serie/formato + assunto + recencia + confianca
+    -> limita itens e caracteres
+      -> Gerente / Planner / Supervisor / Analytics
+
+Monitoring fact
+  -> resolver seleciona contexto relacionado
+  -> StrategicMonitoringService persiste o sinal
+  -> ChannelContextRelation(contexto, INFORMS, STRATEGIC_SIGNAL)
+```
+
+O bootstrap usa chaves `bootstrap:sprint45:*`; uma segunda execucao retorna os registros existentes e nao apaga atualizacoes. Fatos numericos de Shorts permanecem em entradas separadas das interpretacoes. Hipoteses abertas mantem tipo proprio, confianca e dados ausentes. Supersessao preserva a entrada antiga na timeline e impede seu uso como contexto atual.
+
 Nao existe scheduler paralelo. Repetir os mesmos fatos conserva o fingerprint e nao multiplica sinais ou evidencias. Falha de uma fonte nao invalida as demais e nao dispara acao externa. A periodicidade nasce desligada e depende do Automation Runtime compartilhado estar configurado e ativo.

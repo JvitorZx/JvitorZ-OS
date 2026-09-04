@@ -13,6 +13,7 @@ import {
   type StrategicMonitoringSource,
 } from '../../domains/strategic-monitoring';
 import { PersistedStrategicMonitoringSource } from './PersistedStrategicMonitoringSource';
+import { ChannelContextRepository } from '../../database/repositories/ChannelContextRepository';
 
 export class StrategicMonitoringError extends Error { constructor(message: string) { super(message); this.name = 'StrategicMonitoringError'; } }
 export class StrategicMonitoringValidationError extends StrategicMonitoringError { constructor(message: string) { super(message); this.name = 'StrategicMonitoringValidationError'; } }
@@ -46,6 +47,7 @@ export class StrategicMonitoringService {
     private readonly snapshots = new MonitoringSnapshotRepository(DatabaseService.client),
     private readonly source: StrategicMonitoringSource = new PersistedStrategicMonitoringSource(),
     private readonly clock = () => new Date(),
+    private readonly channelContext = new ChannelContextRepository(DatabaseService.client),
   ) {}
 
   async evaluate(projectId?: string | null) {
@@ -113,6 +115,11 @@ export class StrategicMonitoringService {
         }
         if (result.created) created += 1;
         else if (result.changed) updated += 1;
+        const contextIds = Array.isArray(candidate.metadata?.channelContextIds)
+          ? candidate.metadata.channelContextIds.filter((id): id is string => typeof id === 'string') : [];
+        for (const contextId of contextIds) {
+          await this.channelContext.relate(contextId, 'INFORMS', 'STRATEGIC_SIGNAL', result.signal.id).catch(() => undefined);
+        }
       }
       const resolved = await this.signals.resolveMissing({
         projectId: normalizedProjectId,

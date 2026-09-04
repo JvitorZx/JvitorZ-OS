@@ -510,4 +510,16 @@ MonitoringSnapshot 1 -> N SignalEvidence
 MonitoringControl (singleton)
 ```
 
+## Channel Context & Creator Memory
+
+### ChannelContextEntry
+
+Registro temporal de memoria do canal. `stableKey` garante idempotencia de bootstrap; `type` e `status` preservam semantica; `occurredAt`, `periodStart` e `periodEnd` preservam tempo; `source` e `sourceReference` preservam proveniencia. Dimensoes opcionais (`entityType/entityId`, `game`, `series`, `format`) sustentam resolucao sem extrair atributos de texto.
+
+`supersedesId` e unico e cria uma cadeia de sucessao. Uma substituicao marca o registro anterior como `SUPERSEDED`, sem remove-lo. `metadata` guarda somente valores estruturados pertencentes ao registro, como metricas observadas e lacunas declaradas.
+
+### ChannelContextRelation
+
+Vinculo genérico e auditavel entre uma entrada de contexto e uma entidade existente. A chave composta `(contextId, relation, entityType, entityId)` torna a relacao idempotente. O vinculo segue a entrada por cascade; a entidade externa nao e alterada.
+
 Sinais antigos nao sao apagados. `STALE` preserva o last-known-good quando uma fonte falha. Confidence mede qualidade/cobertura da observacao; nao e probabilidade nem previsao.

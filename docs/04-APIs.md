@@ -1361,3 +1361,31 @@ Contrato legado compativel para avaliacao manual controlada. Body estrito: `{}` 
 Body estrito: `{}` ou `{ "reason": "..." }`. Sucesso retorna `200` com o sinal persistido. Payload invalido retorna `400`, sinal inexistente `404` e transicao de sinal fechado `409`.
 
 Falha inesperada retorna `500 { "error": "Strategic monitoring request failed" }` sem detalhes internos.
+
+## Channel Context & Creator Memory
+
+Base: `/api/context`. Todos os payloads sao estritos; IDs, textos, tipos, estados, confianca e periodos sao validados pelo `ChannelContextService`. Erros inesperados retornam mensagem sanitizada sem stack ou detalhe Prisma.
+
+### `GET /api/context`
+
+Lista a timeline em ordem temporal deterministica. Filtros opcionais: `projectId`, `type`, `status`, `category`, `entityType`, `entityId`, `periodFrom`, `periodTo`, `currentOnly` e `limit` (1-200). `currentOnly=true` retorna somente `ACTIVE`/`CONFIRMED` sem sucessora. Retorna `200` ou `400`.
+
+### `GET /api/context/resolve`
+
+Seleciona contexto operacional relevante. Aceita `projectId`, `text`, `type` (lista separada por virgula), `entityType`, `entityId`, `game`, `series`, `format`, `subject` e `limit` (1-20). Retorna `entries`, `totalCandidates` e `truncated`; nunca retorna contexto rejeitado ou superseded. Retorna `200` ou `400`.
+
+### `POST /api/context`
+
+Cria um registro. Campos obrigatorios: `type`, `category`, `subject`, `statement`, `confidence` e `source`. Campos temporais, de entidade, dimensoes editoriais e `metadata` sao opcionais. Retorna `201`, `400` ou `500` sanitizado.
+
+### `GET /api/context/:id` e `PATCH /api/context/:id`
+
+Abre ou atualiza uma entrada. O PATCH aceita somente `status`, `statement`, `confidence`, `occurredAt`, `periodStart`, `periodEnd` e `metadata`; entradas superseded nao podem ser reescritas. Retorna `200`, `400`, `404` ou `409`.
+
+### `POST /api/context/:id/supersede`
+
+Cria uma sucessora com o mesmo contrato de criacao e marca a anterior como `SUPERSEDED` na mesma transacao. Retorna `201`, `400`, `404`, `409` ou `500` sanitizado.
+
+### `POST /api/context/:id/relations`
+
+Body estrito: `{ "relation": "INFORMS", "entityType": "STRATEGIC_SIGNAL", "entityId": "..." }`. A mesma relacao e idempotente. Retorna `200`, `400`, `404` ou `500` sanitizado.

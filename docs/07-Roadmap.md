@@ -1375,3 +1375,20 @@ Entregas:
 - migration aditiva e testes de repository/service, concorrencia, API, runtime, UI e regressao.
 
 Limites preservados: ativar monitoramento nao autoriza automacoes externas; periodicidade efetiva depende do Automation Runtime compartilhado; avaliacao manual nao ativa o job; sinal nao e causalidade; nenhuma acao externa, publicacao ou novo agente foi adicionado.
+
+## Sprint 45 - Channel Context & Creator Memory - CONCLUIDA
+
+**Objetivo:** dar ao JvitorZ OS memoria persistente, estruturada e temporal do canal JvitorZx, selecionada por relevancia e consumida pelos componentes inteligentes sem context dumping.
+
+Entregas:
+
+- `ChannelContextEntry` com tipos `FACT`, `HYPOTHESIS`, `DECISION`, `EXPERIMENT`, `LEARNING` e `PLATFORM_CHANGE`;
+- estados `ACTIVE`, `CONFIRMED`, `REJECTED` e `SUPERSEDED`, com sucessao explicita e historico preservado;
+- `ChannelContextRelation` para vinculos auditaveis com videos, sinais e outras entidades existentes;
+- `ChannelContextResolver` deterministico, limitado por quantidade e caracteres, com selecao por texto, tipo, entidade, jogo, serie, formato, recencia e confianca;
+- bootstrap idempotente do contexto inicial do JvitorZx, incluindo estrategia, producao, janelas de Shorts de agosto de 2026, mudanca de plataforma e identidade de embalagem;
+- consumo somente leitura por Gerente, Supervisor, Planner, Monitoring e Analytics;
+- API estrita e workspace `#/context` com timeline, filtros e detalhe seguro;
+- migration aditiva, testes SQLite isolados e regressao completa.
+
+Limites preservados: contexto auxilia decisoes, mas nao e ordem rigida; hipotese nao vira fato; correlacao nao vira causalidade; Bilibili permanece apenas como possibilidade registrada; nenhuma publicacao, scraping, alteracao do YouTube ou agente futuro foi implementado.

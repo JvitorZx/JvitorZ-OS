@@ -197,9 +197,9 @@ describe('strategic planning persistence, API and integrations', { concurrency: 
     };
     const registry = createDefaultCapabilityRegistry(dependencies);
     const plan = createManagerOrchestrationPlan({ intent: 'o que eu gravo hoje?', managerIntent: 'CONTENT_PLANNING' }, registry);
-    assert.deepEqual(plan.capabilities, ['strategic-planning.current', 'planner.respond']);
+    assert.deepEqual(plan.capabilities, ['strategic-planning.current', 'channel-context.read', 'planner.respond']);
     const generic = createManagerOrchestrationPlan({ intent: 'planeje meus conteudos', managerIntent: 'PLANNING' }, registry);
-    assert.deepEqual(generic.capabilities, ['strategic-planning.current', 'planner.respond']);
+    assert.deepEqual(generic.capabilities, ['strategic-planning.current', 'channel-context.read', 'planner.respond']);
     const output = await registry.get('strategic-planning.current').execute({ request: { intent: 'x' }, plan, results: new Map() });
     assert.equal(output.data.planId, currentPlan.id); assert.match(output.summary, /prioridade|sem item/i);
   });
