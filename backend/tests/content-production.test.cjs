@@ -48,7 +48,7 @@ describe('persistent content production pipeline', { concurrency: false }, () =>
   test('workflow templates keep long-form modular and Short minimal', () => {
     assert.deepEqual(productionWorkflowFor('LONG_FORM').map(({ key }) => key), ['PREPARING', 'EDITING', 'CHAPTERS', 'SHORTS', 'PACKAGING', 'REVIEW']);
     assert.deepEqual(productionWorkflowFor('SHORT').map(({ key }) => key), ['PREPARING', 'EDITING', 'PACKAGING', 'REVIEW']);
-    assert.equal(productionWorkflowFor('LONG_FORM').find(({ key }) => key === 'CHAPTERS').mode, 'MANUAL');
+    assert.equal(productionWorkflowFor('LONG_FORM').find(({ key }) => key === 'CHAPTERS').mode, 'ASSISTED');
   });
   test('next action resolver is deterministic across dependencies, failure and publication', () => {
     const steps = productionWorkflowFor('SHORT').map((step, index) => ({ ...step, position: index + 1, state: index ? 'NOT_STARTED' : 'AVAILABLE' }));

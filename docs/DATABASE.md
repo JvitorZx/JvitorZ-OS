@@ -296,6 +296,12 @@ Variantes sao unicas por `(packagingId, key)` e metricas por `ingestionKey`. Pro
 
 A migration `20260913120000_content_production_pipeline` e aditiva e cria `ContentProduction`, `ProductionStep`, `ProductionEvent` e `ProductionAssetRelation`. Ela nao reescreve planos, Library, Packaging, Analytics, memoria nem dados do YouTube.
 
+### Chapters Intelligence
+
+A migration `20260914120000_chapters_intelligence` adiciona `TimedTranscript`, `TimedTranscriptSegment`, `ChapterSet`, `ChapterEntry` e `ChapterRevision`. Tambem atualiza somente etapas legadas `CHAPTERS` de `MANUAL` para `ASSISTED`, com capability `chapters`. As tabelas e FKs sao aditivas; Productions, assets e eventos existentes sao preservados.
+
+Transcript importado pode gerar um `LibraryItem` relacionado por `ProductionAssetRelation`. O arquivo original permanece como conteudo do asset; a logica de Chapters le a representacao normalizada e nao mantem um segundo armazenamento de arquivos.
+
 - Project, VideoIdea, PlannedContentItem, SeriesDefinition e ContentPackaging opcionais usam `SET NULL`;
 - steps, eventos e relacoes operacionais seguem a producao por cascade;
 - LibraryItem usa `RESTRICT`, evitando apagar um asset ainda referenciado;

@@ -459,6 +459,15 @@ ContentProduction 1 --- N ProductionStep
 ContentProduction 1 --- N ProductionEvent
 ContentProduction 1 --- N ProductionAssetRelation
 LibraryItem 1 --- N ProductionAssetRelation
+ContentProduction 1 --- N TimedTranscript
+LibraryItem 0..1 --- N TimedTranscript
+TimedTranscript 1 --- N TimedTranscriptSegment
+TimedTranscript 1 --- N ChapterSet
+ContentProduction 1 --- N ChapterSet
+ChapterSet 1 --- N ChapterEntry
+ChapterSet 1 --- N ChapterRevision
 ```
 
 `ProductionStep(productionId, key)` e unico. `ProductionAssetRelation(productionId, libraryItemId, role)` evita links duplicados. A exclusao da producao remove somente estado operacional proprio; referencias editoriais e artefatos continuam pertencendo aos seus dominios.
+
+`TimedTranscript.fingerprint` evita importar novamente a mesma fonte normalizada. `(transcriptId, position)` ordena segmentos; `(productionId, version)` versiona conjuntos; `(chapterSetId, position)` ordena capitulos. A exclusao da Production remove seu transcript e versoes, mas o `LibraryItem` relacionado permanece preservado.

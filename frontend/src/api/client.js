@@ -90,6 +90,18 @@ export const createApiClient = (baseUrl) => ({
   async unlinkProductionAsset(id, relationId) { return requestJson(`${baseUrl}/api/production/${encodeURIComponent(requireIdentifier(id, 'productionId'))}/assets/${encodeURIComponent(requireIdentifier(relationId, 'relationId'))}`, { method: 'DELETE' }, 'Erro ao remover asset'); },
   async publishProduction(id, input) { return requestJson(`${baseUrl}/api/production/${encodeURIComponent(requireIdentifier(id, 'productionId'))}/publication`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(input) }, 'Erro ao associar publicacao'); },
 
+  async importTimedTranscript(input) { return requestJson(`${baseUrl}/api/chapters/transcripts`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(input) }, 'Erro ao importar transcript temporal'); },
+  async getTimedTranscript(id) { return requestJson(`${baseUrl}/api/chapters/transcripts/${encodeURIComponent(requireIdentifier(id, 'transcriptId'))}`, undefined, 'Erro ao abrir transcript'); },
+  async getProductionTranscript(id) { return requestJson(`${baseUrl}/api/chapters/productions/${encodeURIComponent(requireIdentifier(id, 'productionId'))}/transcript`, undefined, 'Erro ao carregar transcript da producao'); },
+  async listChapterVersions(id) { return requestJson(`${baseUrl}/api/chapters/productions/${encodeURIComponent(requireIdentifier(id, 'productionId'))}`, undefined, 'Erro ao carregar capitulos'); },
+  async generateChapters(id, regenerate = false) { return requestJson(`${baseUrl}/api/chapters/productions/${encodeURIComponent(requireIdentifier(id, 'productionId'))}/${regenerate ? 'regenerate' : 'generate'}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(regenerate ? {} : { regenerate: false }) }, 'Erro ao gerar capitulos'); },
+  async getChapterVersion(id) { return requestJson(`${baseUrl}/api/chapters/versions/${encodeURIComponent(requireIdentifier(id, 'chapterSetId'))}`, undefined, 'Erro ao abrir versao de capitulos'); },
+  async updateChapterVersion(id, entries, reason = '') { return requestJson(`${baseUrl}/api/chapters/versions/${encodeURIComponent(requireIdentifier(id, 'chapterSetId'))}`, { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ entries, ...(reason ? { reason } : {}) }) }, 'Erro ao salvar capitulos'); },
+  async addChapter(id, input) { return requestJson(`${baseUrl}/api/chapters/versions/${encodeURIComponent(requireIdentifier(id, 'chapterSetId'))}/entries`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(input) }, 'Erro ao adicionar capitulo'); },
+  async removeChapter(id, entryId) { return requestJson(`${baseUrl}/api/chapters/versions/${encodeURIComponent(requireIdentifier(id, 'chapterSetId'))}/entries/${encodeURIComponent(requireIdentifier(entryId, 'chapterEntryId'))}`, { method: 'DELETE' }, 'Erro ao remover capitulo'); },
+  async selectChapterVersion(id) { return requestJson(`${baseUrl}/api/chapters/versions/${encodeURIComponent(requireIdentifier(id, 'chapterSetId'))}/select`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' }, 'Erro ao selecionar capitulos'); },
+  async formatChapterVersion(id) { return requestJson(`${baseUrl}/api/chapters/versions/${encodeURIComponent(requireIdentifier(id, 'chapterSetId'))}/output`, undefined, 'Erro ao formatar capitulos'); },
+
   async listPackagings(filters = {}) {
     const params = new URLSearchParams();
     for (const key of ['projectId', 'game', 'series', 'status']) if (filters[key] !== undefined) params.set(key, requireIdentifier(filters[key], key));

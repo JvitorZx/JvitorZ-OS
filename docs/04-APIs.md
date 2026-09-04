@@ -1432,4 +1432,31 @@ Base: `/api/production`. IDs sao textos nao vazios, payloads sao estritos e erro
 - `DELETE /api/production/:id/assets/:relationId`: remove somente a relacao.
 - `POST /api/production/:id/publication`: body com `videoId` e, opcionalmente, `url`/`publishedAt`; registra publicacao feita externamente.
 
-Uma resposta `READY_TO_PUBLISH` nao significa publicacao. Packaging requer resumo e pelo menos um acontecimento real; conclusao requer variante escolhida. Chapters e Shorts sao etapas manuais quando presentes.
+Uma resposta `READY_TO_PUBLISH` nao significa publicacao. Packaging requer resumo e pelo menos um acontecimento real; conclusao requer variante escolhida. Chapters e assistido quando existe fonte temporal valida; Shorts permanece manual.
+
+## Chapters Intelligence
+
+Todos os erros sao sanitizados: `400` para payload/timestamp invalido, `404` para Production/transcript/versao inexistente, `409` para conflito de workflow ou ausencia de fonte temporal e `500` para falha inesperada.
+
+### `POST /api/chapters/transcripts`
+
+Importa e normaliza uma fonte. Para SBV/SRT/VTT, body: `{ "productionId": "...", "format": "SBV", "content": "...", "source": "USER_IMPORT", "language": "pt-BR", "videoId": "opcional", "durationMs": 600000 }`. Para integracao interna, use `format: "INTERNAL"` e `segments: [{ "startMs": 0, "endMs": 3000, "text": "..." }]`. Retorna `201` ao criar e `200` na repeticao idempotente.
+
+### Leitura e geracao
+
+- `GET /api/chapters/transcripts/:id`: transcript e segmentos;
+- `GET /api/chapters/productions/:id/transcript`: fonte mais recente da Production;
+- `GET /api/chapters/productions/:id`: versoes preservadas;
+- `POST /api/chapters/productions/:id/generate` com `{}` ou `{ "regenerate": false }`: gera ou reutiliza a selecao valida;
+- `POST /api/chapters/productions/:id/regenerate` com `{}`: cria explicitamente uma nova versao.
+
+### Revisao e output
+
+- `GET /api/chapters/versions/:id`: abre versao, entradas, evidencias e revisoes;
+- `PATCH /api/chapters/versions/:id`: substitui a lista com `{ "entries": [{ "id": "opcional", "startMs": 0, "title": "Introducao" }], "reason": "opcional" }`;
+- `POST /api/chapters/versions/:id/entries`: adiciona `{ "startMs": 120000, "title": "Nova missao" }`;
+- `DELETE /api/chapters/versions/:id/entries/:entryId`: remove uma entrada;
+- `POST /api/chapters/versions/:id/select` com `{}`: passa pelo Supervisor e conclui `CHAPTERS` atomicamente;
+- `GET /api/chapters/versions/:id/output`: retorna `{ "chapterSetId": "...", "text": "0:00 Introducao\\n2:00 Nova missao" }`.
+
+Nenhum endpoint publica ou modifica video no YouTube. O backend nao aceita caminho de arquivo, nao faz scraping e nao inventa transcript/timestamp.

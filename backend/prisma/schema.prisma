@@ -109,6 +109,7 @@ model LibraryItem {
   sourceMessage     Message?                  @relation(fields: [sourceMessageId], references: [id], onDelete: SetNull)
   conversationLinks ConversationLibraryItem[]
   productionAssets ProductionAssetRelation[]
+  transcripts      TimedTranscript[]
   title             String
   type              String?
   content           String?
@@ -804,6 +805,8 @@ model ContentProduction {
   steps                ProductionStep[]
   events               ProductionEvent[]
   assets               ProductionAssetRelation[]
+  transcripts          TimedTranscript[]
+  chapterSets          ChapterSet[]
   createdAt            DateTime                   @default(now())
   updatedAt            DateTime                   @updatedAt
 
@@ -812,6 +815,98 @@ model ContentProduction {
   @@index([publishedVideoId])
   @@index([videoIdeaId])
   @@index([seriesId])
+}
+
+model TimedTranscript {
+  id            String            @id @default(cuid())
+  productionId  String?
+  production    ContentProduction? @relation(fields: [productionId], references: [id], onDelete: Cascade)
+  libraryItemId String?
+  libraryItem   LibraryItem?      @relation(fields: [libraryItemId], references: [id], onDelete: SetNull)
+  videoId       String?
+  source        String
+  format        String
+  language      String?
+  durationMs    Int?
+  fingerprint   String            @unique
+  version       Int               @default(1)
+  segments      TimedTranscriptSegment[]
+  chapterSets   ChapterSet[]
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+
+  @@index([productionId, createdAt])
+  @@index([videoId, createdAt])
+  @@index([libraryItemId])
+}
+
+model TimedTranscriptSegment {
+  id              String          @id @default(cuid())
+  transcriptId    String
+  transcript      TimedTranscript @relation(fields: [transcriptId], references: [id], onDelete: Cascade)
+  position        Int
+  startMs         Int
+  endMs           Int
+  text            String
+  sourceSegmentId String?
+  confidence      Float?
+  createdAt       DateTime        @default(now())
+
+  @@unique([transcriptId, position])
+  @@index([transcriptId, startMs])
+}
+
+model ChapterSet {
+  id           String            @id @default(cuid())
+  productionId String?
+  production   ContentProduction? @relation(fields: [productionId], references: [id], onDelete: Cascade)
+  transcriptId String
+  transcript   TimedTranscript   @relation(fields: [transcriptId], references: [id], onDelete: Restrict)
+  version      Int
+  status       String            @default("DRAFT")
+  generation   String            @default("DETERMINISTIC")
+  selectedAt   DateTime?
+  entries      ChapterEntry[]
+  revisions    ChapterRevision[]
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+
+  @@unique([productionId, version])
+  @@index([productionId, status, createdAt])
+  @@index([transcriptId, createdAt])
+}
+
+model ChapterEntry {
+  id                   String     @id @default(cuid())
+  chapterSetId         String
+  chapterSet           ChapterSet @relation(fields: [chapterSetId], references: [id], onDelete: Cascade)
+  position             Int
+  startMs              Int
+  endMs                Int?
+  title                String
+  rationale            String
+  segmentStartPosition Int
+  segmentEndPosition   Int
+  confidence           Float?
+  manuallyEdited       Boolean    @default(false)
+  createdAt            DateTime   @default(now())
+  updatedAt            DateTime   @updatedAt
+
+  @@unique([chapterSetId, position])
+  @@index([chapterSetId, startMs])
+}
+
+model ChapterRevision {
+  id           String     @id @default(cuid())
+  chapterSetId String
+  chapterSet   ChapterSet @relation(fields: [chapterSetId], references: [id], onDelete: Cascade)
+  event        String
+  actor        String
+  reason       String?
+  snapshot     Json
+  createdAt    DateTime   @default(now())
+
+  @@index([chapterSetId, createdAt])
 }
 
 model ProductionStep {

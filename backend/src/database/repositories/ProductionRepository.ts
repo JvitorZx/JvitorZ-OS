@@ -7,6 +7,8 @@ const details = {
   packaging: { include: { variants: { orderBy: [{ createdAt: 'asc' as const }, { key: 'asc' as const }] } } },
   seriesDefinition: true,
   plannedContentItem: true,
+  transcripts: { orderBy: [{ version: 'desc' as const }], include: { segments: { orderBy: [{ position: 'asc' as const }] } } },
+  chapterSets: { orderBy: [{ version: 'desc' as const }], include: { entries: { orderBy: [{ position: 'asc' as const }] } } },
 } satisfies Prisma.ContentProductionInclude;
 
 export type ContentProductionDetails = Prisma.ContentProductionGetPayload<{ include: typeof details }>;

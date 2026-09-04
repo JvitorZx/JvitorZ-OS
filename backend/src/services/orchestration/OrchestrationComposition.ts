@@ -24,6 +24,7 @@ import { StrategicMonitoringService } from '../strategic-monitoring';
 import { ChannelContextResolver } from '../channel-context';
 import { PackagingService } from '../packaging';
 import { ProductionService } from '../production';
+import { ChaptersService, ChaptersConflictError, ChaptersNotFoundError } from '../chapters';
 
 export interface OrchestrationDependencies {
   intelligence: Pick<CreatorIntelligenceService,
@@ -43,6 +44,7 @@ export interface OrchestrationDependencies {
   channelContext: Pick<ChannelContextResolver, 'resolve'>;
   packaging: Pick<PackagingService, 'list'>;
   production: Pick<ProductionService, 'create' | 'list' | 'resume' | 'startStep' | 'skipStep' | 'retryStep' | 'repeatStep'>;
+  chapters: Pick<ChaptersService, 'generate' | 'listVersions'>;
 }
 
 const previousOutputs = (results: ReadonlyMap<string, OrchestrationStepResult>): CapabilityOutput[] =>
@@ -72,6 +74,7 @@ export const createDefaultOrchestrationDependencies = (): OrchestrationDependenc
     channelContext: new ChannelContextResolver(),
     packaging: new PackagingService(),
     production: new ProductionService(),
+    chapters: new ChaptersService(),
   };
 };
 
@@ -81,7 +84,7 @@ export const createDefaultCapabilityRegistry = (
   const registry = new CapabilityRegistry();
 
   registry.register({
-    id: 'production.manage', responsibility: 'Consultar e avancar apenas transicoes validas do pipeline persistente, sem publicar ou executar capacidade inexistente.',
+    id: 'production.manage', responsibility: 'Consultar e avancar o pipeline persistente, incluindo Chapters quando houver transcript temporal, sem publicar externamente.',
     inputs: ['intent', 'projectId'], outputs: ['production state', 'next action', 'blockers'], availability: 'available', dependencies: [],
     access: 'write', sideEffect: 'INTERNAL_WRITE', persistentMutation: true, maxAffectedItems: 1, capabilityTags: ['production'],
   }, async ({ request }) => {
@@ -93,6 +96,20 @@ export const createDefaultCapabilityRegistry = (
       production = created.production;
     }
     if (!production) return { summary: 'Nenhuma producao persistida.', facts: [], recommendations: ['Crie uma producao informando titulo e formato.'], missingData: ['production'], confidence: 1, data: {} };
+    if (/capitulo/.test(normalized) && /(faz|gera|regenera|revisa|mostra|lista)/.test(normalized) && dependencies.chapters) {
+      try {
+        if (/(mostra|lista|revisa)/.test(normalized)) {
+          const versions = await dependencies.chapters.listVersions(production.id);
+          const selected = versions.find(({ status }) => status === 'SELECTED') ?? versions[0];
+          return { summary: selected ? `${selected.entries.length} capitulo(s) na versao ${selected.version} (${selected.status}).` : 'Nenhuma versao de capitulos gerada.', facts: selected?.entries.map(({ startMs, title }) => `${startMs}ms: ${title}`) ?? [], recommendations: selected?.status === 'STALE' ? ['Regenerar e revisar os capitulos com o transcript atual.'] : [], missingData: selected ? [] : ['timed transcript ou geracao de capitulos'], confidence: selected ? 1 : 0, data: selected ? { productionId: production.id, chapterSetId: selected.id } : { productionId: production.id } };
+        }
+        const result = await dependencies.chapters.generate(production.id, { regenerate: /regenera/.test(normalized) });
+        return { summary: `${result.chapterSet.entries.length} capitulo(s) gerados para revisao na versao ${result.chapterSet.version}.`, facts: result.chapterSet.entries.map(({ startMs, title }) => `${startMs}ms: ${title}`), recommendations: ['Revise e selecione explicitamente a versao final.'], missingData: [], confidence: 1, data: { productionId: production.id, chapterSetId: result.chapterSet.id } };
+      } catch (error) {
+        if (error instanceof ChaptersConflictError || error instanceof ChaptersNotFoundError) return { summary: 'Chapters nao pode ser executado sem uma fonte temporal valida.', facts: [], recommendations: ['Importe um transcript SBV, SRT ou VTT para esta producao.'], missingData: ['timed transcript'], confidence: 1, data: { productionId: production.id } };
+        throw error;
+      }
+    }
     if (/pul(a|e|ar).*capitulo/.test(normalized)) production = await dependencies.production.skipStep(production.id, 'CHAPTERS', { reason: 'Etapa pulada por decisao explicita via Gerente', origin: 'manager' });
     else if (/(continua|continue|proxima etapa|proximo passo|avanca|avance)/.test(normalized)) {
       const next = production.nextAction;

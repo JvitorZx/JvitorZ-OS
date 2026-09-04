@@ -627,4 +627,23 @@ Cada `ProductionStep` possui estado, modo (`MANUAL`, `ASSISTED` ou `AUTOMATED`),
 
 Mudancas em resumo, objetivo, jogo, serie ou acontecimentos incrementam a versao e tornam somente Packaging/Review posteriores `OUTDATED` quando aplicavel. Outputs antigos e eventos permanecem auditaveis. Locks por producao e compare-and-set transacional evitam transicoes concorrentes incompatíveis.
 
-`READY_TO_PUBLISH` significa somente que as etapas obrigatorias e o gate foram aprovados. O vinculo posterior com `videoId`, URL e data e uma declaracao local do usuario; nenhuma chamada de escrita ao YouTube existe. Chapters e Shorts sao manuais porque o repositorio ainda nao possui geracao de capitulos nem clipping final.
+`READY_TO_PUBLISH` significa somente que as etapas obrigatorias e o gate foram aprovados. O vinculo posterior com `videoId`, URL e data e uma declaracao local do usuario; nenhuma chamada de escrita ao YouTube existe. Shorts continua manual e nao existe clipping final.
+
+## Chapters Intelligence
+
+`ChaptersService` coordena importacao, geracao, edicao, selecao e formatacao. `ChapterRepository` e a unica camada da feature que acessa Prisma. Os parsers e o gerador em `domains/chapters` sao puros e independentes de SBV/SRT/VTT depois da normalizacao.
+
+```text
+SBV / SRT / VTT / segmentos internos
+  -> TimedTranscriptParser
+  -> TimedTranscript + TimedTranscriptSegment
+  -> ChapterGenerator
+  -> ChapterSet + ChapterEntry + ChapterRevision
+  -> SupervisorModule.reviewChapters()
+  -> selecao atomica + ProductionStep CHAPTERS COMPLETED
+  -> output copiavel / workspace #/chapters / Gerente
+```
+
+O gerador conserva a ordem temporal, exige intervalos minimos entre mudancas e limita a quantidade de capitulos. Cada entrada aponta para a faixa de segmentos que a sustenta. Edicoes humanas ficam em revisoes append-only; regeneracao cria nova versao e nunca sobrescreve a anterior. Uma fonte temporal diferente torna a selecao anterior `STALE` e a etapa `OUTDATED`.
+
+Importacoes de arquivo criam um `LibraryItem` e `ProductionAssetRelation` na mesma transacao. Nao existe download, scraping, speech-to-text ou acesso de escrita ao YouTube. Creator Context nao e forcado nos titulos: fidelidade ao transcript prevalece.

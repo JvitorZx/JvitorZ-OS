@@ -17,6 +17,7 @@ import monitoringRoutes from './monitoring';
 import channelContextRoutes from './channelContext';
 import packagingRoutes from './packaging';
 import productionRoutes from './production';
+import chaptersRoutes from './chapters';
 
 const router = Router();
 
@@ -38,6 +39,7 @@ router.use('/monitoring', monitoringRoutes);
 router.use('/context', channelContextRoutes);
 router.use('/packaging', packagingRoutes);
 router.use('/production', productionRoutes);
+router.use('/chapters', chaptersRoutes);
 
 router.get('/', (_req, res) => {
   res.json({ message: 'JvitorZ OS backend route is working' });

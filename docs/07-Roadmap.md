@@ -1427,6 +1427,24 @@ Entregas:
 - capability de producao no Gerente, API REST e workspace `#/production`;
 - migration aditiva e testes de dominio, persistencia, concorrencia, HTTP e frontend.
 
-Limites preservados: Chapters e recortes de Shorts sao etapas manuais nesta versao; nao ha Editor IA, clipping, renderizacao, imagem final de thumbnail ou publicacao automatica. Analytics e Creator Memory continuam em seus dominios existentes e passam a poder usar o `publishedVideoId` associado, sem causalidade automatica.
+Limites preservados: recortes de Shorts continuam manuais; nao ha Editor IA, clipping, renderizacao, imagem final de thumbnail ou publicacao automatica. Analytics e Creator Memory continuam em seus dominios existentes e passam a poder usar o `publishedVideoId` associado, sem causalidade automatica.
 
-**Proximo checkpoint: Sprint 48 - NAO INICIADA.**
+## Sprint 48 - Chapters Intelligence & Timed Transcript Pipeline - CONCLUIDA
+
+**Objetivo:** transformar a etapa `CHAPTERS` em uma capacidade assistida real a partir de fontes temporais validas, com revisao humana, rastreabilidade e integracao ao Production Pipeline.
+
+Entregas:
+
+- parsers SBV, SRT e WebVTT e contrato comum de segmentos temporais;
+- persistencia versionada de transcript, segmentos, conjuntos de capitulos, entradas e revisoes;
+- geracao deterministica orientada a transicoes naturais, com limite anti-spam e evidencia por faixa de segmentos;
+- edicao manual, insercao, remocao, regeneracao explicita, selecao final e output copiavel;
+- invalidacao de versao selecionada quando a fonte temporal muda;
+- etapa `CHAPTERS` assistida no Production, concluida atomicamente somente com versao valida selecionada;
+- assets importados relacionados pela Library, sem armazenamento paralelo;
+- gate temporal do Supervisor, capability natural do Gerente, API REST e workspace `#/chapters`;
+- testes de dominio, persistencia, migration, HTTP, frontend, resume e regressao.
+
+Limites preservados: nao existe captura oficial de captions do YouTube nem speech-to-text no repositorio atual; a entrada real nesta versao e importada por SBV/SRT/VTT ou fornecida por integracao interna estruturada. O sistema nao baixa video, nao faz scraping, nao inventa transcript ou timestamp e nao publica capitulos no YouTube. Shorts continuam manuais.
+
+**Proximo checkpoint: Sprint 49 - NAO INICIADA.**

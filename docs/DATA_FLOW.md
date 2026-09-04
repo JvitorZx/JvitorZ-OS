@@ -886,4 +886,28 @@ publicacao feita fora do sistema
   -> Analytics e Creator Memory seguem seus fluxos existentes
 ```
 
-Resume e leitura nao repetem chamadas caras. Alteracao editorial relevante preserva o pacote anterior e marca Packaging/Review como `OUTDATED`. Library fornece referencias de assets; o pipeline nao copia arquivos. Chapters e recortes Shorts permanecem etapas manuais e pulaveis no long-form.
+Resume e leitura nao repetem chamadas caras. Alteracao editorial relevante preserva o pacote anterior e marca Packaging/Review como `OUTDATED`. Library fornece referencias de assets. Recortes Shorts permanecem manuais e pulaveis no long-form.
+
+## Chapters Intelligence - Sprint 48
+
+```text
+arquivo SBV/SRT/VTT ou segmentos temporais internos
+  -> POST /api/chapters/transcripts
+  -> ChaptersService.importTranscript()
+  -> parser + normalizacao + fingerprint
+  -> ChapterRepository
+     -> TimedTranscript + segmentos
+     -> LibraryItem + ProductionAssetRelation (arquivo importado)
+
+gerar ou regenerar explicitamente
+  -> ChapterGenerator (mudancas naturais + limites)
+  -> ChapterSet DRAFT + ChapterEntry + revision GENERATED
+  -> revisao/edicao humana append-only
+  -> Supervisor temporal
+  -> selecao atomica
+     -> ChapterSet SELECTED
+     -> ProductionStep CHAPTERS COMPLETED
+  -> resolveProductionNextAction() avanca para SHORTS
+```
+
+Leitura e `resume` reutilizam a versao selecionada. Uma importacao idempotente nao cria novo asset ou transcript. Uma fonte temporal realmente nova preserva versoes anteriores, marca a selecionada `STALE` e a etapa `OUTDATED`. Respostas tardias da UI sao ignoradas por token de montagem/request.

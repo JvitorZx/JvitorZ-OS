@@ -71,6 +71,19 @@ export class SupervisorModule {
     return { outcome: warnings.length ? 'APPROVED_WITH_WARNINGS' as const : 'APPROVED' as const, findings: warnings };
   }
 
+  reviewChapters(input: { durationMs?: number | null; entries: Array<{ startMs: number; title: string; segmentStartPosition: number; segmentEndPosition: number }> }) {
+    const findings: string[] = [];
+    if (!input.entries.length) findings.push('A versao nao possui capitulos.');
+    if (input.entries.length > 20) findings.push('A versao possui capitulos em excesso para revisao humana.');
+    input.entries.forEach((entry, index) => {
+      if (entry.startMs < 0 || (index > 0 && entry.startMs <= input.entries[index - 1].startMs)) findings.push(`Timestamp invalido no capitulo ${index + 1}.`);
+      if (input.durationMs != null && entry.startMs > input.durationMs) findings.push(`Capitulo ${index + 1} inicia alem da duracao conhecida.`);
+      if (!entry.title.trim() || entry.title.trim().length > 100) findings.push(`Titulo invalido no capitulo ${index + 1}.`);
+      if (entry.segmentStartPosition > entry.segmentEndPosition) findings.push(`Evidencia temporal invalida no capitulo ${index + 1}.`);
+    });
+    return { outcome: findings.length ? 'NEEDS_CHANGES' as const : 'APPROVED' as const, findings };
+  }
+
   async getSupervisorOverview() {
     let youtubeAnalytics: YouTubeAnalyticsProviderStatus;
     try {
@@ -295,7 +308,8 @@ export class SupervisorModule {
       strategicMonitoring,
       channelContext,
       packaging,
-      production: { total: productions.length, ready: productions.filter(({ status }) => status === 'READY_TO_PUBLISH').length, blocked: productions.filter((item) => item.steps.some(({ state }) => ['FAILED', 'BLOCKED'].includes(state))).length },
+      production: { total: productions.length, ready: productions.filter(({ status }) => status === 'READY_TO_PUBLISH').length, blocked: productions.filter((item) => item.steps.some(({ state }) => ['FAILED', 'BLOCKED'].includes(state))).length,
+        chapters: { selected: productions.filter((item) => item.chapterSets.some(({ status }) => status === 'SELECTED')).length, stale: productions.filter((item) => item.chapterSets.some(({ status }) => status === 'STALE')).length } },
       audience,
     };
   }

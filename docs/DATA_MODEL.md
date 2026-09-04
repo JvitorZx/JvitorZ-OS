@@ -551,3 +551,20 @@ Journal append-only de criacao, transicoes, invalidacao, revisao, assets e publi
 Referencia um `LibraryItem` existente e registra seu papel no workflow. `(productionId, libraryItemId, role)` e unico; remover a relacao nao remove o artefato.
 
 Estados de producao: `PLANNED`, `IN_PRODUCTION`, `IN_REVIEW`, `READY_TO_PUBLISH`, `PUBLISHED`, `ANALYZED`, `COMPLETED`, `CANCELLED`. Estados de etapa: `NOT_STARTED`, `AVAILABLE`, `IN_PROGRESS`, `WAITING_USER`, `BLOCKED`, `COMPLETED`, `SKIPPED`, `FAILED`, `CANCELLED`, `OUTDATED`.
+## Chapters Intelligence
+
+### TimedTranscript
+
+Fonte temporal normalizada vinculada opcionalmente a uma Production, Video ID e `LibraryItem`. `fingerprint` torna a mesma importacao idempotente; `version` preserva mudancas da fonte.
+
+### TimedTranscriptSegment
+
+Segmento ordenado com `startMs`, `endMs`, texto, identificador de origem e confidence somente quando a fonte realmente o oferece.
+
+### ChapterSet e ChapterEntry
+
+`ChapterSet` representa uma versao `DRAFT`, `SELECTED`, `ARCHIVED` ou `STALE`. `ChapterEntry` guarda timestamp, titulo, rationale e faixa exata de segmentos usada como evidencia. A chave `(productionId, version)` preserva uma sequencia auditavel.
+
+### ChapterRevision
+
+Historico append-only de geracao, edicao manual e selecao. O snapshot permite reconstruir por que a versao mudou sem sobrescrever a decisao do usuario.
