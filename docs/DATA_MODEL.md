@@ -531,3 +531,23 @@ Sinais antigos nao sao apagados. `STALE` preserva o last-known-good quando uma f
 `PackagingHistory` registra geracao, edicao, selecao, rejeicao, publicacao e experimento sem sobrescrever eventos. `PackagingMetricSnapshot` copia apenas metricas observadas, com fonte e janela. `PackagingExperiment` referencia a entrada da Creator Memory sem duplicar o dominio de memoria.
 
 Status: `DRAFT`, `SELECTED`, `REJECTED`, `PUBLISHED`, `ARCHIVED`.
+
+## Content Production Pipeline
+
+### ContentProduction
+
+Raiz operacional identificada por `productionKey` unico. Guarda identidade editorial, formato, prioridade, datas, estado atual, versao e referencias opcionais a Project, VideoIdea, PlannedContentItem, SeriesDefinition, ContentPackaging e video publicado. A unicidade de `plannedContentItemId` e `packagingId` impede duplicacao acidental dessas relacoes.
+
+### ProductionStep
+
+Etapa modular unica por `(productionId, key)`. Persiste posicao, modo, capability, dependencias, obrigatoriedade, estado, tentativas, chave de execucao, input/output, erro, skip e timestamps. O estado de uma etapa nao e inferido do DOM nem de memoria do processo.
+
+### ProductionEvent
+
+Journal append-only de criacao, transicoes, invalidacao, revisao, assets e publicacao. Registra ator, origem, estados, motivo, operation key e metadata operacional limitada. Nao armazena segredo, arquivo ou payload externo bruto.
+
+### ProductionAssetRelation
+
+Referencia um `LibraryItem` existente e registra seu papel no workflow. `(productionId, libraryItemId, role)` e unico; remover a relacao nao remove o artefato.
+
+Estados de producao: `PLANNED`, `IN_PRODUCTION`, `IN_REVIEW`, `READY_TO_PUBLISH`, `PUBLISHED`, `ANALYZED`, `COMPLETED`, `CANCELLED`. Estados de etapa: `NOT_STARTED`, `AVAILABLE`, `IN_PROGRESS`, `WAITING_USER`, `BLOCKED`, `COMPLETED`, `SKIPPED`, `FAILED`, `CANCELLED`, `OUTDATED`.

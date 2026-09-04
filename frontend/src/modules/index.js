@@ -13,6 +13,7 @@ import { strategicPlanningModule } from './strategic-planning.js';
 import { monitoringModule } from './monitoring.js';
 import { channelContextModule } from './channel-context.js';
 import { packagingModule } from './packaging.js';
+import { productionModule } from './production.js';
 
 export const dashboardModules = [
   homeModule,
@@ -23,6 +24,7 @@ export const dashboardModules = [
   monitoringModule,
   channelContextModule,
   packagingModule,
+  productionModule,
   libraryModule,
   researchModule,
   managerModule,

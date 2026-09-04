@@ -607,3 +607,24 @@ Sinal e correlacao operacional, nao causalidade. Severidade prioriza revisao hum
 `PackagingGenerator` e puro e deterministico. `PackagingService` coordena contexto, validacao, memoria e observacoes; `PackagingRepository` encapsula Prisma. O `ChannelContextResolver` fornece identidade, decisoes, hipoteses e aprendizados relevantes, cujos IDs e recorte limitado ficam auditados na embalagem.
 
 Selecao e edicao pertencem ao criador. `PackagingMetricSnapshot` referencia performance persistida e preserva Reach no payload tipado com fonte e periodo, sem recalcular CTR. Gerente usa `packaging.read`, Planner alcanca a capability pelo roteamento natural e Supervisor recebe resumo operacional. A UI `#/packaging` reutiliza lifecycle, feedback local e protecao contra respostas obsoletas.
+
+## Content Production Pipeline
+
+`ProductionService` coordena o ciclo operacional sem absorver os dominios de Planning, Library, Packaging, Supervisor, Analytics ou Creator Memory. `ProductionRepository` e o unico componente da feature que acessa Prisma; as rotas permanecem finas.
+
+```text
+PlannedContentItem ou criacao direta
+  -> ProductionService
+     -> template LONG_FORM / SHORT
+     -> ProductionRepository -> Prisma -> SQLite
+     -> PackagingService (capacidade real)
+     -> SupervisorModule.reviewProduction() (gate)
+  -> /api/production
+  -> workspace #/production / Gerente
+```
+
+Cada `ProductionStep` possui estado, modo (`MANUAL`, `ASSISTED` ou `AUTOMATED`), dependencias, tentativas, input/output e timestamps proprios. O resolver puro `resolveProductionNextAction()` e reutilizado pelo servico, API, UI e capability do Gerente. Retomar apenas reconcilia dependencias e consulta o estado persistido; nao cria workflow ou Packaging novo.
+
+Mudancas em resumo, objetivo, jogo, serie ou acontecimentos incrementam a versao e tornam somente Packaging/Review posteriores `OUTDATED` quando aplicavel. Outputs antigos e eventos permanecem auditaveis. Locks por producao e compare-and-set transacional evitam transicoes concorrentes incompatíveis.
+
+`READY_TO_PUBLISH` significa somente que as etapas obrigatorias e o gate foram aprovados. O vinculo posterior com `videoId`, URL e data e uma declaracao local do usuario; nenhuma chamada de escrita ao YouTube existe. Chapters e Shorts sao manuais porque o repositorio ainda nao possui geracao de capitulos nem clipping final.

@@ -291,3 +291,15 @@ O bootstrap de aplicacao cria somente entradas ausentes por chave estavel. Ele n
 A migration `20260912120000_packaging_intelligence` cria de forma aditiva `ContentPackaging`, `PackagingVariant`, `PackagingHistory`, `PackagingMetricSnapshot` e `PackagingExperiment`.
 
 Variantes sao unicas por `(packagingId, key)` e metricas por `ingestionKey`. Projeto e snapshot opcional usam `SET NULL`; filhos internos usam cascade. O journal nao e sobrescrito por selecao ou edicao. Testes usam SQLite em memoria; `dev.db` recebe a migration somente apos backup validado e fica fora do Git.
+
+### Content Production Pipeline
+
+A migration `20260913120000_content_production_pipeline` e aditiva e cria `ContentProduction`, `ProductionStep`, `ProductionEvent` e `ProductionAssetRelation`. Ela nao reescreve planos, Library, Packaging, Analytics, memoria nem dados do YouTube.
+
+- Project, VideoIdea, PlannedContentItem, SeriesDefinition e ContentPackaging opcionais usam `SET NULL`;
+- steps, eventos e relacoes operacionais seguem a producao por cascade;
+- LibraryItem usa `RESTRICT`, evitando apagar um asset ainda referenciado;
+- `productionKey`, `plannedContentItemId`, `packagingId` e chaves compostas impedem duplicacao;
+- eventos preservam a trilha operacional e outputs anteriores nao sao apagados por invalidacao.
+
+Os testes aplicam todas as migrations em SQLite `:memory:` e possuem teste isolado da migration. Antes do deploy local foi criado backup externo com SHA-256 conferido. `backend/prisma/dev.db` permanece local e fora do commit.

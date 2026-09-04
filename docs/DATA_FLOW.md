@@ -855,3 +855,35 @@ video associado + snapshots existentes
 ```
 
 CTR e Analytics continuam donos das metricas. Gerente consulta variantes persistidas; Supervisor apresenta o estado e findings sem substituir a escolha humana.
+
+## Content Production Pipeline - Sprint 47
+
+```text
+Planner/Planning ou formulario direto
+  -> POST /api/production
+  -> ProductionService.create()
+  -> workflowTemplateFor(format)
+  -> ProductionRepository
+  -> ContentProduction + ProductionStep + ProductionEvent
+
+acao do usuario ou Gerente
+  -> start / complete / skip / retry / repeat
+  -> transicao atomica + evento append-only
+  -> reconcile dependencies
+  -> resolveProductionNextAction()
+
+PACKAGING disponivel
+  -> ChannelContextResolver (recorte limitado)
+  -> PackagingService.generate()
+  -> ContentPackaging + PackagingVariant
+  -> escolha explicita do criador
+  -> SupervisorModule.reviewProduction()
+  -> READY_TO_PUBLISH
+
+publicacao feita fora do sistema
+  -> associacao local de videoId/URL/data
+  -> PUBLISHED
+  -> Analytics e Creator Memory seguem seus fluxos existentes
+```
+
+Resume e leitura nao repetem chamadas caras. Alteracao editorial relevante preserva o pacote anterior e marca Packaging/Review como `OUTDATED`. Library fornece referencias de assets; o pipeline nao copia arquivos. Chapters e recortes Shorts permanecem etapas manuais e pulaveis no long-form.

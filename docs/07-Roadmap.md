@@ -1408,3 +1408,25 @@ Entregas:
 - capability no Gerente, revisao no Supervisor, API estrita e workspace `#/packaging`.
 
 Limites: nao gera imagem final, nao publica ou modifica videos, nao executa A/B nativo, nao inventa metricas, nao preve performance e nao transforma associacao em causalidade.
+
+## Sprint 47 - Content Production Pipeline & Workflow State - CONCLUIDA
+
+**Objetivo:** acompanhar cada conteudo em um workflow persistente, modular e auditavel, conectando planejamento, producao, Packaging, revisao e publicacao externa sem simular capacidades inexistentes.
+
+Entregas:
+
+- agregado `ContentProduction` com etapas, eventos e referencias a assets da Library;
+- templates distintos para `LONG_FORM` e `SHORT`, com estado independente por etapa;
+- resolver deterministico de proxima acao, retomada sem regeneracao e transicoes idempotentes;
+- concorrencia serializada por producao e transicoes atomicas no repository;
+- invalidacao seletiva de Packaging/Review quando metadados editoriais relevantes mudam;
+- criacao direta ou idempotente a partir de `PlannedContentItem`, com relacao opcional a Series e VideoIdea;
+- integracao real com Packaging Intelligence e gate persistido do Supervisor;
+- assets referenciados pela Library sem armazenamento paralelo;
+- `READY_TO_PUBLISH` separado de publicacao; associacao manual de video nao escreve no YouTube;
+- capability de producao no Gerente, API REST e workspace `#/production`;
+- migration aditiva e testes de dominio, persistencia, concorrencia, HTTP e frontend.
+
+Limites preservados: Chapters e recortes de Shorts sao etapas manuais nesta versao; nao ha Editor IA, clipping, renderizacao, imagem final de thumbnail ou publicacao automatica. Analytics e Creator Memory continuam em seus dominios existentes e passam a poder usar o `publishedVideoId` associado, sem causalidade automatica.
+
+**Proximo checkpoint: Sprint 48 - NAO INICIADA.**

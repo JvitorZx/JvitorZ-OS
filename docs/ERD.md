@@ -445,3 +445,20 @@ Packaging / Variant --- ChannelContextRelation --- ChannelContextEntry
 ```
 
 `PackagingVariant(packagingId, key)` e unico. `PackagingMetricSnapshot.ingestionKey` impede captura duplicada. A Creator Memory usa relacoes heterogeneas auditaveis sem duplicar ownership.
+
+## Content Production Pipeline
+
+```text
+Project 0..1 --- N ContentProduction
+VideoIdea 0..1 --- N ContentProduction
+PlannedContentItem 0..1 --- 0..1 ContentProduction
+SeriesDefinition 0..1 --- N ContentProduction
+ContentPackaging 0..1 --- 0..1 ContentProduction
+
+ContentProduction 1 --- N ProductionStep
+ContentProduction 1 --- N ProductionEvent
+ContentProduction 1 --- N ProductionAssetRelation
+LibraryItem 1 --- N ProductionAssetRelation
+```
+
+`ProductionStep(productionId, key)` e unico. `ProductionAssetRelation(productionId, libraryItemId, role)` evita links duplicados. A exclusao da producao remove somente estado operacional proprio; referencias editoriais e artefatos continuam pertencendo aos seus dominios.

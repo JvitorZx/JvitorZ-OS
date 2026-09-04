@@ -30,6 +30,7 @@ const TEMPLATES: Record<ManagerIntent, ManagerPlanTemplate> = {
   EXPERIMENT_STATUS: { objective: 'Explicar hipoteses, testes ativos e resultados observados sem afirmar causalidade.', capabilities: ['experimentation'] },
   STRATEGIC_MONITORING: { objective: 'Consultar mudancas estrategicas relevantes e seus sinais auditaveis sem afirmar causalidade.', capabilities: ['monitoring'] },
   PACKAGING: { objective: 'Consolidar variantes de titulo, thumbnail, descricao e tags usando contexto rastreavel do canal.', capabilities: ['packaging'] },
+  PRODUCTION: { objective: 'Consultar ou avancar com seguranca o ciclo persistente de producao e sua proxima acao valida.', capabilities: ['production'] },
   OPPORTUNITY_DISCOVERY: { objective: 'Identificar a melhor oportunidade atual usando o ranking editorial existente.', capabilities: ['data-quality', 'trends', 'series', 'decision-memory', 'editorial-decision'] },
   RESEARCH_DISCOVERY: { objective: 'Descobrir candidatos e evidências antes de submetê-los à decisão editorial.', capabilities: ['data-quality', 'research', 'trends', 'decision-memory', 'editorial-decision'] },
   RISK_ANALYSIS: { objective: 'Consolidar riscos editoriais e operacionais sem fabricar certeza.', capabilities: ['data-quality', 'supervision', 'decision-memory'] },

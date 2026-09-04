@@ -23,6 +23,7 @@ import { ExperimentationService } from '../strategic-experimentation';
 import { StrategicMonitoringService } from '../strategic-monitoring';
 import { ChannelContextResolver } from '../channel-context';
 import { PackagingService } from '../packaging';
+import { ProductionService } from '../production';
 
 export interface OrchestrationDependencies {
   intelligence: Pick<CreatorIntelligenceService,
@@ -41,6 +42,7 @@ export interface OrchestrationDependencies {
   monitoring: Pick<StrategicMonitoringService, 'list'>;
   channelContext: Pick<ChannelContextResolver, 'resolve'>;
   packaging: Pick<PackagingService, 'list'>;
+  production: Pick<ProductionService, 'create' | 'list' | 'resume' | 'startStep' | 'skipStep' | 'retryStep' | 'repeatStep'>;
 }
 
 const previousOutputs = (results: ReadonlyMap<string, OrchestrationStepResult>): CapabilityOutput[] =>
@@ -69,6 +71,7 @@ export const createDefaultOrchestrationDependencies = (): OrchestrationDependenc
     monitoring: new StrategicMonitoringService(),
     channelContext: new ChannelContextResolver(),
     packaging: new PackagingService(),
+    production: new ProductionService(),
   };
 };
 
@@ -76,6 +79,30 @@ export const createDefaultCapabilityRegistry = (
   dependencies: OrchestrationDependencies = createDefaultOrchestrationDependencies(),
 ): CapabilityRegistry => {
   const registry = new CapabilityRegistry();
+
+  registry.register({
+    id: 'production.manage', responsibility: 'Consultar e avancar apenas transicoes validas do pipeline persistente, sem publicar ou executar capacidade inexistente.',
+    inputs: ['intent', 'projectId'], outputs: ['production state', 'next action', 'blockers'], availability: 'available', dependencies: [],
+    access: 'write', sideEffect: 'INTERNAL_WRITE', persistentMutation: true, maxAffectedItems: 1, capabilityTags: ['production'],
+  }, async ({ request }) => {
+    const normalized = request.intent.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+    let production = (await dependencies.production.list({ projectId: request.projectId, limit: 1 }))[0] ?? null;
+    if (!production && /(comec|inici|cria)/.test(normalized)) {
+      const inferredTitle = request.intent.replace(/^(comec|comece|inici|inicie|cria|crie)\S*\s+(a\s+)?producao\s+(do|da|de)?\s*/i, '').replace(/[.!?]+$/g, '').trim();
+      const created = await dependencies.production.create({ title: inferredTitle || 'Nova producao', projectId: request.projectId, format: /short/.test(normalized) ? 'SHORT' : 'LONG_FORM', origin: 'MANAGER' });
+      production = created.production;
+    }
+    if (!production) return { summary: 'Nenhuma producao persistida.', facts: [], recommendations: ['Crie uma producao informando titulo e formato.'], missingData: ['production'], confidence: 1, data: {} };
+    if (/pul(a|e|ar).*capitulo/.test(normalized)) production = await dependencies.production.skipStep(production.id, 'CHAPTERS', { reason: 'Etapa pulada por decisao explicita via Gerente', origin: 'manager' });
+    else if (/(continua|continue|proxima etapa|proximo passo|avanca|avance)/.test(normalized)) {
+      const next = production.nextAction;
+      if (next.stepKey && next.type === 'START') production = await dependencies.production.startStep(production.id, next.stepKey, { origin: 'manager' });
+      else if (next.stepKey && next.type === 'RETRY') production = await dependencies.production.retryStep(production.id, next.stepKey, { origin: 'manager' });
+      else if (next.stepKey && next.type === 'REVIEW_STALE') production = await dependencies.production.repeatStep(production.id, next.stepKey, { reason: 'Revisao explicita via Gerente', origin: 'manager' });
+    }
+    const blockers = production.steps.filter(({ state }) => ['BLOCKED', 'FAILED', 'OUTDATED'].includes(state)).map(({ label, state }) => `${label}: ${state}`);
+    return { summary: `${production.title}: ${production.status}, etapa ${production.currentStage}.`, facts: [`Workflow ${production.workflowTemplate} com ${production.steps.length} etapas.`], recommendations: [production.nextAction.label], risks: blockers, missingData: [], confidence: 1, data: { productionId: production.id, status: production.status, currentStage: production.currentStage, nextAction: production.nextAction } };
+  });
 
   registry.register({
     id: 'packaging.read', responsibility: 'Consultar variantes persistidas e seu contexto sem prever performance ou alterar a escolha do criador.',

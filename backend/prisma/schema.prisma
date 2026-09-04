@@ -47,6 +47,7 @@ model Project {
   monitoringSnapshots MonitoringSnapshot[]
   channelContextEntries ChannelContextEntry[]
   contentPackagings ContentPackaging[]
+  contentProductions ContentProduction[]
   createdAt        DateTime           @default(now())
   updatedAt        DateTime           @updatedAt
 }
@@ -107,6 +108,7 @@ model LibraryItem {
   sourceMessageId   String?                   @unique
   sourceMessage     Message?                  @relation(fields: [sourceMessageId], references: [id], onDelete: SetNull)
   conversationLinks ConversationLibraryItem[]
+  productionAssets ProductionAssetRelation[]
   title             String
   type              String?
   content           String?
@@ -256,6 +258,7 @@ model VideoIdea {
   opportunities      ContentOpportunity[]
   decisions          ContentDecision[]
   performanceSignals PerformanceSignal[]
+  productions        ContentProduction[]
   createdAt          DateTime             @default(now())
   updatedAt          DateTime             @updatedAt
 
@@ -452,6 +455,7 @@ model ContentPackaging {
   variants           PackagingVariant[]
   history            PackagingHistory[]
   experiments        PackagingExperiment[]
+  productions        ContentProduction[]
   createdAt          DateTime              @default(now())
   updatedAt          DateTime              @updatedAt
 
@@ -578,6 +582,7 @@ model SeriesDefinition {
   metadata      Json?
   videoLinks    VideoSeriesLink[]
   plannedItems  PlannedContentItem[]
+  productions   ContentProduction[]
   createdAt     DateTime          @default(now())
   updatedAt     DateTime          @updatedAt
 
@@ -752,6 +757,7 @@ model PlannedContentItem {
   outcomes                     PlanningOutcome[]
   outcomeAuditEvents           PlanningOutcomeAuditEvent[]
   experimentVariants           ExperimentVariant[]
+  productions                  ContentProduction[]
   createdAt                   DateTime              @default(now())
   updatedAt                   DateTime              @updatedAt
 
@@ -761,6 +767,116 @@ model PlannedContentItem {
   @@index([sourceDecisionId])
   @@index([sourceResearchOpportunityId])
   @@index([planId, executionState, position])
+}
+
+model ContentProduction {
+  id                   String                    @id @default(cuid())
+  projectId            String?
+  project              Project?                  @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  productionKey        String                    @unique
+  title                String
+  format               String
+  game                 String?
+  series               String?
+  episode              Int?
+  origin               String
+  objective            String?
+  summary              String?
+  keyEvents            Json                      @default("[]")
+  owner                String?
+  priority             String                    @default("MEDIUM")
+  plannedAt            DateTime?
+  publishedAt          DateTime?
+  publishedVideoId     String?
+  publishedUrl         String?
+  status               String                    @default("PLANNED")
+  currentStage         String                    @default("PLANNED")
+  workflowTemplate     String
+  version              Int                       @default(1)
+  videoIdeaId          String?
+  videoIdea            VideoIdea?                @relation(fields: [videoIdeaId], references: [id], onDelete: SetNull)
+  plannedContentItemId String?                    @unique
+  plannedContentItem   PlannedContentItem?        @relation(fields: [plannedContentItemId], references: [id], onDelete: SetNull)
+  seriesId             String?
+  seriesDefinition     SeriesDefinition?          @relation(fields: [seriesId], references: [id], onDelete: SetNull)
+  packagingId          String?                    @unique
+  packaging            ContentPackaging?          @relation(fields: [packagingId], references: [id], onDelete: SetNull)
+  steps                ProductionStep[]
+  events               ProductionEvent[]
+  assets               ProductionAssetRelation[]
+  createdAt            DateTime                   @default(now())
+  updatedAt            DateTime                   @updatedAt
+
+  @@index([projectId, status, updatedAt])
+  @@index([format, currentStage, updatedAt])
+  @@index([publishedVideoId])
+  @@index([videoIdeaId])
+  @@index([seriesId])
+}
+
+model ProductionStep {
+  id            String            @id @default(cuid())
+  productionId  String
+  production    ContentProduction @relation(fields: [productionId], references: [id], onDelete: Cascade)
+  key           String
+  label         String
+  position      Int
+  mode          String
+  capability    String?
+  required      Boolean           @default(true)
+  skippable     Boolean           @default(false)
+  dependencies  Json              @default("[]")
+  state         String            @default("NOT_STARTED")
+  attempts      Int               @default(0)
+  executionKey  String?
+  input         Json?
+  output        Json?
+  error         String?
+  skipReason    String?
+  startedAt     DateTime?
+  completedAt   DateTime?
+  invalidatedAt DateTime?
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+
+  @@unique([productionId, key])
+  @@unique([productionId, key, executionKey])
+  @@index([productionId, position])
+  @@index([state, updatedAt])
+}
+
+model ProductionEvent {
+  id           String            @id @default(cuid())
+  productionId String
+  production   ContentProduction @relation(fields: [productionId], references: [id], onDelete: Cascade)
+  stepKey      String?
+  event        String
+  actor        String
+  origin       String
+  fromState    String?
+  toState      String?
+  reason       String?
+  operationKey String?           @unique
+  data         Json              @default("{}")
+  createdAt    DateTime          @default(now())
+
+  @@index([productionId, createdAt])
+  @@index([productionId, stepKey, createdAt])
+  @@index([event, createdAt])
+}
+
+model ProductionAssetRelation {
+  id           String            @id @default(cuid())
+  productionId String
+  production   ContentProduction @relation(fields: [productionId], references: [id], onDelete: Cascade)
+  libraryItemId String
+  libraryItem  LibraryItem       @relation(fields: [libraryItemId], references: [id], onDelete: Restrict)
+  role         String
+  createdAt    DateTime          @default(now())
+
+  @@unique([productionId, libraryItemId, role])
+  @@index([productionId, createdAt])
+  @@index([libraryItemId])
 }
 
 model PlanningHistory {

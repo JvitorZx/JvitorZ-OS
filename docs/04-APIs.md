@@ -1406,3 +1406,30 @@ Base: `/api/packaging`. Payloads sao estritos e nenhuma rota escreve no YouTube.
 - `POST /api/packaging/:id/learning`: exige pelo menos duas observacoes reais de CTR e registra `LEARNING` nao causal.
 
 `internalScore` e ranking relativo do conjunto, nao CTR previsto nem probabilidade de sucesso.
+
+## Content Production Pipeline
+
+Base: `/api/production`. IDs sao textos nao vazios, payloads sao estritos e erros esperados retornam `400`, `404` ou `409`; falhas inesperadas retornam `500` sanitizado. Nenhuma rota publica ou altera videos no YouTube.
+
+- `POST /api/production`: cria workflow direto ou ligado a `plannedContentItemId`; retorna `201`, ou `200` quando a identidade ja existe.
+- `GET /api/production`: lista por `projectId`, `status`, `format` e `limit` (1-200), em ordem de atualizacao.
+- `GET /api/production/:id`: abre identidade, etapas, eventos, assets, Planning, Series e Packaging relacionados.
+- `PATCH /api/production/:id`: atualiza `title`, `game`, `series`, `objective`, `summary`, `keyEvents`, `owner`, `priority` ou `plannedAt`. Mudanca editorial relevante versiona e pode invalidar Packaging/Review.
+- `GET /api/production/:id/workflow`: retorna estado e proxima acao reconciliados.
+- `GET /api/production/:id/next-action`: retorna somente a proxima acao deterministica.
+- `GET /api/production/:id/history`: retorna o journal append-only.
+- `POST /api/production/:id/resume`: body `{}`; retoma sem recriar workflow ou outputs.
+- `POST /api/production/:id/cancel`: body `{ "reason": "..." }`; preserva historico.
+- `POST /api/production/:id/steps/:stepKey/start`: inicia etapa disponivel.
+- `POST /api/production/:id/steps/:stepKey/complete`: conclui etapa em andamento.
+- `POST /api/production/:id/steps/:stepKey/skip`: pula somente etapa marcada como pulavel, com motivo opcional.
+- `POST /api/production/:id/steps/:stepKey/retry`: reabre etapa `FAILED`.
+- `POST /api/production/:id/steps/:stepKey/repeat`: reabre etapa concluida/skipped/outdated e invalida dependentes materiais.
+- `POST /api/production/:id/packaging/run`: gera Packaging real uma vez; body `{}`. Retorna `201` ao gerar ou `200` ao reutilizar.
+- `POST /api/production/:id/packaging/link`: body `{ "packagingId": "..." }`; associa pacote existente.
+- `POST /api/production/:id/review`: body `{}`; executa o gate do Supervisor e persiste o resultado.
+- `POST /api/production/:id/assets`: body `{ "libraryItemId": "...", "role": "RAW_VIDEO" }`; referencia asset existente.
+- `DELETE /api/production/:id/assets/:relationId`: remove somente a relacao.
+- `POST /api/production/:id/publication`: body com `videoId` e, opcionalmente, `url`/`publishedAt`; registra publicacao feita externamente.
+
+Uma resposta `READY_TO_PUBLISH` nao significa publicacao. Packaging requer resumo e pelo menos um acontecimento real; conclusao requer variante escolhida. Chapters e Shorts sao etapas manuais quando presentes.

@@ -27,6 +27,7 @@ import { ExperimentationService } from '../../../services/strategic-experimentat
 import { StrategicMonitoringService } from '../../../services/strategic-monitoring';
 import { ChannelContextResolver } from '../../../services/channel-context';
 import { PackagingService } from '../../../services/packaging';
+import { ProductionRepository } from '../../../database/repositories/ProductionRepository';
 
 const operatorSummary = (operator: { id: string; status: string; missingData: string[]; sampleSize: number }): string => {
   if (operator.status === 'AVAILABLE') {
@@ -58,7 +59,17 @@ export class SupervisorModule {
     private readonly strategicMonitoringService: Pick<StrategicMonitoringService, 'getOperationalSummary'> = new StrategicMonitoringService(),
     private readonly channelContextResolver: Pick<ChannelContextResolver, 'resolve'> = new ChannelContextResolver(),
     private readonly packagingService: Pick<PackagingService, 'getOperationalSummary'> = new PackagingService(),
+    private readonly productionRepository: Pick<ProductionRepository, 'findAll'> = new ProductionRepository(DatabaseService.client),
   ) {}
+
+  reviewProduction(input: { requiredStepsComplete: boolean; packagingSelected: boolean; packagingReview?: { valid: boolean; findings: Array<{ severity: string; code: string; message: string }> } | null }) {
+    const findings = input.packagingReview?.findings ?? [];
+    if (!input.requiredStepsComplete) return { outcome: 'BLOCKED' as const, findings: ['Etapas obrigatorias anteriores ainda nao foram concluidas.'] };
+    if (!input.packagingSelected) return { outcome: 'NEEDS_CHANGES' as const, findings: ['Selecione uma variante de Packaging antes da revisao.'] };
+    if (input.packagingReview && !input.packagingReview.valid) return { outcome: 'NEEDS_CHANGES' as const, findings: findings.map(({ message }) => message) };
+    const warnings = findings.filter(({ severity }) => severity === 'WARNING').map(({ message }) => message);
+    return { outcome: warnings.length ? 'APPROVED_WITH_WARNINGS' as const : 'APPROVED' as const, findings: warnings };
+  }
 
   async getSupervisorOverview() {
     let youtubeAnalytics: YouTubeAnalyticsProviderStatus;
@@ -208,6 +219,9 @@ export class SupervisorModule {
     let packaging = { total: 0, selected: 0, published: 0, experiments: 0, needingReview: 0 };
     try { packaging = await this.packagingService.getOperationalSummary(); }
     catch { /* Packaging is local and cannot break the Supervisor or Dashboard. */ }
+    let productions: Awaited<ReturnType<ProductionRepository['findAll']>> = [];
+    try { productions = await this.productionRepository.findAll({ limit: 100 }); }
+    catch { /* Production state is local and cannot break the Supervisor. */ }
     const byId = new Map(channelOperators.map((operator) => [operator.id, operator]));
     const analyticsQuality = youtubeAnalytics.state === 'synchronized' || youtubeAnalytics.state === 'connected' ? 'GOOD'
       : youtubeAnalytics.lastSyncAt ? 'STALE' : youtubeAnalytics.state === 'temporary_error' ? 'ERROR' : 'MISSING';
@@ -236,6 +250,8 @@ export class SupervisorModule {
         : 'Nenhum sinal estrategico ativo.' },
       { area: 'Packaging', state: packaging.needingReview > 0 ? 'PARTIAL' : packaging.total > 0 ? 'GOOD' : 'MISSING',
         summary: packaging.total ? `${packaging.total} embalagem(ns), ${packaging.selected} selecionada(s) e ${packaging.published} publicada(s).` : 'Nenhuma embalagem persistida.' },
+      { area: 'Producao', state: productions.some((item) => item.steps.some(({ state }) => ['FAILED', 'BLOCKED'].includes(state))) ? 'PARTIAL' : productions.length ? 'GOOD' : 'MISSING',
+        summary: productions.length ? `${productions.length} producao(oes), ${productions.filter(({ status }) => status === 'READY_TO_PUBLISH').length} pronta(s) para publicar.` : 'Nenhuma producao persistida.' },
     ];
     return {
       alerts: dataQuality.filter(({ state }) => ['STALE', 'INCONSISTENT', 'ERROR'].includes(state)).map(({ area, summary }) => `${area}: ${summary}`),
@@ -279,6 +295,7 @@ export class SupervisorModule {
       strategicMonitoring,
       channelContext,
       packaging,
+      production: { total: productions.length, ready: productions.filter(({ status }) => status === 'READY_TO_PUBLISH').length, blocked: productions.filter((item) => item.steps.some(({ state }) => ['FAILED', 'BLOCKED'].includes(state))).length },
       audience,
     };
   }

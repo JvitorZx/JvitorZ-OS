@@ -68,6 +68,28 @@ const transitionStrategicSignal = (baseUrl, signalId, action, reason) => {
 };
 
 export const createApiClient = (baseUrl) => ({
+  async listProductions(filters = {}) {
+    const params = new URLSearchParams();
+    for (const key of ['projectId', 'status', 'format']) if (filters[key] !== undefined) params.set(key, requireIdentifier(filters[key], key));
+    if (filters.limit !== undefined) { if (!Number.isInteger(filters.limit) || filters.limit < 1 || filters.limit > 200) throw new TypeError('limit is invalid'); params.set('limit', String(filters.limit)); }
+    return requestJson(`${baseUrl}/api/production${params.size ? `?${params}` : ''}`, undefined, 'Erro ao carregar producoes');
+  },
+  async createProduction(input) { return requestJson(`${baseUrl}/api/production`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(input) }, 'Erro ao criar producao'); },
+  async getProduction(id) { return requestJson(`${baseUrl}/api/production/${encodeURIComponent(requireIdentifier(id, 'productionId'))}`, undefined, 'Erro ao abrir producao'); },
+  async updateProduction(id, input) { return requestJson(`${baseUrl}/api/production/${encodeURIComponent(requireIdentifier(id, 'productionId'))}`, { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify(input) }, 'Erro ao atualizar producao'); },
+  async getProductionWorkflow(id) { return requestJson(`${baseUrl}/api/production/${encodeURIComponent(requireIdentifier(id, 'productionId'))}/workflow`, undefined, 'Erro ao carregar workflow'); },
+  async getProductionNextAction(id) { return requestJson(`${baseUrl}/api/production/${encodeURIComponent(requireIdentifier(id, 'productionId'))}/next-action`, undefined, 'Erro ao carregar proxima acao'); },
+  async getProductionHistory(id) { return requestJson(`${baseUrl}/api/production/${encodeURIComponent(requireIdentifier(id, 'productionId'))}/history`, undefined, 'Erro ao carregar historico'); },
+  async resumeProduction(id) { return requestJson(`${baseUrl}/api/production/${encodeURIComponent(requireIdentifier(id, 'productionId'))}/resume`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' }, 'Erro ao retomar producao'); },
+  async cancelProduction(id, reason) { return requestJson(`${baseUrl}/api/production/${encodeURIComponent(requireIdentifier(id, 'productionId'))}/cancel`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ reason }) }, 'Erro ao cancelar producao'); },
+  async transitionProductionStep(id, stepKey, action, input = {}) { if (!['start', 'complete', 'skip', 'retry', 'repeat'].includes(action)) throw new TypeError('production action is invalid'); return requestJson(`${baseUrl}/api/production/${encodeURIComponent(requireIdentifier(id, 'productionId'))}/steps/${encodeURIComponent(requireIdentifier(stepKey, 'stepKey'))}/${action}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(input) }, 'Erro ao atualizar etapa'); },
+  async runProductionPackaging(id) { return requestJson(`${baseUrl}/api/production/${encodeURIComponent(requireIdentifier(id, 'productionId'))}/packaging/run`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' }, 'Erro ao executar Packaging'); },
+  async linkProductionPackaging(id, packagingId) { return requestJson(`${baseUrl}/api/production/${encodeURIComponent(requireIdentifier(id, 'productionId'))}/packaging/link`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ packagingId: requireIdentifier(packagingId, 'packagingId') }) }, 'Erro ao associar Packaging'); },
+  async reviewProduction(id) { return requestJson(`${baseUrl}/api/production/${encodeURIComponent(requireIdentifier(id, 'productionId'))}/review`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' }, 'Erro ao revisar producao'); },
+  async linkProductionAsset(id, libraryItemId, role) { return requestJson(`${baseUrl}/api/production/${encodeURIComponent(requireIdentifier(id, 'productionId'))}/assets`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ libraryItemId: requireIdentifier(libraryItemId, 'libraryItemId'), role }) }, 'Erro ao associar asset'); },
+  async unlinkProductionAsset(id, relationId) { return requestJson(`${baseUrl}/api/production/${encodeURIComponent(requireIdentifier(id, 'productionId'))}/assets/${encodeURIComponent(requireIdentifier(relationId, 'relationId'))}`, { method: 'DELETE' }, 'Erro ao remover asset'); },
+  async publishProduction(id, input) { return requestJson(`${baseUrl}/api/production/${encodeURIComponent(requireIdentifier(id, 'productionId'))}/publication`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(input) }, 'Erro ao associar publicacao'); },
+
   async listPackagings(filters = {}) {
     const params = new URLSearchParams();
     for (const key of ['projectId', 'game', 'series', 'status']) if (filters[key] !== undefined) params.set(key, requireIdentifier(filters[key], key));
