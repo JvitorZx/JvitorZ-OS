@@ -1466,4 +1466,25 @@ Entregas:
 
 Limites preservados: o provider atual usa apenas fontes internas; nao ha scraping, vidIQ, web research, demanda externa inventada, publicacao ou inicio automatico de Production. Research descobre, Editorial Decision decide e Strategic Planning organiza a execucao.
 
-**Proximo checkpoint: Sprint 50 - NAO INICIADA.**
+## Sprint 50 - Shorts Intelligence & Clip Candidate Pipeline - CONCLUIDA
+
+**Objetivo:** transformar a etapa SHORTS em analise editorial assistida de momentos reais, com revisao humana e contrato para futura edicao.
+
+Entregas:
+
+- analises persistentes e versionadas sobre o Timed Transcript existente;
+- candidatos com limites reais, hook, ranking relativo explicavel e referencias de evidencia;
+- deduplicacao, variantes explicitas, edicao manual, shortlist, selecao, rejeicao e arquivo;
+- Supervisor persistido, uma variante selecionada por momento e conclusao atomica de SHORTS;
+- resume idempotente, concorrencia protegida no SQLite e invalidacao por transcript, edicao ou asset;
+- reutilizacao de Chapters, Library, Creator Context e capability production.manage do Gerente;
+- workspace `#/shorts`, API e contrato de renderizacao sem copiar midia;
+- migration aditiva `20260915120000_shorts_intelligence`, total 34;
+- baseline 1.074 preservado, 49 testes novos, total 1.123 aprovados;
+- build, Prisma, integridade SQLite, foreign keys, sintaxe frontend e smoke HTTP/browser aprovados.
+
+Detalhes, API e limites: [Shorts Intelligence](SHORTS_INTELLIGENCE.md).
+
+Limites preservados: deteccao lexical exige revisao audiovisual humana; Analytics nao participa do score; nao ha renderizacao, reframing, download, publicacao ou previsao de views. Limites manuais seguem bordas de segmentos reais.
+
+**Proximo checkpoint: Sprint 51 - NAO INICIADA; escopo ainda nao definido.**

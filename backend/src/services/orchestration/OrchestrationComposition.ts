@@ -26,6 +26,7 @@ import { ChannelContextResolver } from '../channel-context';
 import { PackagingService } from '../packaging';
 import { ProductionService } from '../production';
 import { ChaptersService, ChaptersConflictError, ChaptersNotFoundError } from '../chapters';
+import { ShortsService, ShortsConflictError, ShortsNotFoundError } from '../shorts';
 
 export interface OrchestrationDependencies {
   intelligence: Pick<CreatorIntelligenceService,
@@ -47,6 +48,7 @@ export interface OrchestrationDependencies {
   packaging: Pick<PackagingService, 'list'>;
   production: Pick<ProductionService, 'create' | 'list' | 'resume' | 'startStep' | 'skipStep' | 'retryStep' | 'repeatStep'>;
   chapters: Pick<ChaptersService, 'generate' | 'listVersions'>;
+  shorts?: Pick<ShortsService, 'analyze' | 'list'>;
 }
 
 const previousOutputs = (results: ReadonlyMap<string, OrchestrationStepResult>): CapabilityOutput[] =>
@@ -79,6 +81,7 @@ export const createDefaultOrchestrationDependencies = (): OrchestrationDependenc
     packaging: new PackagingService(),
     production: new ProductionService(),
     chapters: new ChaptersService(),
+    shorts: new ShortsService(),
   };
 };
 
@@ -100,6 +103,19 @@ export const createDefaultCapabilityRegistry = (
       production = created.production;
     }
     if (!production) return { summary: 'Nenhuma producao persistida.', facts: [], recommendations: ['Crie uma producao informando titulo e formato.'], missingData: ['production'], confidence: 1, data: {} };
+    if (/\b(shorts?|cortes?|recortes?|melhores momentos)\b/.test(normalized) && /(acha|encontra|tem|mostra|lista|selecion|analisa|gera|momento|candidato)/.test(normalized) && dependencies.shorts) {
+      const rows = await dependencies.production.list({ projectId: request.projectId, limit: 100 });
+      const explicitlyNamed = rows.filter((row) => normalized.includes(row.id.toLowerCase()) || normalized.includes(row.title.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()));
+      if (explicitlyNamed.length === 1) production = explicitlyNamed[0];
+      else if (rows.length > 1) return { summary: 'Ha varias producoes; identifique a producao pelo titulo ou ID antes de analisar os cortes.', facts: rows.map(({ id, title }) => `${id}: ${title}`), recommendations: [], missingData: ['production selection'], confidence: 1, data: {} };
+      try {
+        const result = await dependencies.shorts.analyze(production.id, {}, /regenera/.test(normalized));
+        return { summary: `${result.analysis.candidates.length} candidato(s) a Short na versao ${result.analysis.version}, com ranking editorial relativo.`, facts: result.analysis.candidates.map(({ startMs, endMs, hook, rationale }) => `${startMs}-${endMs}ms: ${hook}. ${rationale}`), recommendations: ['Revise evidencia e selecione explicitamente no workspace Shorts.'], missingData: [], confidence: 1, data: { productionId: production.id, analysisId: result.analysis.id, candidates: result.analysis.candidates } };
+      } catch (error) {
+        if (error instanceof ShortsConflictError || error instanceof ShortsNotFoundError) return { summary: error.message, facts: [], recommendations: ['Verifique o transcript temporal e as etapas anteriores da producao.'], missingData: /transcript|temporal data/i.test(error.message) ? ['timed transcript'] : ['production readiness'], confidence: 1, data: { productionId: production.id } };
+        throw error;
+      }
+    }
     if (/capitulo/.test(normalized) && /(faz|gera|regenera|revisa|mostra|lista)/.test(normalized) && dependencies.chapters) {
       try {
         if (/(mostra|lista|revisa)/.test(normalized)) {

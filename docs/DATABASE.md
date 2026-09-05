@@ -1,5 +1,11 @@
 # Banco de Dados
 
+## Shorts Intelligence — Sprint 50
+
+A migration aditiva `20260915120000_shorts_intelligence` cria `ShortAnalysis`, `ClipCandidate` e `ClipRevision`, com FKs para Production/TimedTranscript, versao unica por producao, indice parcial para uma analise atual e validacao de intervalo no SQLite. Atualiza apenas mode/capability das etapas SHORTS existentes. Total validado: 34 migrations.
+
+Backup consistente externo precedeu a aplicacao local. A comparacao das 81 tabelas de dados anteriores preservou todas as linhas e valores, exceto os campos mode/capability esperados em ProductionStep. `integrity_check = ok`, sem violacoes em `foreign_key_check`. O banco e os documentos pessoais nao fazem parte do commit. Contratos e limites em [Shorts Intelligence](SHORTS_INTELLIGENCE.md).
+
 ## Tecnologia atual
 
 - Banco de desenvolvimento: **SQLite**.

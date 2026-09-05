@@ -1,5 +1,9 @@
 # PRODUCT_ARCHITECTURE.md
 
+## Shorts Intelligence — Sprint 50
+
+ShortsService coordena candidatos sobre TimedTranscript e Production existentes. O dominio deterministico mantem ranking e evidencia explicaveis; ShortsRepository serializa escritas SQLite e preserva versoes/revisoes. A invalidacao de fonte e compartilhada com Chapters e Production. O Gerente reutiliza production.manage; Supervisor valida limites, evidencia, hook e duplicacao. A workspace editorial `#/shorts` complementa o operador analitico existente, sem duplicar Analytics ou armazenamento de midia. Ver [contratos e limitacoes](SHORTS_INTELLIGENCE.md).
+
 ## Referência principal de visão
 O documento principal da visão do produto está em [`docs/PRODUCT_VISION.md`](PRODUCT_VISION.md).
 A estrutura oficial do sistema está documentada em [`docs/JVITORZ_OS.md`](JVITORZ_OS.md).

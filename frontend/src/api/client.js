@@ -68,6 +68,21 @@ const transitionStrategicSignal = (baseUrl, signalId, action, reason) => {
 };
 
 export const createApiClient = (baseUrl) => ({
+  async listShortAnalyses(id) { return requestJson(`${baseUrl}/api/shorts/productions/${encodeURIComponent(requireIdentifier(id, 'productionId'))}`, undefined, 'Erro ao carregar análises de Shorts'); },
+  async getShortAnalysis(id) { return requestJson(`${baseUrl}/api/shorts/analyses/${encodeURIComponent(requireIdentifier(id, 'analysisId'))}`, undefined, 'Erro ao abrir análise de Shorts'); },
+  async analyzeShorts(id, input = {}, regenerate = false) { return requestJson(`${baseUrl}/api/shorts/productions/${encodeURIComponent(requireIdentifier(id, 'productionId'))}/${regenerate ? 'regenerate' : 'analyze'}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(input) }, 'Erro ao analisar momentos'); },
+  async getClipCandidate(id) { return requestJson(`${baseUrl}/api/shorts/candidates/${encodeURIComponent(requireIdentifier(id, 'candidateId'))}`, undefined, 'Erro ao abrir candidato'); },
+  async updateClipCandidate(id, input) { return requestJson(`${baseUrl}/api/shorts/candidates/${encodeURIComponent(requireIdentifier(id, 'candidateId'))}`, { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify(input) }, 'Erro ao editar candidato'); },
+  async createClipCandidate(id, input) { return requestJson(`${baseUrl}/api/shorts/analyses/${encodeURIComponent(requireIdentifier(id, 'analysisId'))}/candidates`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(input) }, 'Erro ao criar candidato'); },
+  async transitionClipCandidate(id, action) {
+    if (!['shortlist', 'select', 'reject', 'archive'].includes(action)) throw new TypeError('action is invalid');
+    return requestJson(`${baseUrl}/api/shorts/candidates/${encodeURIComponent(requireIdentifier(id, 'candidateId'))}/${action}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' }, 'Erro ao atualizar candidato');
+  },
+  async getClipEvidence(id) { return requestJson(`${baseUrl}/api/shorts/candidates/${encodeURIComponent(requireIdentifier(id, 'candidateId'))}/evidence`, undefined, 'Erro ao carregar evidências'); },
+  async reviewShortAnalysis(id) { return requestJson(`${baseUrl}/api/shorts/analyses/${encodeURIComponent(requireIdentifier(id, 'analysisId'))}/review`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' }, 'Erro ao revisar análise'); },
+  async completeShortAnalysis(id) { return requestJson(`${baseUrl}/api/shorts/analyses/${encodeURIComponent(requireIdentifier(id, 'analysisId'))}/complete`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' }, 'Erro ao concluir seleção'); },
+  async getSelectedClips(id) { return requestJson(`${baseUrl}/api/shorts/productions/${encodeURIComponent(requireIdentifier(id, 'productionId'))}/selected`, undefined, 'Erro ao carregar selecionados'); },
+  async getShortRenderContract(id) { return requestJson(`${baseUrl}/api/shorts/productions/${encodeURIComponent(requireIdentifier(id, 'productionId'))}/render-contract`, undefined, 'Erro ao carregar contrato de edição'); },
   async listProductions(filters = {}) {
     const params = new URLSearchParams();
     for (const key of ['projectId', 'status', 'format']) if (filters[key] !== undefined) params.set(key, requireIdentifier(filters[key], key));

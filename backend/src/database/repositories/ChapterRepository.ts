@@ -1,4 +1,5 @@
 import type { Prisma, PrismaClient } from '@prisma/client';
+import { invalidateShortsSource } from './ShortsRepository';
 
 const transcriptDetails = {
   segments: { orderBy: [{ position: 'asc' as const }] },
@@ -60,6 +61,7 @@ export class ChapterRepository {
         fingerprint: input.fingerprint, version: (latest?.version ?? 0) + 1, segments: { create: input.segments },
       } });
       if (latest && latest.fingerprint !== input.fingerprint) {
+        await invalidateShortsSource(transaction, input.productionId, 'Timed transcript changed; prior candidates preserved');
         await transaction.chapterSet.updateMany({ where: { productionId: input.productionId, status: 'SELECTED' }, data: { status: 'STALE' } });
         const changed = await transaction.productionStep.updateMany({ where: { productionId: input.productionId, key: 'CHAPTERS', state: { in: ['COMPLETED', 'WAITING_USER', 'IN_PROGRESS'] } }, data: { state: 'OUTDATED', invalidatedAt: input.now } });
         if (changed.count) await transaction.productionEvent.create({ data: { productionId: input.productionId, stepKey: 'CHAPTERS', event: 'CHAPTERS_INVALIDATED', actor: 'system', origin: 'chapters', reason: 'Timed transcript changed', data: { previousTranscriptId: latest.id, transcriptId: transcript.id } } });

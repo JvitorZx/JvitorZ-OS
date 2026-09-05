@@ -1582,6 +1582,23 @@ dd {
 @media (max-width: 960px) {
   .automation-workspace { grid-template-columns: 1fr; }
 }
+.shorts-workspace { display: grid; grid-template-columns: minmax(150px, 210px) minmax(0, 1fr); gap: 24px; margin-top: 24px; }
+.workspace .workspace-module .shorts-panel { height: auto; min-height: calc(100vh - 160px); }
+.shorts-panel a { color: var(--accent); }
+.shorts-panel input, .shorts-panel select { min-height: 36px; padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; color: var(--text); background: var(--surface, #111827); }
+.shorts-panel .operator-card { color: var(--text); background: var(--surface, #111827); border: 1px solid var(--line); cursor: pointer; padding: 12px; }
+.shorts-panel .operator-card.active { border-color: var(--accent); }
+.shorts-panel .research-card { border: 1px solid var(--line); display: flex; flex-direction: column; gap: 8px; }
+.shorts-panel .research-badge, .shorts-panel .research-disclaimer { color: var(--muted); }
+.shorts-workspace > section { min-width: 0; }
+.shorts-workspace .operator-card { display: block; width: 100%; margin-bottom: 8px; text-align: left; }
+.shorts-workspace .research-card-grid { margin-top: 18px; }
+.shorts-workspace details { margin: 12px 0; }
+.shorts-workspace summary { cursor: pointer; margin-bottom: 8px; }
+.shorts-workspace input, .shorts-workspace select { width: 100%; min-width: 0; box-sizing: border-box; }
+.shorts-json { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 320px; overflow: auto; font-size: .8rem; }
+@media (max-width: 900px) { .shorts-workspace { grid-template-columns: 1fr; } }
+
 .chapters-import {
   display: grid;
   gap: 8px;

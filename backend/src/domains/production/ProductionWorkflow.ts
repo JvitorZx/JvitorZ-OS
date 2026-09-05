@@ -14,7 +14,7 @@ export const productionWorkflowFor = (format: ProductionFormat): ProductionStepT
   const workflow: ProductionStepTemplate[] = [
     ...commonStart,
     { key: 'CHAPTERS', label: 'Capitulos', mode: 'ASSISTED', capability: 'chapters', required: false, skippable: true, dependencies: ['EDITING'], availability: 'AVAILABLE' },
-    { key: 'SHORTS', label: 'Recortes Shorts', mode: 'MANUAL', required: false, skippable: true, dependencies: ['CHAPTERS'], availability: 'MANUAL_ONLY' },
+    { key: 'SHORTS', label: 'Recortes Shorts', mode: 'ASSISTED', capability: 'shorts', required: false, skippable: true, dependencies: ['CHAPTERS'], availability: 'AVAILABLE' },
     { ...commonEnd[0], dependencies: ['SHORTS'] }, commonEnd[1],
   ];
   return workflow.map((step) => ({ ...step, dependencies: [...step.dependencies] }));

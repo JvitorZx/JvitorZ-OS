@@ -130,6 +130,7 @@ export class ProductionService {
     const productionId = id(productionIdValue, 'production id'); const stepKey = id(stepKeyValue, 'step key').toUpperCase();
     return this.locked(productionId, async () => { const production = await this.get(productionId); const step = production.steps.find(({ key }) => key === stepKey); if (!step) throw new ProductionNotFoundError('Production step not found');
       if (stepKey === 'REVIEW') throw new ProductionConflictError('Use the Supervisor review action');
+      if (stepKey === 'SHORTS') throw new ProductionConflictError('Review and complete selected clip candidates in Shorts, or skip this optional step');
       if (stepKey === 'PACKAGING' && !production.packaging?.variants.some(({ status }) => status === 'SELECTED')) throw new ProductionConflictError('Select a Packaging variant before completing the step');
       if (stepKey === 'CHAPTERS' && !production.chapterSets.some(({ status }) => status === 'SELECTED')) throw new ProductionConflictError('Select a valid Chapters version before completing the step');
       return this.transition(productionId, stepKey, 'COMPLETED', 'STEP_COMPLETED', ['IN_PROGRESS', 'WAITING_USER'], { ...input, output: input.output ?? step.output ?? {} }); });

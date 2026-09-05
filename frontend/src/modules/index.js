@@ -15,6 +15,7 @@ import { channelContextModule } from './channel-context.js';
 import { packagingModule } from './packaging.js';
 import { productionModule } from './production.js';
 import { chaptersModule } from './chapters.js';
+import { shortsModule } from './shorts.js';
 
 export const dashboardModules = [
   homeModule,
@@ -27,6 +28,7 @@ export const dashboardModules = [
   packagingModule,
   productionModule,
   chaptersModule,
+  shortsModule,
   libraryModule,
   researchModule,
   managerModule,

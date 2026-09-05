@@ -30,7 +30,8 @@ export const classifyManagerIntent = (message: string): ManagerIntent => {
   if (/(ctr|taxa de clique|impressoes)/.test(text) && /retenc|consumo|assist/.test(text)) return 'CHANNEL_DIAGNOSIS';
   if (/qual dessas ideias|qual ideia.*melhor|compare.*ideias?/.test(text)) return 'IDEA_COMPARISON';
   if (extractComparisonCandidates(message).length >= 2) return 'IDEA_COMPARISON';
-  if (/shorts?/.test(text)) return 'SHORTS_ANALYSIS';
+  if (/\b(shorts?|cortes?|recortes?|melhores momentos)\b/.test(text) && /(acha|encontra|tem|mostra|selecion|analisa|gera|melhores|candidato)/.test(text) && !/(metric|analytics|views|retencao|desempenho)/.test(text)) return 'PRODUCTION';
+  if (/\bshorts?\b/.test(text)) return 'SHORTS_ANALYSIS';
   if (/videos? longos?|long.?form|vod/.test(text)) return 'LONGFORM_ANALYSIS';
   if (/(fonte|origem).*trafego|trafego|de onde.*(views|visualiz)|pesquisa.*youtube/.test(text)) return 'TRAFFIC_ANALYSIS';
   if (/audiencia|publico|pais|dispositivo|celular|inscrito/.test(text)) return 'AUDIENCE_ANALYSIS';

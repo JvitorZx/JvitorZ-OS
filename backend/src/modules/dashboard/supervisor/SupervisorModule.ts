@@ -1,4 +1,5 @@
 import type { EditorialDecision } from '@prisma/client';
+import { reviewClips } from '../../../domains/shorts';
 import {
   YouTubePerformanceSyncService,
   youtubePerformanceSyncService,
@@ -40,6 +41,7 @@ const operatorSummary = (operator: { id: string; status: string; missingData: st
 };
 
 export class SupervisorModule {
+  reviewShorts(...input: Parameters<typeof reviewClips>) { return reviewClips(...input); }
   constructor(
     private readonly youtubeSyncService = youtubePerformanceSyncService,
     private readonly editorialDecisionService = new EditorialDecisionService(),

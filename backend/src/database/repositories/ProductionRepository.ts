@@ -1,4 +1,5 @@
 import type { Prisma, PrismaClient } from '@prisma/client';
+import { invalidateShortsSource } from './ShortsRepository';
 
 const details = {
   steps: { orderBy: [{ position: 'asc' as const }, { key: 'asc' as const }] },
@@ -69,6 +70,7 @@ export class ProductionRepository {
         ...(input.state !== 'OUTDATED' ? { invalidatedAt: null } : {}),
       } });
       if (!changed.count) throw new Error('PRODUCTION_TRANSITION_CONFLICT');
+      if (input.stepKey === 'EDITING' && ['AVAILABLE', 'IN_PROGRESS', 'OUTDATED'].includes(input.state)) await invalidateShortsSource(transaction, input.productionId, 'Temporal editing reopened');
       try { await transaction.productionEvent.create({ data: { productionId: input.productionId, stepKey: input.stepKey, event: input.event, actor: input.actor, origin: input.origin, fromState: step.state, toState: input.state, reason: input.reason ?? null, operationKey: input.executionKey ?? null, data: input.data ?? {} } }); }
       catch (error) { if (!error || typeof error !== 'object' || !('code' in error) || error.code !== 'P2002') throw error; }
       return transaction.contentProduction.findUniqueOrThrow({ where: { id: input.productionId }, include: details });
@@ -92,12 +94,13 @@ export class ProductionRepository {
     await this.client.$transaction(async (transaction) => {
       const existing = await transaction.productionAssetRelation.findUnique({ where: { productionId_libraryItemId_role: { productionId, libraryItemId, role } } });
       if (!existing) { await transaction.productionAssetRelation.create({ data: { productionId, libraryItemId, role } }); await transaction.productionEvent.create({ data: { productionId, event: 'ASSET_LINKED', actor: 'user', origin: 'production-api', data: { libraryItemId, role } } }); }
+      if (!existing && ['RAW_VIDEO', 'EDITED_VIDEO'].includes(role)) await invalidateShortsSource(transaction, productionId, 'Source video asset changed');
     });
     return this.findById(productionId);
   }
 
   async unlinkAsset(productionId: string, relationId: string) {
-    await this.client.$transaction(async (transaction) => { const relation = await transaction.productionAssetRelation.findFirst({ where: { id: relationId, productionId } }); if (relation) { await transaction.productionAssetRelation.delete({ where: { id: relation.id } }); await transaction.productionEvent.create({ data: { productionId, event: 'ASSET_UNLINKED', actor: 'user', origin: 'production-api', data: { libraryItemId: relation.libraryItemId, role: relation.role } } }); } });
+    await this.client.$transaction(async (transaction) => { const relation = await transaction.productionAssetRelation.findFirst({ where: { id: relationId, productionId } }); if (relation) { if (['RAW_VIDEO', 'EDITED_VIDEO'].includes(relation.role)) await invalidateShortsSource(transaction, productionId, 'Source video asset removed'); await transaction.productionAssetRelation.delete({ where: { id: relation.id } }); await transaction.productionEvent.create({ data: { productionId, event: 'ASSET_UNLINKED', actor: 'user', origin: 'production-api', data: { libraryItemId: relation.libraryItemId, role: relation.role } } }); } });
     return this.findById(productionId);
   }
 }

@@ -918,6 +918,7 @@ model ContentProduction {
   assets               ProductionAssetRelation[]
   transcripts          TimedTranscript[]
   chapterSets          ChapterSet[]
+  shortAnalyses        ShortAnalysis[]
   createdAt            DateTime                   @default(now())
   updatedAt            DateTime                   @updatedAt
 
@@ -943,6 +944,7 @@ model TimedTranscript {
   version       Int               @default(1)
   segments      TimedTranscriptSegment[]
   chapterSets   ChapterSet[]
+  shortAnalyses ShortAnalysis[]
   createdAt     DateTime          @default(now())
   updatedAt     DateTime          @updatedAt
 
@@ -1005,6 +1007,74 @@ model ChapterEntry {
 
   @@unique([chapterSetId, position])
   @@index([chapterSetId, startMs])
+}
+
+model ShortAnalysis {
+  id                String @id @default(cuid())
+  productionId      String
+  production        ContentProduction @relation(fields: [productionId], references: [id], onDelete: Cascade)
+  transcriptId      String
+  transcript        TimedTranscript @relation(fields: [transcriptId], references: [id], onDelete: Restrict)
+  version           Int
+  status            String @default("CURRENT")
+  sourceFingerprint String
+  configuration     Json
+  context           Json
+  limitations       Json
+  review            Json?
+  candidates        ClipCandidate[]
+  revisions         ClipRevision[]
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@unique([productionId, version])
+  @@index([productionId, status])
+  @@index([transcriptId])
+}
+
+model ClipCandidate {
+  id              String @id @default(cuid())
+  analysisId      String
+  analysis        ShortAnalysis @relation(fields: [analysisId], references: [id], onDelete: Cascade)
+  momentKey       String
+  variantOfId     String?
+  variantReason   String?
+  startMs         Int
+  endMs           Int
+  durationMs      Int
+  title           String
+  hook            String
+  summary         String
+  rationale       String
+  event           String
+  chapterEntryId  String?
+  game            String?
+  series          String?
+  format          String @default("SHORT")
+  score           Float
+  scoreFactors    Json
+  risks           Json
+  evidence        Json
+  review          Json?
+  status          String @default("CANDIDATE")
+  manuallyEdited  Boolean @default(false)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([analysisId, status, score])
+  @@index([analysisId, momentKey])
+}
+
+model ClipRevision {
+  id          String @id @default(cuid())
+  analysisId  String
+  analysis    ShortAnalysis @relation(fields: [analysisId], references: [id], onDelete: Cascade)
+  event       String
+  candidateId String?
+  snapshot    Json
+  createdAt   DateTime @default(now())
+
+  @@index([analysisId, createdAt])
 }
 
 model ChapterRevision {
