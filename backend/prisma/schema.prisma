@@ -109,12 +109,40 @@ model LibraryItem {
   sourceMessage     Message?                  @relation(fields: [sourceMessageId], references: [id], onDelete: SetNull)
   conversationLinks ConversationLibraryItem[]
   productionAssets ProductionAssetRelation[]
+  localMediaSource LocalMediaSource?
   transcripts      TimedTranscript[]
   title             String
   type              String?
   content           String?
   createdAt         DateTime                  @default(now())
   updatedAt         DateTime                  @updatedAt
+}
+
+model LocalMediaSource {
+  id            String @id @default(cuid())
+  libraryItemId String @unique
+  libraryItem   LibraryItem @relation(fields: [libraryItemId], references: [id], onDelete: Cascade)
+  rootId        String
+  relativePath  String
+  identityKey   String @unique
+  fingerprint   String
+  sizeBytes     String
+  durationMs    Int?
+  formatName    String?
+  videoCodec    String?
+  audioCodec    String?
+  width         Int?
+  height        Int?
+  hasAudio      Boolean @default(false)
+  status        String @default("UNAVAILABLE")
+  errorCode     String?
+  probeAt       DateTime?
+  lastCheckedAt DateTime
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([status, updatedAt])
+  @@index([rootId])
 }
 
 model ConversationLibraryItem {

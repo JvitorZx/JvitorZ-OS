@@ -68,6 +68,13 @@ const transitionStrategicSignal = (baseUrl, signalId, action, reason) => {
 };
 
 export const createApiClient = (baseUrl) => ({
+  async mediaHealth() { return requestJson(`${baseUrl}/api/media/health`, undefined, 'Erro ao verificar inspeção local'); },
+  async listMediaRoots() { return requestJson(`${baseUrl}/api/media/roots`, undefined, 'Erro ao carregar pastas de mídia'); },
+  async listMediaSources() { return requestJson(`${baseUrl}/api/media/sources`, undefined, 'Erro ao carregar fontes de vídeo'); },
+  async getMediaSource(id) { return requestJson(`${baseUrl}/api/media/sources/${encodeURIComponent(requireIdentifier(id, 'sourceId'))}`, undefined, 'Erro ao abrir fonte de vídeo'); },
+  async registerMediaSource(input) { return requestJson(`${baseUrl}/api/media/sources`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(input) }, 'Erro ao conectar vídeo'); },
+  async reprobeMediaSource(id) { return requestJson(`${baseUrl}/api/media/sources/${encodeURIComponent(requireIdentifier(id, 'sourceId'))}/reprobe`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' }, 'Erro ao inspecionar vídeo'); },
+  mediaPreviewUrl(id) { return `${baseUrl}/api/media/sources/${encodeURIComponent(requireIdentifier(id, 'sourceId'))}/preview`; },
   async listShortAnalyses(id) { return requestJson(`${baseUrl}/api/shorts/productions/${encodeURIComponent(requireIdentifier(id, 'productionId'))}`, undefined, 'Erro ao carregar análises de Shorts'); },
   async getShortAnalysis(id) { return requestJson(`${baseUrl}/api/shorts/analyses/${encodeURIComponent(requireIdentifier(id, 'analysisId'))}`, undefined, 'Erro ao abrir análise de Shorts'); },
   async analyzeShorts(id, input = {}, regenerate = false) { return requestJson(`${baseUrl}/api/shorts/productions/${encodeURIComponent(requireIdentifier(id, 'productionId'))}/${regenerate ? 'regenerate' : 'analyze'}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(input) }, 'Erro ao analisar momentos'); },

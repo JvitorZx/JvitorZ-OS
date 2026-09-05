@@ -1487,4 +1487,15 @@ Detalhes, API e limites: [Shorts Intelligence](SHORTS_INTELLIGENCE.md).
 
 Limites preservados: deteccao lexical exige revisao audiovisual humana; Analytics nao participa do score; nao ha renderizacao, reframing, download, publicacao ou previsao de views. Limites manuais seguem bordas de segmentos reais.
 
-**Proximo checkpoint: Sprint 51 - NAO INICIADA; escopo ainda nao definido.**
+## Sprint 51 - Local Media Source Registry & Probe - CONCLUIDA
+
+Registro 1:1 de fontes de video na Library, associacao a Production, inspecao real com ffprobe e preview Range/HEAD. Raizes locais permitidas, caminhos relativos validados, estados de arquivo alterado/indisponivel, reprobe explicito e invalidacao de Shorts preservam a rastreabilidade.
+
+- baseline 1.123 preservado; 28 testes backend e 9 frontend novos; total 1.160 aprovados;
+- build, Prisma, 35/35 migrations, SQLite integrity/foreign keys e 55 arquivos JS aprovados;
+- smoke HTTP e navegador com video sintetico: metadata real, preview carregado, Range 206, HEAD e Range invalido 416;
+- dados anteriores preservados; banco pessoal e cinco documentos fora do commit.
+
+Detalhes e limites: [Local Media Sources](LOCAL_MEDIA_SOURCES.md). Nao ha watcher, transcodificacao ou publicacao. O fingerprint usa metadados de arquivo, nao hash de conteudo; a compatibilidade do preview depende dos codecs do navegador.
+
+**Proximo checkpoint: Sprint 52 - Controlled Local Clip Rendering - NAO INICIADA.**

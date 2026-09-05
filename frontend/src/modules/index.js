@@ -16,6 +16,7 @@ import { packagingModule } from './packaging.js';
 import { productionModule } from './production.js';
 import { chaptersModule } from './chapters.js';
 import { shortsModule } from './shorts.js';
+import { mediaModule } from './media.js';
 
 export const dashboardModules = [
   homeModule,
@@ -29,6 +30,7 @@ export const dashboardModules = [
   productionModule,
   chaptersModule,
   shortsModule,
+  mediaModule,
   libraryModule,
   researchModule,
   managerModule,

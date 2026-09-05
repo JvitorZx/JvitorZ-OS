@@ -8,3 +8,4 @@ yarn-error.log*
 .DS_Store
 google-tokens.json
 client_secret_*.json
+/media/

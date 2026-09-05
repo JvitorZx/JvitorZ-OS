@@ -1583,6 +1583,19 @@ dd {
   .automation-workspace { grid-template-columns: 1fr; }
 }
 .shorts-workspace { display: grid; grid-template-columns: minmax(150px, 210px) minmax(0, 1fr); gap: 24px; margin-top: 24px; }
+.workspace .workspace-module .media-panel { height: auto; min-height: calc(100vh - 160px); }
+.media-workspace { display: grid; grid-template-columns: minmax(200px, 1fr) minmax(0, 2fr); gap: 24px; margin-top: 28px; }
+.media-workspace > section { min-width: 0; }
+.media-panel input, .media-panel select { box-sizing: border-box; width: 100%; min-width: 0; padding: 8px 10px; min-height: 38px; border: 1px solid var(--line); border-radius: 6px; color: var(--text); background: var(--surface); }
+.media-panel a { color: var(--accent); }
+.media-source-card { display: grid; gap: 6px; width: 100%; text-align: left; padding: 12px; margin-bottom: 10px; border: 1px solid var(--line); border-radius: 8px; color: var(--text); background: var(--surface); cursor: pointer; overflow-wrap: anywhere; }
+.media-source-card.active { border-color: var(--accent); }
+.media-source-card small { color: var(--muted); }
+.media-preview { display: block; width: 100%; max-height: 440px; background: #000; border-radius: 8px; }
+.media-metadata { display: grid; grid-template-columns: auto 1fr; gap: 8px 16px; margin: 8px 0; }
+.media-metadata dt { color: var(--muted); }
+.media-metadata dd { margin: 0; }
+@media (max-width: 900px) { .media-workspace { grid-template-columns: 1fr; } }
 .workspace .workspace-module .shorts-panel { height: auto; min-height: calc(100vh - 160px); }
 .shorts-panel a { color: var(--accent); }
 .shorts-panel input, .shorts-panel select { min-height: 36px; padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; color: var(--text); background: var(--surface, #111827); }

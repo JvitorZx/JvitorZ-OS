@@ -47,6 +47,7 @@ export const createProductionController = ({ api }) => {
         if (['COMPLETED', 'SKIPPED'].includes(step.state)) controls.append(action('Repetir', { productionAction: 'repeat', stepKey: step.key }));
         for (const control of controls.children) control.disabled = pending; card.append(controls); timeline.append(card); }
       article.append(timeline);
+      const mediaLink = el('a', 'Conectar vídeo local à produção'); mediaLink.href = `#/media/${encodeURIComponent(row.id)}`; article.append(mediaLink);
       if (row.packaging) article.append(action('Abrir Packaging associado', { productionPackagingOpen: row.packaging.id }));
       if (row.status === 'READY_TO_PUBLISH') { const publication = document.createElement('div'); publication.className = 'planning-item-actions'; const video = document.createElement('input'); video.placeholder = 'YouTube videoId'; video.dataset.productionVideo = ''; video.setAttribute('aria-label', 'YouTube videoId publicado'); publication.append(video, action('Associar publicacao externa', { productionAction: 'publish' }, true)); article.append(publication); }
       article.append(lineList('Assets da Library', (row.assets ?? []).map(({ role, libraryItem }) => `${role}: ${libraryItem.title}`)), lineList('Timeline', (row.events ?? []).map(({ event, stepKey, reason }) => `${event}${stepKey ? ` - ${stepKey}` : ''}${reason ? `: ${reason}` : ''}`))); detail.replaceChildren(article);

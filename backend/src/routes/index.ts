@@ -19,6 +19,7 @@ import packagingRoutes from './packaging';
 import productionRoutes from './production';
 import chaptersRoutes from './chapters';
 import shortsRoutes from './shorts';
+import mediaRoutes from './media';
 
 const router = Router();
 
@@ -42,6 +43,7 @@ router.use('/packaging', packagingRoutes);
 router.use('/production', productionRoutes);
 router.use('/chapters', chaptersRoutes);
 router.use('/shorts', shortsRoutes);
+router.use('/media', mediaRoutes);
 
 router.get('/', (_req, res) => {
   res.json({ message: 'JvitorZ OS backend route is working' });
