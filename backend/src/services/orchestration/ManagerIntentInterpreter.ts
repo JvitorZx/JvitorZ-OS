@@ -25,6 +25,7 @@ export const classifyManagerIntent = (message: string): ManagerIntent => {
   if (!text) return 'UNKNOWN';
   if (/(sinais? estrategic|alertas? estrategic|o que mudou|mudou no canal|precisa.*atencao|monitoramento)/.test(text)) return 'STRATEGIC_MONITORING';
   if (/(o que estamos testando|experimento|hipotese|resultado do teste|o que aprendemos.*teste|hipotese.*confirmada)/.test(text)) return 'EXPERIMENT_STATUS';
+  if (/(me (de|da|mostra) .*ideias?|ideias? (de|para|pro)|proximo jogo|novo jogo|qual jogo vale testar|variar sem abandonar|barat[oa] de produzir|o que nao .*explorando|quero um experimento|o que (eu )?devo gravar agora)/.test(text)) return 'RESEARCH_DISCOVERY';
   if (/(pesquise|pesquisar|procure|investigue|fora do meu canal|tema surgindo|jogo vale pesquisar|lacuna de conteudo)/.test(text)) return 'RESEARCH_DISCOVERY';
   if (/(ctr|taxa de clique|impressoes)/.test(text) && /retenc|consumo|assist/.test(text)) return 'CHANNEL_DIAGNOSIS';
   if (/qual dessas ideias|qual ideia.*melhor|compare.*ideias?/.test(text)) return 'IDEA_COMPARISON';

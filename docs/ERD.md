@@ -282,6 +282,21 @@ ResearchHistory 1 --- N PlannedContentItem (opcional, ON DELETE SET NULL)
 SeriesDefinition 1 --- N PlannedContentItem (opcional, ON DELETE SET NULL)
 ```
 
+## Research & Ideation Intelligence
+
+```text
+Project 0..1 --- N ResearchHistory
+ResearchHistory 1 --- N ResearchOpportunity
+ResearchHistory 1 --- N ResearchEvidenceItem
+ResearchHistory 1 --- N ResearchSessionEvent
+ResearchHistory 1 --- N ResearchContentGap
+ResearchHistory 0..1 --- N VideoIdea (ON DELETE SET NULL)
+ResearchOpportunity 0..1 --- N VideoIdea (ON DELETE SET NULL)
+VideoIdea 0..1 --- N VideoIdea duplicateOf (ON DELETE SET NULL)
+```
+
+`ResearchOpportunity` e unica por `(researchHistoryId, key)`. `VideoIdea.ideaKey` e unica e sustenta deduplicacao exata. Filhos do snapshot usam cascade; ideias sobrevivem ao descarte de uma origem opcional com a referencia nula, preservando o ativo editorial.
+
 `ContentPlan` é a versão do plano. `PlannedContentItem` usa `unique(planId, candidateKey)`, índice `(planId, position)` e índice parcial único por `planId` quando `executionState = in_progress`. `PlanningHistory` registra toda mudança do plano; `PlanningExecutionEvent` registra estado, ação, motivo, confiança e snapshot estratégico de cada transição operacional. Ambos são append-only no fluxo de aplicação.
 - `VideoPerformanceSnapshot.engagedViews` é opcional; permanece `null` quando o provider não a fornece e nunca é estimado.
 - `PerformanceSignal.key` torna sinais derivados idempotentes e sua relação registra a evidência de origem.

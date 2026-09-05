@@ -303,6 +303,56 @@ export class StrategicPlanningService {
     return item;
   }
 
+  async addVideoIdea(input: {
+    ideaId: string;
+    projectId?: string | null;
+    title: string;
+    rationale: string;
+    effort: PlanningEffort;
+    priority?: PlanningPriority;
+    sourceResearchOpportunityId?: string | null;
+    researchHistoryId?: string | null;
+    evidence?: unknown[];
+    risks?: unknown[];
+    missingData?: string[];
+  }) {
+    const ideaId = normalizeId(input.ideaId, 'idea id');
+    const candidateKey = `idea:${ideaId}`;
+    const existing = await this.items.findByCandidateKey(candidateKey);
+    if (existing) return { item: existing, created: false };
+    const title = normalizeText(input.title, 'title', 240);
+    const effort = input.effort;
+    const priority = input.priority ?? 'MEDIUM';
+    if (!PLANNING_EFFORTS.includes(effort)) throw new StrategicPlanningValidationError('invalid effort');
+    if (!PLANNING_PRIORITIES.includes(priority)) throw new StrategicPlanningValidationError('invalid priority');
+    const { plan } = await this.getOrGenerateCurrent({ projectId: input.projectId ?? null, horizon: 'NEXT_7_DAYS' });
+    try {
+      const item = await this.items.create({
+        planId: plan.id,
+        sourceResearchOpportunityId: input.sourceResearchOpportunityId ?? null,
+        researchHistoryId: input.researchHistoryId ?? null,
+        candidateKey, candidateType: 'IDEA', title,
+        rationale: normalizeText(input.rationale, 'rationale', 1_000),
+        status: 'READY', priority, effort, readiness: 'READY',
+        queue: plan.items.some(({ queue }) => queue === 'NEXT') ? 'LATER' : 'NEXT',
+        position: plan.items.length + 1, executionScore: 0, manualPriority: true,
+        evidence: asJson(input.evidence ?? []), risks: asJson(input.risks ?? []), constraints: asJson([]),
+        missingData: asJson(input.missingData ?? []),
+        dependencies: asJson(input.researchHistoryId ? [{ type: 'RESEARCH', referenceId: input.researchHistoryId, status: 'READY', summary: 'Pesquisa de origem persistida.' }] : []),
+        executionState: 'pending', executionAction: `Preparar a execução da ideia: ${title}.`, executionConfidence: null,
+        executionContext: asJson({ source: 'video-idea', ideaId }),
+      }, 'Ideia selecionada explicitamente e enviada ao planejamento.');
+      await this.refreshPlanStatus(plan.id);
+      return { item, created: true };
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+        const raced = await this.items.findByCandidateKey(candidateKey);
+        if (raced) return { item: raced, created: false };
+      }
+      throw error;
+    }
+  }
+
   async updateItem(id: string, input: UpdatePlanningItemInput) {
     const item = await this.items.findById(normalizeId(id, 'item id'));
     if (!item) throw new PlannedContentItemNotFoundError();

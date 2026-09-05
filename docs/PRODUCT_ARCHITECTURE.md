@@ -514,6 +514,24 @@ O provider inicial é inteiramente local e não faz rede. Ele normaliza apenas f
 
 Consultas idênticas usam cache por seis horas. Reexecuções criam histórico comparável; falha de provider pode devolver last-known-good somente como `STALE_FALLBACK`. Ausência total retorna indisponibilidade segura sem derrubar Dashboard, Planner ou Supervisor.
 
+### Research & Ideation Intelligence
+
+A Sprint 49 preserva `ResearchService` como motor/provider boundary e adiciona `ResearchIdeationService` como camada de aplicacao. Routes validam contratos; services coordenam regras; repositories encapsulam Prisma.
+
+```text
+Research workspace / Manager
+  -> ResearchIdeationService
+     -> ResearchService + providers
+     -> Research sessions/evidence/gaps/events
+     -> Video Ideas + relative score
+     -> explicit Creator Memory feedback
+     -> explicit Strategic Planning handoff
+```
+
+O Gerente seleciona uma unica capability `research.discover`, evitando fan-out automatico e chamadas duplicadas. O Supervisor recebe apenas um resumo para quality gate. O Dashboard nao conhece detalhes do Research controller. Planning identifica a origem por `candidateKey=idea:<id>`, preservando idempotencia sem novo acoplamento no schema.
+
+Scores, similarities e freshness sao funcoes deterministicas do dominio. Elas organizam evidencia interna; nao medem procura externa, causalidade ou performance futura. A workspace usa lifecycle generico, chamadas centralizadas e renderizacao textual segura.
+
 ## Strategic Content Planning
 
 `StrategicPlanningService` é a camada de aplicação entre evidência editorial e execução. Ele não substitui Research nem o Decision Engine: recebe decisões, oportunidades, tendências e séries já calculadas, normaliza candidatos e delega a ordenação ao `StrategicPlanningRanker`.

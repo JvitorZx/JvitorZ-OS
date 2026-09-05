@@ -1173,6 +1173,24 @@ Listam ou abrem pesquisas persistidas. A listagem aceita `projectId` e `limit` (
 
 Reexecuta uma pesquisa existente com body `{}` e cria uma observação comparável. Não transforma resultado stale em atual sem nova execução válida.
 
+### Research Sessions e Ideas - Sprint 49
+
+`POST /api/research/sessions` cria uma sessao `DRAFT` com `query` obrigatoria e `objective`, `intent`, `projectId`, `subjectType`, `subject`, `format`, `game` e `constraints` opcionais. Retorna `201`.
+
+`GET /api/research/sessions` lista sessoes com filtros opcionais `projectId`, `status` e `limit`. `GET /api/research/sessions/:id` abre o snapshot completo. Os subrecursos `/:id/evidence`, `/:id/games` e `/:id/content` retornam respectivamente evidencias, candidatos de jogo e content research persistido.
+
+`POST /api/research/sessions/:id/run`, `/rerun` e `/archive` exigem body vazio. Run retorna `200`, rerun cria outro snapshot e retorna `201`, archive retorna `200`. Estado incompatível retorna `409`; provider totalmente indisponivel retorna `503` seguro.
+
+`POST /api/research/sessions/:id/ideas/generate` aceita somente `objective`, `format`, `effort`, `game`, `series` e `limit` (1-10). Retorna `201` com ideias persistidas e indicador de duplicacao/repeticao.
+
+`GET /api/research/ideas` aceita `projectId`, `status`, `researchHistoryId` e `limit`. `GET /api/research/ideas/:id` abre a ideia e sua proveniencia. `PATCH /api/research/ideas/:id` edita apenas premissa, evento, promessa, motivo, esforco e justificativa.
+
+`POST /api/research/ideas/:id/status` altera o ciclo de vida com `{ "status": "SHORTLISTED", "reason": "opcional" }`. Rejeicao exige motivo e transicao invalida retorna `409`.
+
+`POST /api/research/ideas/:id/experiment` aceita `{ "enabled": true, "hypothesis": "..." }`. `POST /api/research/ideas/:id/planner` exige body vazio e faz handoff idempotente: `201` na criacao, `200` em retry com o mesmo item.
+
+Todos os contratos rejeitam campos extras com `400`; recurso ausente retorna `404`; erros inesperados usam `500` sanitizado.
+
 ## Strategic Planning
 
 Base: `/api/planning`. Todos os payloads e filtros são estritos. Validação retorna `400`, plano/item ausente retorna `404` e falha inesperada retorna `500` sanitizado.

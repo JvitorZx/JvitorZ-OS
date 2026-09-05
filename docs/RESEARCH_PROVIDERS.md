@@ -37,6 +37,10 @@ YouTube, vidIQ, web search e outras fontes devem implementar o mesmo contrato. U
 
 Nenhum scraping frágil ou nova credencial foi introduzido na Sprint 37.
 
+Na Sprint 49, o mesmo provider alimenta Research Sessions persistentes. A sessao copia apenas evidencia normalizada, score e contexto minimo necessarios para reconstruir a decisao daquele momento. Game Research, Content Research e Video Ideas nao adicionam uma chamada externa implicita.
+
 ## Cache e degraded mode
 
 Pesquisas idênticas e ainda válidas reutilizam o registro recente. Reexecuções explícitas criam histórico comparável. Se todos os providers falharem, um last-known-good pode ser exibido apenas como `STALE_FALLBACK`; sem resultado anterior, a API responde indisponibilidade segura.
+
+Uma run de sessao concluida e idempotente; rerun cria outra sessao. Falha parcial preserva os providers bem-sucedidos e registra qualidade `PARTIAL`. `RECENT`, `AGING`, `STALE` e `MISSING` descrevem a evidencia observada e nao sao convertidos em atualidade por mera leitura.

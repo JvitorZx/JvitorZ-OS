@@ -84,6 +84,30 @@ export class SupervisorModule {
     return { outcome: findings.length ? 'NEEDS_CHANGES' as const : 'APPROVED' as const, findings };
   }
 
+  reviewResearch(input: {
+    evidenceCount: number;
+    freshness: string;
+    missingData?: string[];
+    risks?: string[];
+    duplicate?: boolean;
+    scoreExplainable?: boolean;
+    hypothesisMarked?: boolean;
+    conflictingEvidence?: boolean;
+  }) {
+    const findings: string[] = [];
+    if (input.evidenceCount < 1) findings.push('A recomendacao nao possui evidencia minima.');
+    if (['STALE', 'MISSING'].includes(input.freshness)) findings.push('As evidencias estao desatualizadas ou ausentes.');
+    if (input.missingData?.length) findings.push('Dados ausentes precisam permanecer explicitos.');
+    if (input.duplicate) findings.push('A ideia pode repetir conteudo recente.');
+    if (input.scoreExplainable === false) findings.push('O score nao possui explicacao reconstruivel.');
+    if (input.hypothesisMarked === false) findings.push('Uma hipotese esta sendo apresentada sem classificacao explicita.');
+    if (input.conflictingEvidence) findings.push('Existem evidencias conflitantes que exigem revisao humana.');
+    if (input.evidenceCount < 1) return { outcome: 'INSUFFICIENT_EVIDENCE' as const, findings };
+    if (['STALE', 'MISSING'].includes(input.freshness)) return { outcome: 'STALE' as const, findings };
+    if (input.conflictingEvidence || input.scoreExplainable === false || input.hypothesisMarked === false) return { outcome: 'NEEDS_REVIEW' as const, findings };
+    return { outcome: findings.length || (input.risks?.length ?? 0) > 0 ? 'READY_WITH_WARNINGS' as const : 'READY' as const, findings };
+  }
+
   async getSupervisorOverview() {
     let youtubeAnalytics: YouTubeAnalyticsProviderStatus;
     try {

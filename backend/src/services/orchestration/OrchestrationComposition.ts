@@ -17,7 +17,8 @@ import { composeOrchestrationResponse, consolidateEvidence } from './EvidenceCon
 import { ChannelOperatorService } from '../channel-operators';
 import type { ChannelOperatorId } from '../../domains/channel-operators';
 import { AudienceIntelligenceService } from '../audience/AudienceIntelligenceService';
-import { ResearchService } from '../research';
+import { ResearchIdeationService, ResearchService } from '../research';
+import type { ResearchExecution, ResearchOpportunity } from '../../domains/research';
 import { StrategicPlanningService } from '../strategic-planning';
 import { ExperimentationService } from '../strategic-experimentation';
 import { StrategicMonitoringService } from '../strategic-monitoring';
@@ -38,6 +39,7 @@ export interface OrchestrationDependencies {
   channelOperators: Pick<ChannelOperatorService, 'run'>;
   audience: Pick<AudienceIntelligenceService, 'summary' | 'traffic'>;
   research: Pick<ResearchService, 'research'>;
+  researchStudio?: Pick<ResearchIdeationService, 'createSession' | 'runSession' | 'generateIdeas'>;
   planning: Pick<StrategicPlanningService, 'getOrGenerateCurrent'>;
   experimentation: Pick<ExperimentationService, 'list'>;
   monitoring: Pick<StrategicMonitoringService, 'list'>;
@@ -57,6 +59,7 @@ export const createDefaultOrchestrationDependencies = (): OrchestrationDependenc
   const intelligence = new CreatorIntelligenceService();
   const editorial = new EditorialDecisionService(intelligence);
   const refresh = new OutcomeRefreshService();
+  const research = new ResearchService();
   return {
     intelligence,
     editorial,
@@ -67,7 +70,8 @@ export const createDefaultOrchestrationDependencies = (): OrchestrationDependenc
     youtube: youtubePerformanceSyncService,
     channelOperators: new ChannelOperatorService(),
     audience: new AudienceIntelligenceService(),
-    research: new ResearchService(),
+    research,
+    researchStudio: new ResearchIdeationService(research),
     planning: new StrategicPlanningService(),
     experimentation: new ExperimentationService(),
     monitoring: new StrategicMonitoringService(),
@@ -346,10 +350,63 @@ export const createDefaultCapabilityRegistry = (
     dependencies: [], access: 'write', sideEffect: 'INTERNAL_WRITE', persistentMutation: true,
     maxAffectedItems: 20, capabilityTags: ['research'],
   }, async ({ request }) => {
-    const execution = await dependencies.research.research({ query: request.intent, projectId: request.projectId });
+    const normalized = request.intent.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+    const wantsIdeas = /(ideia|gravar agora|barat.|experimento)/.test(normalized);
+    const wantsGames = /(jogo|game)/.test(normalized);
+    let execution: ResearchExecution;
+    let studio: { sessionId: string; ideas: Array<{ id: string; premise: string; status: string; score: number | null; duplicateWarning: string | null }> } | null = null;
+    if (dependencies.researchStudio) {
+      const session = await dependencies.researchStudio.createSession({
+        query: request.intent, projectId: request.projectId, objective: request.intent,
+        subjectType: wantsGames ? 'GAME' : wantsIdeas ? 'IDEA' : undefined,
+        format: /short/.test(normalized) ? 'SHORT' : /long/.test(normalized) ? 'LONG_FORM' : undefined,
+      });
+      const completed = await dependencies.researchStudio.runSession(session.id);
+      execution = {
+        historyId: completed.id,
+        query: {
+          text: completed.query,
+          normalized: completed.normalizedQuery,
+          intent: completed.intent as ResearchExecution['query']['intent'],
+          projectId: completed.projectId,
+          subjectType: completed.subjectType as ResearchExecution['query']['subjectType'],
+          subject: completed.subject,
+        },
+        sources: completed.sources as unknown as ResearchExecution['sources'],
+        results: completed.results as unknown as ResearchExecution['results'],
+        opportunities: completed.opportunities.map((item): ResearchOpportunity => ({
+          key: item.key,
+          rank: item.rank,
+          subject: item.subject,
+          subjectType: item.subjectType as ResearchOpportunity['subjectType'],
+          state: item.state as ResearchOpportunity['state'],
+          summary: item.summary,
+          sources: item.sources as unknown as string[],
+          evidence: item.evidence as unknown as ResearchOpportunity['evidence'],
+          freshness: item.freshness as ResearchOpportunity['freshness'],
+          compatibility: item.compatibility,
+          confidence: item.confidence,
+          risks: item.risks as unknown as string[],
+          gaps: item.gaps as unknown as string[],
+          nextInvestigation: item.nextInvestigation,
+        })),
+        quality: completed.quality as ResearchExecution['quality'],
+        freshness: completed.freshness as ResearchExecution['freshness'],
+        limitations: completed.limitations as unknown as string[],
+        researchedAt: completed.researchedAt.toISOString(),
+        validUntil: completed.validUntil.toISOString(),
+        cache: 'MISS',
+      };
+      if (wantsIdeas && completed.opportunities.length) {
+        const generated = await dependencies.researchStudio.generateIdeas(completed.id, {
+          objective: request.intent, format: completed.format ?? 'LONG_FORM', effort: /barat|baixo custo/.test(normalized) ? 'LOW' : 'UNKNOWN', limit: 5,
+        });
+        studio = { sessionId: completed.id, ideas: generated.ideas.map(({ idea, duplicateWarning }) => ({ id: idea.id, premise: idea.premise, status: idea.status, score: idea.opportunityScore, duplicateWarning })) };
+      } else studio = { sessionId: completed.id, ideas: [] };
+    } else execution = await dependencies.research.research({ query: request.intent, projectId: request.projectId });
     const opportunities = execution.opportunities.slice(0, 10);
     return {
-      summary: `${opportunities.length} oportunidade(s) de pesquisa encontradas com qualidade ${execution.quality}.`,
+      summary: `${opportunities.length} oportunidade(s) de pesquisa${studio?.ideas.length ? ` e ${studio.ideas.length} ideia(s)` : ''} encontradas com qualidade ${execution.quality}.`,
       facts: execution.results.flatMap(({ evidence }) => evidence.filter(({ classification }) => classification === 'fact').map(({ summary }) => summary)).slice(0, 6),
       inferences: opportunities.map(({ summary }) => summary).slice(0, 6),
       recommendations: opportunities.map(({ nextInvestigation }) => nextInvestigation).slice(0, 3),
@@ -357,7 +414,7 @@ export const createDefaultCapabilityRegistry = (
       missingData: [...new Set([...execution.limitations, ...opportunities.flatMap(({ gaps }) => gaps)])].slice(0, 8),
       confidence: opportunities[0]?.confidence ?? 0,
       data: {
-        historyId: execution.historyId, quality: execution.quality, freshness: execution.freshness,
+        historyId: execution.historyId, sessionId: studio?.sessionId ?? null, ideas: studio?.ideas ?? [], quality: execution.quality, freshness: execution.freshness,
         opportunities: opportunities.map(({ key, subject, subjectType, state, summary, sources, freshness, compatibility, confidence, evidence, risks, gaps, nextInvestigation }) => ({
           key, subject, subjectType, state, summary, sources, freshness, compatibility, confidence,
           evidence: evidence.slice(0, 8), risks, gaps, nextInvestigation,

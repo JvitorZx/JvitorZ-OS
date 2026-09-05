@@ -178,6 +178,8 @@ describe('research persistence and HTTP contracts', { concurrency: false }, () =
     const fs = require('node:fs'); const path = require('node:path');
     const migration = fs.readFileSync(path.resolve(__dirname, '../prisma/migrations/20260903120000_research_opportunity_discovery/migration.sql'), 'utf8');
     for (const statement of migration.split(';').map((part) => part.replace(/^--.*$/gm, '').trim()).filter(Boolean)) await client.$executeRawUnsafe(statement);
+    const ideationMigration = fs.readFileSync(path.resolve(__dirname, '../prisma/migrations/20260915120000_research_ideation_intelligence/migration.sql'), 'utf8');
+    for (const statement of ideationMigration.split(';').map((part) => part.replace(/^--.*$/gm, '').trim()).filter((part) => /^ALTER TABLE "Research(History|Opportunity)"/.test(part))) await client.$executeRawUnsafe(statement);
     history = new ResearchHistoryRepository(client); opportunities = new ResearchOpportunityRepository(client);
     const service = new ResearchService({ historyRepository: history, opportunityRepository: opportunities,
       providers: [{ id: 'internal', sourceKind: 'INTERNAL', supports: () => true, search: async () => providerResult() }], clock: () => now });
@@ -222,8 +224,8 @@ describe('Gerente and Decision integration', () => {
         dependencies: id === 'creator-intelligence.decide' ? ['research.discover'] : [], access: 'read', sideEffect: 'READ_ONLY', persistentMutation: false }, async () => ({ summary: id }));
     }
     const plan = createManagerOrchestrationPlan({ intent: 'procure jogos', managerIntent: 'RESEARCH_DISCOVERY' }, registry);
-    assert.deepEqual(plan.capabilities, ['research.discover', 'creator-intelligence.decide', 'planner.respond']);
-    assert.deepEqual(plan.steps[1].dependencies, ['research-discover']);
+    assert.deepEqual(plan.capabilities, ['research.discover', 'planner.respond']);
+    assert.deepEqual(plan.steps[1].dependencies, []);
   });
   test('passes normalized Research opportunities into EditorialDecisionService', async () => {
     let received;

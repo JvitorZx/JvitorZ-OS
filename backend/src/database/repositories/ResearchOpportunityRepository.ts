@@ -26,4 +26,11 @@ export class ResearchOpportunityRepository {
   async findById(id: string): Promise<ResearchOpportunityWithHistory | null> {
     return this.client.researchOpportunity.findUnique({ where: { id }, include: { researchHistory: true } });
   }
+
+  async findBySession(id: string, subjectType?: string): Promise<ResearchOpportunity[]> {
+    return this.client.researchOpportunity.findMany({
+      where: { researchHistoryId: id, ...(subjectType ? { subjectType } : {}) },
+      orderBy: [{ rank: 'asc' }, { id: 'asc' }],
+    });
+  }
 }

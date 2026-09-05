@@ -1353,6 +1353,39 @@ export const createApiClient = (baseUrl) => ({
     }, 'Erro ao executar pesquisa');
   },
 
+  async createResearchSession(input) {
+    if (!input || typeof input !== 'object' || Array.isArray(input)) throw new TypeError('research session input must be an object');
+    return requestJson(`${baseUrl}/api/research/sessions`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(input) }, 'Erro ao criar sessão de pesquisa');
+  },
+
+  async listResearchSessions(filters = {}) {
+    const params = new URLSearchParams();
+    for (const key of ['projectId', 'status']) if (filters[key] !== undefined) params.set(key, requireIdentifier(filters[key], key));
+    if (filters.limit !== undefined) { if (!Number.isInteger(filters.limit) || filters.limit < 1 || filters.limit > 50) throw new TypeError('limit must be an integer from 1 to 50'); params.set('limit', String(filters.limit)); }
+    return requestJson(`${baseUrl}/api/research/sessions${params.size ? `?${params}` : ''}`, undefined, 'Erro ao carregar sessões de pesquisa');
+  },
+
+  async getResearchSession(id) { return requestJson(`${baseUrl}/api/research/sessions/${encodeURIComponent(requireIdentifier(id, 'sessionId'))}`, undefined, 'Erro ao abrir sessão de pesquisa'); },
+  async getResearchSessionEvidence(id) { return requestJson(`${baseUrl}/api/research/sessions/${encodeURIComponent(requireIdentifier(id, 'sessionId'))}/evidence`, undefined, 'Erro ao carregar evidências'); },
+  async getResearchGameCandidates(id) { return requestJson(`${baseUrl}/api/research/sessions/${encodeURIComponent(requireIdentifier(id, 'sessionId'))}/games`, undefined, 'Erro ao carregar candidatos de jogos'); },
+  async getContentResearch(id) { return requestJson(`${baseUrl}/api/research/sessions/${encodeURIComponent(requireIdentifier(id, 'sessionId'))}/content`, undefined, 'Erro ao carregar pesquisa de conteúdo'); },
+  async runResearchSession(id) { return requestJson(`${baseUrl}/api/research/sessions/${encodeURIComponent(requireIdentifier(id, 'sessionId'))}/run`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' }, 'Erro ao executar sessão'); },
+  async rerunResearchSession(id) { return requestJson(`${baseUrl}/api/research/sessions/${encodeURIComponent(requireIdentifier(id, 'sessionId'))}/rerun`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' }, 'Erro ao reexecutar sessão'); },
+  async archiveResearchSession(id) { return requestJson(`${baseUrl}/api/research/sessions/${encodeURIComponent(requireIdentifier(id, 'sessionId'))}/archive`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' }, 'Erro ao arquivar sessão'); },
+  async generateResearchIdeas(id, input) { return requestJson(`${baseUrl}/api/research/sessions/${encodeURIComponent(requireIdentifier(id, 'sessionId'))}/ideas/generate`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(input) }, 'Erro ao gerar ideias da pesquisa'); },
+
+  async listResearchIdeas(filters = {}) {
+    const params = new URLSearchParams();
+    for (const key of ['projectId', 'status', 'researchHistoryId']) if (filters[key] !== undefined) params.set(key, requireIdentifier(filters[key], key));
+    if (filters.limit !== undefined) { if (!Number.isInteger(filters.limit) || filters.limit < 1 || filters.limit > 100) throw new TypeError('limit must be an integer from 1 to 100'); params.set('limit', String(filters.limit)); }
+    return requestJson(`${baseUrl}/api/research/ideas${params.size ? `?${params}` : ''}`, undefined, 'Erro ao carregar ideias');
+  },
+  async getResearchIdea(id) { return requestJson(`${baseUrl}/api/research/ideas/${encodeURIComponent(requireIdentifier(id, 'ideaId'))}`, undefined, 'Erro ao abrir ideia'); },
+  async updateResearchIdea(id, input) { return requestJson(`${baseUrl}/api/research/ideas/${encodeURIComponent(requireIdentifier(id, 'ideaId'))}`, { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify(input) }, 'Erro ao editar ideia'); },
+  async transitionResearchIdea(id, status, reason) { return requestJson(`${baseUrl}/api/research/ideas/${encodeURIComponent(requireIdentifier(id, 'ideaId'))}/status`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ status, ...(reason ? { reason } : {}) }) }, 'Erro ao atualizar ideia'); },
+  async markResearchIdeaExperiment(id, enabled, hypothesis) { return requestJson(`${baseUrl}/api/research/ideas/${encodeURIComponent(requireIdentifier(id, 'ideaId'))}/experiment`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ enabled, ...(hypothesis ? { hypothesis } : {}) }) }, 'Erro ao atualizar experimento'); },
+  async sendResearchIdeaToPlanner(id) { return requestJson(`${baseUrl}/api/research/ideas/${encodeURIComponent(requireIdentifier(id, 'ideaId'))}/planner`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' }, 'Erro ao enviar ideia ao Planejamento'); },
+
   async researchGames(input) {
     if (!input || typeof input !== 'object' || Array.isArray(input)) throw new TypeError('game research input must be an object');
     return requestJson(`${baseUrl}/api/research/games`, {

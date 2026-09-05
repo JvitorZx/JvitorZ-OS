@@ -256,6 +256,32 @@ model VideoIdea {
   estimatedEffort    Int?
   novelty            Float?
   identityFit        Float?
+  workingTitle       String?
+  series             String?
+  coreEvent          String?
+  viewerPromise      String?
+  whyNow             String?
+  status             String               @default("CANDIDATE")
+  effortLevel        String               @default("UNKNOWN")
+  risks              Json                 @default("[]")
+  assumptions        Json                 @default("[]")
+  hypothesis         String?
+  strategicFit       Float?
+  opportunityScore   Float?
+  scoreDetails       Json?
+  sourceResearchHistoryId String?
+  sourceResearchHistory ResearchHistory?  @relation(fields: [sourceResearchHistoryId], references: [id], onDelete: SetNull)
+  sourceOpportunityId String?
+  sourceOpportunity  ResearchOpportunity? @relation(fields: [sourceOpportunityId], references: [id], onDelete: SetNull)
+  ideaKey            String?              @unique
+  duplicateOfId      String?
+  duplicateOf        VideoIdea?           @relation("VideoIdeaDuplicate", fields: [duplicateOfId], references: [id], onDelete: SetNull)
+  duplicates         VideoIdea[]          @relation("VideoIdeaDuplicate")
+  isExperiment       Boolean              @default(false)
+  selectedAt         DateTime?
+  rejectedAt         DateTime?
+  archivedAt         DateTime?
+  rejectionReason    String?
   opportunities      ContentOpportunity[]
   decisions          ContentDecision[]
   performanceSignals PerformanceSignal[]
@@ -264,6 +290,9 @@ model VideoIdea {
   updatedAt          DateTime             @updatedAt
 
   @@index([projectId, createdAt])
+  @@index([projectId, status, updatedAt])
+  @@index([sourceResearchHistoryId])
+  @@index([sourceOpportunityId])
 }
 
 model ContentOpportunity {
@@ -651,9 +680,22 @@ model ResearchHistory {
   freshness       String
   limitations     Json
   context         Json?
+  status          String                @default("COMPLETED")
+  objective       String?
+  format          String?
+  game            String?
+  constraints     Json                  @default("[]")
+  runVersion      Int                   @default(1)
+  startedAt       DateTime?
+  completedAt     DateTime?
+  archivedAt      DateTime?
   researchedAt    DateTime
   validUntil      DateTime
   opportunities   ResearchOpportunity[]
+  evidenceItems   ResearchEvidenceItem[]
+  events          ResearchSessionEvent[]
+  contentGaps     ResearchContentGap[]
+  ideas           VideoIdea[]
   requestedPlanningItems PlannedContentItem[] @relation("PlanningItemResearchExecution")
   createdAt       DateTime              @default(now())
   updatedAt       DateTime              @updatedAt
@@ -661,6 +703,7 @@ model ResearchHistory {
   @@index([projectId, researchedAt])
   @@index([cacheKey, researchedAt])
   @@index([quality, freshness])
+  @@index([status, updatedAt])
 }
 
 model ResearchOpportunity {
@@ -681,7 +724,14 @@ model ResearchOpportunity {
   risks             Json
   gaps              Json
   nextInvestigation String
+  candidateStatus   String          @default("CANDIDATE")
+  effort            String          @default("UNKNOWN")
+  novelty           Float?
+  saturation        Float?
+  qualityGate       String          @default("INSUFFICIENT_EVIDENCE")
+  scoreDetails      Json?
   plannedItems      PlannedContentItem[]
+  ideas             VideoIdea[]
   createdAt         DateTime        @default(now())
   updatedAt         DateTime        @updatedAt
 
@@ -689,6 +739,67 @@ model ResearchOpportunity {
   @@index([researchHistoryId, rank])
   @@index([state, confidence, createdAt])
   @@index([subjectType, subject])
+}
+
+model ResearchEvidenceItem {
+  id                String          @id @default(cuid())
+  researchHistoryId String
+  researchHistory   ResearchHistory @relation(fields: [researchHistoryId], references: [id], onDelete: Cascade)
+  evidenceKey       String
+  sourceType        String
+  sourceId          String?
+  sourceName        String
+  classification    String
+  description       String
+  metricName        String?
+  metricValue       Float?
+  unit              String?
+  reference         String?
+  observedAt        DateTime?
+  retrievedAt       DateTime
+  freshness         String
+  confidence        Float?
+  provenance        Json?
+  context           Json?
+  createdAt         DateTime        @default(now())
+
+  @@unique([researchHistoryId, evidenceKey])
+  @@index([researchHistoryId, sourceType])
+  @@index([sourceType, sourceId])
+}
+
+model ResearchSessionEvent {
+  id                String          @id @default(cuid())
+  researchHistoryId String
+  researchHistory   ResearchHistory @relation(fields: [researchHistoryId], references: [id], onDelete: Cascade)
+  event             String
+  reason            String?
+  data              Json?
+  occurredAt        DateTime
+  createdAt         DateTime        @default(now())
+
+  @@index([researchHistoryId, occurredAt])
+  @@index([event, occurredAt])
+}
+
+model ResearchContentGap {
+  id                String          @id @default(cuid())
+  researchHistoryId String
+  researchHistory   ResearchHistory @relation(fields: [researchHistoryId], references: [id], onDelete: Cascade)
+  gapKey            String
+  description       String
+  relevance         Float
+  risk              String?
+  freshness         String
+  game              String?
+  series            String?
+  possibleAction    String
+  evidence          Json
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  @@unique([researchHistoryId, gapKey])
+  @@index([researchHistoryId, relevance])
 }
 
 model ContentPlan {

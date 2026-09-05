@@ -32,7 +32,7 @@ const TEMPLATES: Record<ManagerIntent, ManagerPlanTemplate> = {
   PACKAGING: { objective: 'Consolidar variantes de titulo, thumbnail, descricao e tags usando contexto rastreavel do canal.', capabilities: ['packaging'] },
   PRODUCTION: { objective: 'Consultar ou avancar com seguranca o ciclo persistente de producao e sua proxima acao valida.', capabilities: ['production'] },
   OPPORTUNITY_DISCOVERY: { objective: 'Identificar a melhor oportunidade atual usando o ranking editorial existente.', capabilities: ['data-quality', 'trends', 'series', 'decision-memory', 'editorial-decision'] },
-  RESEARCH_DISCOVERY: { objective: 'Descobrir candidatos e evidências antes de submetê-los à decisão editorial.', capabilities: ['data-quality', 'research', 'trends', 'decision-memory', 'editorial-decision'] },
+  RESEARCH_DISCOVERY: { objective: 'Descobrir candidatos e ideias explicáveis antes de qualquer handoff explícito.', capabilities: ['research'] },
   RISK_ANALYSIS: { objective: 'Consolidar riscos editoriais e operacionais sem fabricar certeza.', capabilities: ['data-quality', 'supervision', 'decision-memory'] },
   GENERAL_CREATOR_QUESTION: { objective: 'Responder a pergunta do criador com o contexto interno estritamente necessario.', capabilities: ['data-quality', 'supervision', 'decision-memory'] },
   UNKNOWN: { objective: 'Explicar os dados disponiveis e indicar o contexto necessario para responder.', capabilities: ['data-quality', 'supervision'] },

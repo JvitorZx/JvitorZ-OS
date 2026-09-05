@@ -1447,4 +1447,23 @@ Entregas:
 
 Limites preservados: nao existe captura oficial de captions do YouTube nem speech-to-text no repositorio atual; a entrada real nesta versao e importada por SBV/SRT/VTT ou fornecida por integracao interna estruturada. O sistema nao baixa video, nao faz scraping, nao inventa transcript ou timestamp e nao publica capitulos no YouTube. Shorts continuam manuais.
 
-**Proximo checkpoint: Sprint 49 - NAO INICIADA.**
+## Sprint 49 - Research & Ideation Intelligence - CONCLUIDA
+
+**Objetivo:** transformar evidencias internas em descoberta auditavel de jogos, direcoes editoriais e ideias concretas antes da decisao e do planejamento.
+
+Entregas:
+
+- Research Sessions persistentes, versionadas, reexecutaveis e com eventos de auditoria;
+- evidencia normalizada, freshness, content gaps e falhas parciais explicitas;
+- Game Research e Content Research sobre Analytics, Trends, Series, Patterns, Ideas e Audience ja persistidos;
+- Video Ideas estruturadas com proveniencia, edicao, shortlist, selecao, rejeicao, arquivo e flag de experimento;
+- Opportunity Score relativo, deterministico e explicavel, sem probabilidade ou previsao de views;
+- deduplicacao exata e aviso de repeticao estrutural;
+- handoff explicito e idempotente ao Strategic Planning;
+- feedback controlado para Creator Memory, gate do Supervisor e orquestracao modular pelo Gerente;
+- workspace Pesquisa e API estrita com protecao de lifecycle, concorrencia e XSS;
+- migration aditiva, testes de migration, dominio, HTTP, frontend e regressao.
+
+Limites preservados: o provider atual usa apenas fontes internas; nao ha scraping, vidIQ, web research, demanda externa inventada, publicacao ou inicio automatico de Production. Research descobre, Editorial Decision decide e Strategic Planning organiza a execucao.
+
+**Proximo checkpoint: Sprint 50 - NAO INICIADA.**

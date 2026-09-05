@@ -72,7 +72,15 @@ const baseSchema = `
   CREATE TABLE "VideoIdea" (
     "id" TEXT NOT NULL PRIMARY KEY, "projectId" TEXT, "game" TEXT, "theme" TEXT NOT NULL,
     "format" TEXT NOT NULL, "premise" TEXT NOT NULL, "estimatedEffort" INTEGER,
-    "novelty" REAL, "identityFit" REAL, "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "novelty" REAL, "identityFit" REAL, "workingTitle" TEXT, "series" TEXT,
+    "coreEvent" TEXT, "viewerPromise" TEXT, "whyNow" TEXT,
+    "status" TEXT NOT NULL DEFAULT 'CANDIDATE', "effortLevel" TEXT NOT NULL DEFAULT 'UNKNOWN',
+    "risks" JSONB NOT NULL DEFAULT '[]', "assumptions" JSONB NOT NULL DEFAULT '[]',
+    "hypothesis" TEXT, "strategicFit" REAL, "opportunityScore" REAL, "scoreDetails" JSONB,
+    "sourceResearchHistoryId" TEXT, "sourceOpportunityId" TEXT, "ideaKey" TEXT UNIQUE,
+    "duplicateOfId" TEXT, "isExperiment" BOOLEAN NOT NULL DEFAULT false,
+    "selectedAt" DATETIME, "rejectedAt" DATETIME, "archivedAt" DATETIME,
+    "rejectionReason" TEXT, "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" DATETIME NOT NULL
   );
   CREATE TABLE "ContentOpportunity" (

@@ -675,6 +675,25 @@ Uma consulta recente válida retorna `cache=HIT`. Uma reexecução explícita cr
 
 O Planner reconhece pedidos de investigação, delega ao Gerente e persiste apenas sua mensagem de resposta normal. Research produz candidatos; o Decision Engine decide. Uma oportunidade pode posteriormente alimentar Biblioteca e pautas pelos fluxos existentes, sem criar uma segunda biblioteca.
 
+## Research & Ideation Intelligence - Sprint 49
+
+```text
+Workspace Pesquisa / Gerente
+  -> API client -> /api/research
+    -> ResearchIdeationService
+      -> ResearchService -> ResearchProvider[]
+      -> ResearchHistoryRepository
+         -> sessao + evidencias + gaps + eventos + oportunidades
+      -> VideoIdeaRepository
+         -> ideia estruturada + score + proveniencia
+      -> ChannelContextService (somente selecao explicita)
+      -> StrategicPlanningService (somente handoff explicito)
+```
+
+Criar uma sessao nao executa pesquisa. Run faz claim atomico e persiste um snapshot; repeticao da mesma run e idempotente. Rerun preserva o snapshot anterior. Falhas parciais mantem a fonte valida e registram as limitacoes da fonte que falhou.
+
+Gerar ideias consome somente a sessao concluida. O score e relativo e decomponivel; missing permanece missing. Shortlist, selecao, rejeicao, arquivo e experimento sao transicoes explicitas. O handoff usa a identidade da ideia para nao duplicar a pauta no Planner e nunca inicia Production automaticamente.
+
 ## Strategic Planning — Sprint 38
 
 ```text

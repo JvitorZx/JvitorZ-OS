@@ -390,19 +390,33 @@ Relações principais:
 - `SeriesDefinition 1:N VideoSeriesLink`;
 - `VideoPerformanceSnapshot 1:N VideoSeriesLink`.
 
-## ResearchHistory e ResearchOpportunity
+## Research Sessions, oportunidades e ideias
 
 ### ResearchHistory
 
-Execução persistida de pesquisa. Guarda escopo opcional de projeto, query original e normalizada, intent, assunto, fontes, resultados, qualidade, freshness, limitações, contexto técnico seguro, instante de pesquisa e validade do cache. `cacheKey` agrupa pesquisas comparáveis; `executionKey` impede duplicação dentro da mesma janela sem impedir comparações futuras.
+Execucao persistida de pesquisa. Alem do contrato legado de cache, guarda status, objetivo, formato, jogo, restricoes, versao de run e timestamps de inicio/conclusao/arquivo. `executionKey` identifica o snapshot; rerun cria outro registro e nao reescreve o anterior.
 
 ### ResearchOpportunity
 
-Candidato derivado de uma pesquisa persistida. Guarda rank, assunto/tipo, estado de descoberta, resumo, fontes, evidências, freshness, compatibilidade, confiança, riscos, lacunas e próxima investigação. A relação pertence a um `ResearchHistory` e a chave é única dentro daquela execução.
+Candidato derivado de uma pesquisa persistida. Guarda rank, assunto/tipo, estado, resumo, fontes, evidencias, freshness, compatibilidade, confianca, riscos, lacunas e proxima investigacao. Sprint 49 adiciona estado de candidatura, esforco, novidade, saturacao, quality gate e decomposicao do score. A chave permanece unica dentro da execucao.
+
+### ResearchEvidenceItem, ResearchSessionEvent e ResearchContentGap
+
+`ResearchEvidenceItem` preserva a evidencia minima usada no snapshot, com origem, classificacao, valor/unidade opcionais, datas, freshness, confianca e contexto. `ResearchSessionEvent` e um journal append-only. `ResearchContentGap` registra lacunas editoriais com relevancia, risco e acao possivel sem afirmar demanda externa.
+
+### VideoIdea
+
+O modelo existente passa a representar uma ideia operacional estruturada: titulo de trabalho, serie, evento central, promessa, motivo temporal, status, esforco, riscos, suposicoes, hipotese, fit, score explicavel e proveniencia opcional da sessao/oportunidade. `ideaKey` e unica; `duplicateOfId` preserva relacao de similaridade; timestamps registram selecao, rejeicao e arquivo.
 
 ```text
 Project 1 -> N ResearchHistory
 ResearchHistory 1 -> N ResearchOpportunity
+ResearchHistory 1 -> N ResearchEvidenceItem
+ResearchHistory 1 -> N ResearchSessionEvent
+ResearchHistory 1 -> N ResearchContentGap
+ResearchHistory 1 -> N VideoIdea
+ResearchOpportunity 1 -> N VideoIdea
+VideoIdea 0..1 -> N VideoIdea (duplicateOf)
 ```
 
 Excluir um histórico remove somente suas oportunidades derivadas. Excluir um projeto preserva a pesquisa com `projectId = null`. Nenhuma tabela armazena token, credencial, payload bruto de provider ou previsão de views.

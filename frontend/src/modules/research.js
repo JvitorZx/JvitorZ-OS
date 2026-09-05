@@ -13,6 +13,29 @@ const renderResearch = () => createPanel({
   className: 'research-panel',
   body: html`
     <div class="performance-feedback" data-research-feedback role="status" aria-live="polite" hidden></div>
+    <nav class="research-tabs" data-research-tabs aria-label="Áreas de pesquisa">
+      <button type="button" data-research-jump="research-sessions">Sessões</button><button type="button" data-research-jump="research-games">Jogos</button><button type="button" data-research-jump="research-content">Conteúdo</button><button type="button" data-research-jump="research-ideas">Ideias</button><button type="button" data-research-jump="research-shortlist">Shortlist</button>
+    </nav>
+    <section id="research-sessions" class="research-workspace" aria-labelledby="research-session-title">
+      <div class="research-section-heading"><div><h3 id="research-session-title">Nova sessão de pesquisa</h3><p>Registre objetivo, restrições e fontes para preservar a decisão daquele momento.</p></div></div>
+      <form class="manager-form research-session-form" data-research-session-form>
+        <label for="researchSessionQuery">Pergunta de pesquisa</label>
+        <textarea id="researchSessionQuery" data-research-session-query rows="3" maxlength="500" required></textarea>
+        <div class="research-form-grid">
+          <label>Objetivo<input data-research-session-objective maxlength="500" required></label>
+          <label>Tipo<select data-research-session-type><option value="CHANNEL">Geral</option><option value="GAME">Jogo</option><option value="TOPIC">Conteúdo</option></select></label>
+          <label>Formato<input data-research-session-format maxlength="80" placeholder="LONG_FORM, SHORT..."></label>
+          <label>Jogo/candidato<input data-research-session-game maxlength="160"></label>
+        </div>
+        <button class="button" type="submit" data-research-session-submit>Criar e executar sessão</button>
+      </form>
+      <div class="research-card-grid" data-research-sessions><p class="performance-empty">Carregando sessões...</p></div>
+    </section>
+    <section id="research-games" class="research-workspace" aria-labelledby="research-games-title"><h3 id="research-games-title">Candidatos de jogos</h3><div class="research-card-grid" data-research-games><p class="performance-empty">Abra uma sessão de jogos para comparar candidatos.</p></div></section>
+    <section id="research-content" class="research-workspace" aria-labelledby="research-content-title"><h3 id="research-content-title">Pesquisa de conteúdo</h3><div class="research-card-grid" data-research-content><p class="performance-empty">Abra uma sessão para visualizar padrões, lacunas e repetição.</p></div></section>
+    <section id="research-ideas" class="research-workspace" aria-labelledby="research-ideas-title"><div class="research-section-heading"><div><h3 id="research-ideas-title">Ideias de vídeo</h3><p>Propostas concretas com origem, score relativo e limitações explícitas.</p></div></div><div class="research-card-grid" data-research-ideas><p class="performance-empty">Carregando ideias...</p></div></section>
+    <section id="research-shortlist" class="research-workspace" aria-labelledby="research-shortlist-title"><h3 id="research-shortlist-title">Shortlist</h3><div class="research-card-grid" data-research-shortlist><p class="performance-empty">Nenhuma ideia na shortlist.</p></div></section>
+    <details class="research-legacy"><summary>Pesquisa rápida legada</summary>
     <form class="manager-form" data-research-form>
       <label for="researchQuery">O que deseja investigar?</label>
       <textarea id="researchQuery" data-research-query rows="3" maxlength="500" required></textarea>
@@ -40,6 +63,7 @@ const renderResearch = () => createPanel({
       <h3 id="research-history-title">Histórico</h3>
       <div data-research-history><p class="performance-empty">Carregando histórico...</p></div>
     </section>
+    </details>
   `,
 });
 
@@ -48,6 +72,10 @@ export const createResearchController = ({ api }) => {
   let generation = 0;
   let detailRequest = 0;
   let busy = false;
+  const busyActions = new Set();
+  let activeSessionId = null;
+  let sessionsState = [];
+  let ideasState = [];
   let cleanup = () => {};
 
   const mount = (root) => {
@@ -72,6 +100,122 @@ export const createResearchController = ({ api }) => {
       feedback.textContent = message;
       feedback.hidden = !message;
       feedback.className = `performance-feedback ${variant}`.trim();
+    };
+    const studio = {
+      tabs: panel.querySelector('[data-research-tabs]'),
+      form: panel.querySelector('[data-research-session-form]'), query: panel.querySelector('[data-research-session-query]'),
+      objective: panel.querySelector('[data-research-session-objective]'), type: panel.querySelector('[data-research-session-type]'),
+      format: panel.querySelector('[data-research-session-format]'), game: panel.querySelector('[data-research-session-game]'),
+      submit: panel.querySelector('[data-research-session-submit]'), sessions: panel.querySelector('[data-research-sessions]'),
+      games: panel.querySelector('[data-research-games]'), content: panel.querySelector('[data-research-content]'),
+      ideas: panel.querySelector('[data-research-ideas]'), shortlist: panel.querySelector('[data-research-shortlist]'),
+    };
+    const actionButton = (label, action, id, className = 'button secondary') => {
+      const node = document.createElement('button'); node.type = 'button'; node.className = className;
+      node.dataset.researchAction = action; node.dataset.researchId = id; node.textContent = label; return node;
+    };
+    const safeList = (values, empty) => {
+      const node = document.createElement('ul');
+      for (const value of Array.isArray(values) ? values : []) node.append(text('li', typeof value === 'string' ? value : value?.summary ?? value?.description ?? 'Evidência registrada'));
+      return node.children.length ? node : text('p', empty, 'performance-empty');
+    };
+    const scoreLabel = (idea) => Number.isFinite(Number(idea.opportunityScore)) ? `Score relativo ${Math.round(Number(idea.opportunityScore))}/100` : 'Score indisponível';
+    const renderSessions = () => {
+      if (!studio.sessions) return;
+      if (!sessionsState.length) { studio.sessions.replaceChildren(text('p', 'Nenhuma sessão persistida.', 'performance-empty')); return; }
+      studio.sessions.replaceChildren(...sessionsState.map((session) => {
+        const card = document.createElement('article'); card.className = `research-card${session.id === activeSessionId ? ' active' : ''}`;
+        card.append(text('span', session.status, 'research-badge'), text('h4', session.objective || session.query), text('p', session.query),
+          text('small', `${session.freshness || 'UNKNOWN'} · ${new Date(session.researchedAt || session.createdAt).toLocaleString('pt-BR')}`));
+        const actions = document.createElement('div'); actions.className = 'research-actions'; actions.append(actionButton('Abrir', 'open-session', session.id));
+        if (session.status === 'DRAFT' || session.status === 'FAILED') actions.append(actionButton('Executar', 'run-session', session.id));
+        if (session.status === 'COMPLETED') actions.append(actionButton('Reexecutar', 'rerun-session', session.id), actionButton('Gerar ideias', 'generate-ideas', session.id));
+        if (session.status !== 'ARCHIVED') actions.append(actionButton('Arquivar', 'archive-session', session.id));
+        card.append(actions); return card;
+      }));
+    };
+    const renderGames = (items = []) => {
+      if (!studio.games) return;
+      if (!items.length) { studio.games.replaceChildren(text('p', 'Nenhum candidato de jogo sustentado pelas fontes atuais.', 'performance-empty')); return; }
+      studio.games.replaceChildren(...items.map((item) => {
+        const card = document.createElement('article'); card.className = 'research-card';
+        const score = Number(item.scoreDetails?.relativeScore ?? Number(item.compatibility || 0) * 100);
+        card.append(text('span', `#${item.rank} · ${item.state}`, 'research-badge'), text('h4', item.subject), text('p', item.summary),
+          text('strong', `Score relativo ${Math.round(score)}/100`), safeList(item.evidence, 'Sem evidência estruturada.'), safeList(item.risks, 'Sem riscos adicionais registrados.'),
+          text('small', item.scoreDetails?.disclaimer || 'Ranking relativo; não representa previsão de performance.'));
+        return card;
+      }));
+    };
+    const renderContent = (value) => {
+      if (!studio.content) return;
+      if (!value) { studio.content.replaceChildren(text('p', 'Pesquisa de conteúdo indisponível.', 'performance-empty')); return; }
+      const groups = [['Padrões observados', value.patterns], ['Lacunas editoriais', value.gaps], ['Risco de repetição', value.repetition]];
+      studio.content.replaceChildren(...groups.map(([title, items]) => { const card = document.createElement('article'); card.className = 'research-card'; card.append(text('h4', title), safeList(items, 'Nenhum item observado.')); return card; }), text('p', value.disclaimer || '', 'research-disclaimer'));
+    };
+    const renderIdeas = () => {
+      const renderInto = (host, values, empty) => {
+        if (!host) return; if (!values.length) { host.replaceChildren(text('p', empty, 'performance-empty')); return; }
+        host.replaceChildren(...values.map((idea) => {
+          const card = document.createElement('article'); card.className = 'research-card';
+          card.append(text('span', idea.status, 'research-badge'), text('h4', idea.workingTitle || idea.premise), text('p', idea.premise), text('strong', scoreLabel(idea)), text('small', `${idea.format || 'Formato não informado'} · esforço ${idea.effortLevel || 'UNKNOWN'}`));
+          if (idea.duplicateOfId) card.append(text('p', 'Possível repetição de uma ideia existente.', 'research-warning'));
+          const actions = document.createElement('div'); actions.className = 'research-actions'; actions.append(actionButton('Abrir', 'open-idea', idea.id));
+          if (idea.status === 'CANDIDATE') actions.append(actionButton('Shortlist', 'shortlist', idea.id));
+          if (['CANDIDATE', 'SHORTLISTED'].includes(idea.status)) actions.append(actionButton('Selecionar', 'select', idea.id), actionButton('Rejeitar', 'reject', idea.id));
+          if (!idea.isExperiment) actions.append(actionButton('Marcar teste', 'experiment', idea.id));
+          if (['SELECTED', 'SHORTLISTED'].includes(idea.status)) actions.append(actionButton('Enviar ao Planner', 'planner', idea.id, 'button'));
+          card.append(actions); return card;
+        }));
+      };
+      renderInto(studio.ideas, ideasState, 'Nenhuma ideia persistida.');
+      renderInto(studio.shortlist, ideasState.filter(({ status }) => ['SHORTLISTED', 'SELECTED', 'PLANNED'].includes(status)), 'Nenhuma ideia na shortlist.');
+    };
+    const refreshStudio = async () => {
+      if (typeof api.listResearchSessions !== 'function' || typeof api.listResearchIdeas !== 'function') return;
+      const request = ++detailRequest; const [sessionsResult, ideasResult] = await Promise.allSettled([api.listResearchSessions({ limit: 30 }), api.listResearchIdeas({ limit: 50 })]);
+      if (!current() || request !== detailRequest) return;
+      if (sessionsResult.status === 'fulfilled') sessionsState = sessionsResult.value;
+      if (ideasResult.status === 'fulfilled') ideasState = ideasResult.value;
+      renderSessions(); renderIdeas();
+      if (sessionsResult.status === 'rejected' || ideasResult.status === 'rejected') setFeedback('Parte da workspace de Pesquisa está indisponível.', 'error');
+    };
+    const openSession = async (id) => {
+      const request = ++detailRequest; const [session, games, contentValue] = await Promise.all([api.getResearchSession(id), api.getResearchGameCandidates(id), api.getContentResearch(id)]);
+      if (!current() || request !== detailRequest) return;
+      activeSessionId = session.id; renderSessions(); renderGames(games); renderContent(contentValue); setFeedback('Sessão aberta.', 'success');
+    };
+    const runAction = async (action, id) => {
+      const key = `${action}:${id}`; if (busyActions.has(key)) return; busyActions.add(key);
+      try {
+        if (action === 'open-session') await openSession(id);
+        else if (action === 'run-session') { await api.runResearchSession(id); await refreshStudio(); await openSession(id); }
+        else if (action === 'rerun-session') { const next = await api.rerunResearchSession(id); await refreshStudio(); await openSession(next.id); }
+        else if (action === 'archive-session') { await api.archiveResearchSession(id); await refreshStudio(); }
+        else if (action === 'generate-ideas') { const session = await api.getResearchSession(id); await api.generateResearchIdeas(id, { objective: session.objective || session.query, format: session.format || 'LONG_FORM', effort: 'UNKNOWN', game: session.game || undefined, limit: 5 }); await refreshStudio(); }
+        else if (action === 'open-idea') { const idea = await api.getResearchIdea(id); if (!current()) return; detail.replaceChildren(text('h4', idea.workingTitle || idea.premise), text('p', idea.premise), text('p', idea.viewerPromise || ''), text('strong', scoreLabel(idea)), safeList(idea.risks, 'Sem riscos registrados.'), safeList(idea.assumptions, 'Sem hipóteses adicionais.'), text('small', 'Score relativo e explicável; não é probabilidade nem previsão de views.')); }
+        else if (action === 'shortlist') { await api.transitionResearchIdea(id, 'SHORTLISTED'); await refreshStudio(); }
+        else if (action === 'select') { await api.transitionResearchIdea(id, 'SELECTED'); await refreshStudio(); }
+        else if (action === 'reject') { await api.transitionResearchIdea(id, 'REJECTED', 'Rejeitada explicitamente pelo criador.'); await refreshStudio(); }
+        else if (action === 'experiment') { await api.markResearchIdeaExperiment(id, true, 'Hipótese editorial a validar com resultado observado.'); await refreshStudio(); }
+        else if (action === 'planner') { await api.sendResearchIdeaToPlanner(id); await refreshStudio(); }
+        if (current() && action !== 'open-session' && action !== 'open-idea') setFeedback('Alteração persistida.', 'success');
+      } catch { if (current()) setFeedback('Não foi possível concluir esta ação de Pesquisa.', 'error'); }
+      finally { busyActions.delete(key); }
+    };
+    const submitSession = async (event) => {
+      event.preventDefault(); if (!studio.query?.value.trim() || !studio.objective?.value.trim() || busyActions.has('create-session')) return;
+      busyActions.add('create-session'); if (studio.submit) { studio.submit.disabled = true; studio.submit.setAttribute('aria-busy', 'true'); }
+      try {
+        const session = await api.createResearchSession({ query: studio.query.value.trim(), objective: studio.objective.value.trim(), subjectType: studio.type?.value || 'CHANNEL', format: studio.format?.value.trim() || undefined, game: studio.game?.value.trim() || undefined });
+        await api.runResearchSession(session.id); if (!current()) return; await refreshStudio(); await openSession(session.id); setFeedback('Sessão executada e preservada.', 'success');
+      } catch { if (current()) setFeedback('Não foi possível criar a sessão de Pesquisa.', 'error'); }
+      finally { busyActions.delete('create-session'); if (current() && studio.submit) { studio.submit.disabled = false; studio.submit.setAttribute('aria-busy', 'false'); } }
+    };
+    const studioClick = async (event) => { const target = event.target.closest?.('[data-research-action]'); if (target?.dataset.researchAction && target?.dataset.researchId) await runAction(target.dataset.researchAction, target.dataset.researchId); };
+    const jumpToSection = (event) => {
+      const target = event.target.closest?.('[data-research-jump]');
+      if (!target?.dataset.researchJump) return;
+      panel.querySelector(`#${target.dataset.researchJump}`)?.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
     };
     const renderExecution = (execution) => {
       const article = document.createElement('article');
@@ -166,8 +310,12 @@ export const createResearchController = ({ api }) => {
     };
     form.addEventListener('submit', submitResearch);
     opportunities.addEventListener('click', openOpportunity);
-    cleanup = () => { form.removeEventListener('submit', submitResearch); opportunities.removeEventListener('click', openOpportunity); };
+    studio.form?.addEventListener('submit', submitSession);
+    studio.tabs?.addEventListener('click', jumpToSection);
+    for (const host of [studio.sessions, studio.ideas, studio.shortlist]) host?.addEventListener('click', studioClick);
+    cleanup = () => { form.removeEventListener('submit', submitResearch); opportunities.removeEventListener('click', openOpportunity); studio.form?.removeEventListener('submit', submitSession); studio.tabs?.removeEventListener('click', jumpToSection); for (const host of [studio.sessions, studio.ideas, studio.shortlist]) host?.removeEventListener('click', studioClick); busyActions.clear(); };
     load();
+    refreshStudio();
   };
 
   const unmount = () => { cleanup(); cleanup = () => {}; mounted = null; generation += 1; detailRequest += 1; };

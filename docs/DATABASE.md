@@ -302,6 +302,20 @@ A migration `20260914120000_chapters_intelligence` adiciona `TimedTranscript`, `
 
 Transcript importado pode gerar um `LibraryItem` relacionado por `ProductionAssetRelation`. O arquivo original permanece como conteudo do asset; a logica de Chapters le a representacao normalizada e nao mantem um segundo armazenamento de arquivos.
 
+### Research & Ideation Intelligence
+
+A migration `20260915120000_research_ideation_intelligence` e aditiva. Ela amplia `ResearchHistory`, `ResearchOpportunity` e `VideoIdea`, e cria `ResearchEvidenceItem`, `ResearchSessionEvent` e `ResearchContentGap`.
+
+- registros legados recebem defaults compativeis e permanecem consultaveis;
+- evidencias, eventos e gaps seguem a sessao por cascade;
+- referencias opcionais da ideia para sessao, oportunidade e duplicata usam `SET NULL`;
+- `VideoIdea.ideaKey` impede duplicata exata;
+- indices cobrem status/data, origem da ideia e leitura ordenada das sessoes;
+- nenhum payload bruto, token ou credencial e persistido;
+- a migration nao altera planos, Production, Packaging, Chapters ou dados do YouTube.
+
+Testes aplicam todas as migrations e tambem validam a evolucao de tabelas legadas em SQLite isolado. O banco local recebe a migration somente via Prisma e permanece fora do commit.
+
 - Project, VideoIdea, PlannedContentItem, SeriesDefinition e ContentPackaging opcionais usam `SET NULL`;
 - steps, eventos e relacoes operacionais seguem a producao por cascade;
 - LibraryItem usa `RESTRICT`, evitando apagar um asset ainda referenciado;

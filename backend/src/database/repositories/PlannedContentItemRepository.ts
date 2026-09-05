@@ -25,6 +25,8 @@ export interface CreatePlannedContentItemData {
   executionAction: string;
   executionConfidence: number | null;
   executionContext: Prisma.InputJsonValue;
+  sourceResearchOpportunityId?: string | null;
+  researchHistoryId?: string | null;
 }
 
 export class PlannedContentItemRepository {
@@ -42,6 +44,10 @@ export class PlannedContentItemRepository {
 
   async findById(id: string): Promise<PlannedContentItemWithPlan | null> {
     return this.client.plannedContentItem.findUnique({ where: { id }, include: { plan: true } });
+  }
+
+  async findByCandidateKey(candidateKey: string): Promise<PlannedContentItemWithPlan | null> {
+    return this.client.plannedContentItem.findFirst({ where: { candidateKey }, include: { plan: true }, orderBy: [{ createdAt: 'desc' }, { id: 'asc' }] });
   }
 
   async updateWithHistory(

@@ -1,8 +1,9 @@
-import { createHash } from 'crypto';
+import { createHash, randomUUID } from 'crypto';
 import type { Prisma, ResearchHistory, ResearchOpportunity as PersistedResearchOpportunity } from '@prisma/client';
 import { DatabaseService } from '../../database/DatabaseService';
 import {
   ResearchHistoryRepository,
+  type ResearchSessionDetails,
   type ResearchHistoryWithOpportunities,
 } from '../../database/repositories/ResearchHistoryRepository';
 import {
@@ -19,6 +20,7 @@ import type {
   ResearchRequest,
   ResearchSource,
 } from '../../domains/research';
+import { RESEARCH_SESSION_STATUSES, scoreOpportunity, type ProductionEffort } from '../../domains/research';
 import { InternalResearchProvider } from './InternalResearchProvider';
 import { OpportunityDiscoveryService } from './OpportunityDiscoveryService';
 import { normalizeResearchRequest, ResearchValidationError } from './ResearchNormalization';
@@ -37,6 +39,20 @@ export class ResearchProviderUnavailableError extends Error {
     super('Research providers are unavailable');
     this.name = 'ResearchProviderUnavailableError';
   }
+}
+
+export class ResearchConflictError extends Error {
+  constructor(message = 'Research session conflicts with its current state') {
+    super(message);
+    this.name = 'ResearchConflictError';
+  }
+}
+
+export interface CreateResearchSessionInput extends ResearchRequest {
+  objective?: string;
+  format?: string;
+  game?: string;
+  constraints?: string[];
 }
 
 export interface ResearchServiceOptions {
@@ -118,6 +134,7 @@ export class ResearchService {
   private readonly discovery: OpportunityDiscoveryService;
   private readonly clock: () => Date;
   private readonly cacheTtlMs: number;
+  private readonly sessionLocks = new Map<string, Promise<unknown>>();
 
   constructor(options: ResearchServiceOptions = {}) {
     this.historyRepository = options.historyRepository;
@@ -136,6 +153,169 @@ export class ResearchService {
   private get opportunities(): ResearchOpportunityRepository {
     if (!this.opportunityRepository) this.opportunityRepository = new ResearchOpportunityRepository(DatabaseService.client);
     return this.opportunityRepository;
+  }
+
+  private presentSession(session: ResearchSessionDetails): ResearchSessionDetails {
+    if (session.status !== 'COMPLETED' || session.freshness === 'MISSING' || session.freshness === 'STALE'
+      || session.validUntil.getTime() > this.clock().getTime()) return session;
+    const limitation = 'A sessão expirou; reexecute a pesquisa antes de tratá-la como atual.';
+    const limitations = [...new Set([...parse<string[]>(session.limitations), limitation])];
+    return {
+      ...session,
+      freshness: 'STALE',
+      limitations: limitations as Prisma.JsonValue,
+      opportunities: session.opportunities.map((opportunity) => ({
+        ...opportunity,
+        freshness: 'STALE',
+        qualityGate: opportunity.qualityGate === 'INSUFFICIENT_EVIDENCE' ? opportunity.qualityGate : 'STALE',
+      })),
+    };
+  }
+
+  private async locked<T>(key: string, work: () => Promise<T>): Promise<T> {
+    const prior = this.sessionLocks.get(key) ?? Promise.resolve();
+    let release!: () => void;
+    const current = new Promise<void>((resolve) => { release = resolve; });
+    const queued = prior.then(() => current);
+    this.sessionLocks.set(key, queued);
+    await prior;
+    try { return await work(); } finally {
+      release();
+      if (this.sessionLocks.get(key) === queued) this.sessionLocks.delete(key);
+    }
+  }
+
+  async createSession(input: CreateResearchSessionInput): Promise<ResearchSessionDetails> {
+    const query = normalizeResearchRequest(input);
+    const objective = input.objective?.trim() || query.text;
+    if (objective.length > 500) throw new ResearchValidationError('objective must contain at most 500 characters');
+    const format = input.format?.trim().toUpperCase() || null;
+    if (format && format.length > 80) throw new ResearchValidationError('format must contain at most 80 characters');
+    const game = input.game?.trim() || null;
+    if (game && game.length > 160) throw new ResearchValidationError('game must contain at most 160 characters');
+    const constraints = input.constraints ?? [];
+    if (!Array.isArray(constraints) || constraints.length > 20 || constraints.some((item) => typeof item !== 'string' || !item.trim() || item.length > 300)) {
+      throw new ResearchValidationError('constraints must contain at most 20 short strings');
+    }
+    const now = this.clock();
+    const sessionKey = `session:${randomUUID()}`;
+    return this.history.createSession({
+      projectId: query.projectId, executionKey: sessionKey, cacheKey: sessionKey,
+      query: query.text, normalizedQuery: query.normalized, intent: query.intent,
+      subjectType: query.subjectType, subject: query.subject, sources: asJson([]), results: asJson([]),
+      quality: 'MISSING', freshness: 'MISSING', limitations: asJson(['Sessão ainda não executada.']),
+      context: asJson({ source: 'research-session' }), researchedAt: now, validUntil: now,
+      status: 'DRAFT', objective, format, game, constraints: asJson(constraints.map((item) => item.trim())),
+      runVersion: 1, startedAt: null, completedAt: null, eventAt: now,
+    });
+  }
+
+  async runSession(id: string): Promise<ResearchSessionDetails> {
+    const sessionId = id.trim();
+    if (!sessionId) throw new ResearchValidationError('research session id is required');
+    return this.locked(sessionId, async () => {
+      const session = await this.history.findSessionById(sessionId);
+      if (!session) throw new ResearchNotFoundError('Research session not found');
+      if (session.status === 'COMPLETED') return this.presentSession(session);
+      if (session.status !== 'DRAFT') throw new ResearchConflictError();
+      const now = this.clock();
+      if (!await this.history.claimRun(sessionId, now)) throw new ResearchConflictError();
+      const query = normalizeResearchRequest({
+        query: session.query, intent: session.intent as ResearchRequest['intent'], projectId: session.projectId,
+        subjectType: session.subjectType ? session.subjectType as ResearchRequest['subjectType'] : undefined,
+        subject: session.subject ?? undefined,
+      });
+      try {
+        const available = this.providers.filter((provider) => provider.supports(query.intent));
+        const settled = await Promise.allSettled(available.map((provider) => provider.search(query)));
+        const results = settled.flatMap((result) => result.status === 'fulfilled' ? [result.value] : []);
+        const failedProviders = settled.flatMap((result, index) => result.status === 'rejected' ? [available[index].id] : []);
+        if (!results.length) throw new ResearchProviderUnavailableError();
+        const discovered = this.discovery.discover(query, results);
+        const quality = qualityFor(results, failedProviders.length);
+        const freshness = freshnessForResults(results);
+        const limitations = [...new Set([
+          ...results.flatMap(({ source }) => source.limitations),
+          ...failedProviders.map((providerId) => `Provider ${providerId} indisponível nesta execução.`),
+          ...(results.every(({ source }) => source.kind === 'INTERNAL') ? ['A pesquisa usa somente dados internos e não representa demanda externa.'] : []),
+        ])];
+        const constraints = parse<string[]>(session.constraints);
+        const effort = constraints.find((item) => /esfor[cç]o\s*:\s*(low|medium|high)/i.test(item))?.match(/(low|medium|high)/i)?.[1]?.toUpperCase() as ProductionEffort | undefined;
+        const opportunities = discovered.map((opportunity) => {
+          const score = scoreOpportunity(opportunity, { effort, objective: session.objective });
+          return {
+            key: opportunity.key, rank: opportunity.rank, subject: opportunity.subject, subjectType: opportunity.subjectType,
+            state: opportunity.state, summary: opportunity.summary, sources: asJson(opportunity.sources), evidence: asJson(opportunity.evidence),
+            freshness: opportunity.freshness, compatibility: opportunity.compatibility, confidence: opportunity.confidence,
+            risks: asJson(score.risks), gaps: asJson(score.missingData), nextInvestigation: opportunity.nextInvestigation,
+            candidateStatus: 'CANDIDATE', effort: effort ?? 'UNKNOWN',
+            novelty: score.dimensions.find(({ key }) => key === 'NOVELTY')?.value ?? null,
+            saturation: score.dimensions.find(({ key }) => key === 'SATURATION_RISK')?.value ?? null,
+            qualityGate: score.qualityGate, scoreDetails: asJson(score),
+          };
+        });
+        const evidence = results.flatMap(({ source, evidence: items }) => items.map((item) => ({
+          evidenceKey: `${source.id}:${item.id}`, sourceType: source.kind === 'INTERNAL' ? 'INTERNAL_ANALYSIS' : 'EXTERNAL_SOURCE',
+          sourceId: item.sourceId, sourceName: source.label, classification: item.classification,
+          description: item.summary, metricName: typeof item.context.metric === 'string' ? item.context.metric : null,
+          metricValue: typeof item.context.value === 'number' ? item.context.value : null,
+          unit: typeof item.context.unit === 'string' ? item.context.unit : null,
+          reference: null, observedAt: item.observedAt ? new Date(item.observedAt) : null, retrievedAt: now,
+          freshness: item.freshness, confidence: item.confidence, provenance: asJson({ provider: source.provider }), context: asJson(item.context),
+        })));
+        const gaps = discovered.flatMap((opportunity) => opportunity.gaps.slice(0, 5).map((description, index) => ({
+          gapKey: `${opportunity.key}:${index + 1}`, description, relevance: Math.max(0, 1 - opportunity.rank / 20),
+          risk: opportunity.risks[0] ?? null, freshness: opportunity.freshness,
+          game: opportunity.subjectType === 'GAME' ? opportunity.subject : session.game,
+          series: opportunity.subjectType === 'SERIES' ? opportunity.subject : null,
+          possibleAction: opportunity.nextInvestigation, evidence: asJson(opportunity.evidence),
+        })));
+        return this.history.completeSession({
+          id: sessionId, sources: asJson(results.map(({ source }) => source)), results: asJson(results), quality, freshness,
+          limitations: asJson(limitations), context: asJson({ providerCount: available.length, failedProviders, constraints }),
+          researchedAt: now, validUntil: new Date(now.getTime() + this.cacheTtlMs), opportunities, evidence, gaps,
+        });
+      } catch (error) {
+        await this.history.failSession(sessionId, this.clock(), error instanceof Error ? error.name : 'UnknownError');
+        throw error;
+      }
+    });
+  }
+
+  async rerunSession(id: string): Promise<ResearchSessionDetails> {
+    const previous = await this.getSession(id);
+    if (!['COMPLETED', 'FAILED'].includes(previous.status)) throw new ResearchConflictError('Only completed or failed sessions can be rerun');
+    const created = await this.createSession({
+      query: previous.query, intent: previous.intent as ResearchRequest['intent'], projectId: previous.projectId,
+      subjectType: previous.subjectType ? previous.subjectType as ResearchRequest['subjectType'] : undefined,
+      subject: previous.subject ?? undefined,
+      objective: previous.objective ?? undefined, format: previous.format ?? undefined, game: previous.game ?? undefined,
+      constraints: parse<string[]>(previous.constraints),
+    });
+    await this.history.addEvent(previous.id, 'SESSION_RERUN_REQUESTED', this.clock(), asJson({ nextSessionId: created.id }));
+    return this.runSession(created.id);
+  }
+
+  async archiveSession(id: string): Promise<ResearchSessionDetails> {
+    const session = await this.getSession(id);
+    if (session.status === 'RUNNING') throw new ResearchConflictError('Running session cannot be archived');
+    if (session.status === 'ARCHIVED') return session;
+    return this.history.archiveSession(session.id, this.clock());
+  }
+
+  async getSession(id: string): Promise<ResearchSessionDetails> {
+    const normalized = id.trim();
+    if (!normalized) throw new ResearchValidationError('research session id is required');
+    const session = await this.history.findSessionById(normalized);
+    if (!session) throw new ResearchNotFoundError('Research session not found');
+    return this.presentSession(session);
+  }
+
+  async listSessions(filters: { projectId?: string | null; status?: string; limit?: number } = {}): Promise<ResearchSessionDetails[]> {
+    const limit = filters.limit ?? 20;
+    if (!Number.isInteger(limit) || limit < 1 || limit > 50) throw new ResearchValidationError('limit must be an integer from 1 to 50');
+    if (filters.status && !RESEARCH_SESSION_STATUSES.includes(filters.status as never)) throw new ResearchValidationError('research session status is invalid');
+    return (await this.history.findSessions({ ...filters, limit })).map((session) => this.presentSession(session));
   }
 
   async research(input: ResearchRequest): Promise<ResearchExecution> {

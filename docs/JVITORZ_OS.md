@@ -243,6 +243,8 @@ O sistema possui um Research Engine modular, acessível pela workspace Pesquisa,
 
 Research produz candidatos, evidências, freshness, confiança, riscos e lacunas. Ele não decide o que gravar. O Editorial Decision Engine recebe essas oportunidades e continua responsável pela recomendação final e pelo `OpportunityScore`, sempre sem previsão exata de views.
 
+Desde a Sprint 49, a workspace Pesquisa tambem cria sessoes auditaveis, explora candidatos de jogos e direcoes de conteudo e transforma uma sessao concluida em ideias estruturadas. O score dessas ideias e relativo e explicavel; ele nao substitui o Decision Engine nem promete performance. Selecao, feedback para memoria e envio ao Planner continuam acoes explicitas do criador.
+
 ## Performance Intelligence
 
 Resultados de vídeos podem ser ingeridos manualmente como snapshots normalizados. O sistema mantém métricas ausentes como desconhecidas, calcula baseline dinâmica do próprio canal, deriva sinais quantitativos e atualiza aprendizados estruturados com provenance e confiança.
