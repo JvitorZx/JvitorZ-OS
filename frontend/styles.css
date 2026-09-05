@@ -1669,6 +1669,9 @@ dd {
 .renders-panel [data-render-preflight] { padding-block: 14px; }
 .renders-panel [data-render-detail] article { display: grid; gap: 12px; }
 .render-preview { display: block; max-width: 100%; width: auto; max-height: 600px; background: #000; border-radius: 8px; }
+.clip-caption-cues { max-height: 360px; overflow: auto; padding-left: 26px; }
+.clip-caption-cues p { white-space: pre-wrap; overflow-wrap: anywhere; margin-top: 4px; }
+.clip-caption-cues li { margin-bottom: 12px; }
 @media (max-width: 900px) { .renders-grid { grid-template-columns: 1fr; } }
 
 @media (max-width: 720px) {

@@ -1509,4 +1509,15 @@ Renderizacao local explicita de candidatos selecionados e revisados, a partir do
 
 Detalhes: [Clip Rendering](CLIP_RENDERING.md). Limites: worker de uma instancia local, sem rastreamento automatico de assunto, legendas sobrepostas ou publicacao. Arquivos parciais isolados permanecem preservados apos falha/cancelamento; nao recebem preview aprovado.
 
-**Proximo checkpoint: Sprint 53 - Clip Caption Export - NAO INICIADA.**
+## Sprint 53 - Clip Caption Export - CONCLUIDA
+
+Exportacao SRT/WebVTT sobre os segmentos reais da transcricao vinculada ao corte renderizado, com tempos relativos ao inicio do corte. Previa textual, avisos de falas parciais/sobrepostas, download UTF-8 e faixa VTT opcional no player. A validade da fonte e da selecao e conferida antes/depois da leitura.
+
+- baseline 1.195 preservado; 15 testes backend e 10 frontend novos; total 1.220 aprovados;
+- build, Prisma, 36/36 migrations existentes, integridade SQLite/FK e 57 arquivos JS aprovados;
+- smoke HTTP/browser: 3 falas em 0-18 segundos; SRT/VTT corretos e track VTT carregada;
+- sem migration nova, alteracao do banco, reprocessamento de audio ou modificacao do MP4.
+
+Detalhes: [Clip Caption Export](CLIP_CAPTION_EXPORT.md). A qualidade depende da transcricao existente. Falas parcialmente cortadas preservam texto completo com aviso; nao ha alinhamento por palavra ou legendas gravadas no video.
+
+**Proximo checkpoint: Sprint 54 - NAO INICIADA; escopo ainda nao definido.**

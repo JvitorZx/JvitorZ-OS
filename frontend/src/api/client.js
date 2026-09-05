@@ -70,6 +70,8 @@ const transitionStrategicSignal = (baseUrl, signalId, action, reason) => {
 export const createApiClient = (baseUrl) => ({
   async mediaHealth() { return requestJson(`${baseUrl}/api/media/health`, undefined, 'Erro ao verificar inspeção local'); },
   async renderHealth() { return requestJson(`${baseUrl}/api/renders/health`, undefined, 'Erro ao verificar renderização'); },
+  async getClipCaptions(id) { return requestJson(`${baseUrl}/api/renders/jobs/${encodeURIComponent(requireIdentifier(id, 'jobId'))}/captions`, undefined, 'Erro ao conferir legendas'); },
+  clipCaptionsDownloadUrl(id, format) { if (!['srt', 'vtt'].includes(format)) throw new TypeError('caption format must be srt or vtt'); return `${baseUrl}/api/renders/jobs/${encodeURIComponent(requireIdentifier(id, 'jobId'))}/captions/${format}`; },
   async renderPreflight(id) { return requestJson(`${baseUrl}/api/renders/candidates/${encodeURIComponent(requireIdentifier(id, 'candidateId'))}/preflight`, undefined, 'Erro ao conferir corte'); },
   async listRenderJobs(productionId) { const query = productionId ? `?productionId=${encodeURIComponent(requireIdentifier(productionId, 'productionId'))}` : ''; return requestJson(`${baseUrl}/api/renders/jobs${query}`, undefined, 'Erro ao carregar renderizações'); },
   async getRenderJob(id) { return requestJson(`${baseUrl}/api/renders/jobs/${encodeURIComponent(requireIdentifier(id, 'jobId'))}`, undefined, 'Erro ao abrir trabalho'); },

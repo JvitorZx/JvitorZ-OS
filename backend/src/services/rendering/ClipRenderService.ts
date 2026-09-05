@@ -6,6 +6,7 @@ import { DatabaseService } from '../../database/DatabaseService';
 import { MediaFiles, MediaProbe, createProbeRunner, hash, statFingerprint, canonicalCase } from '../media';
 import { createShortsSourceFingerprint } from '../shorts/ShortsService';
 import { createRenderRunner, RenderError, type RenderRunner } from './RenderProcess';
+import { buildClipCaptions, serializeCaptions } from '../../domains/captions';
 
 const json = (value: unknown): Prisma.InputJsonValue => JSON.parse(JSON.stringify(value));
 const id = (value: unknown) => { if (typeof value !== 'string' || !/^[a-zA-Z0-9_-]{1,160}$/.test(value)) throw new RenderError('INVALID_INPUT', 'Identificador invalido.', 400); return value; };
@@ -144,5 +145,24 @@ export class ClipRenderService {
     await this.initialize(); const job = await this.validateSucceeded(await this.find(jobId)); if (job.status !== 'SUCCEEDED') throw new RenderError('OUTPUT_NOT_READY', 'Saida indisponivel, desatualizada ou nao concluida.');
     const output = await this.outputFile(job.id); const handle = await fs.open(output, 'r');
     try { const stat = await handle.stat({ bigint: true }); const current = await this.outputFile(job.id); if (statFingerprint(stat) !== job.outputFingerprint || statFingerprint(await fs.stat(current, { bigint: true })) !== job.outputFingerprint) throw new RenderError('OUTPUT_CHANGED', 'Saida mudou ao abrir o preview.'); return { handle, size: Number(stat.size), mime: 'video/mp4' }; } catch (error) { await handle.close(); throw error; }
+  }
+  async captions(jobId: unknown) {
+    await this.initialize();
+    const job = await this.validateSucceeded(await this.find(jobId));
+    if (job.status !== 'SUCCEEDED') throw new RenderError('OUTPUT_NOT_READY', 'Legendas exigem uma renderizacao concluida e atual.');
+    const snapshot = job.snapshot as { startMs: number; endMs: number };
+    const analysis = await this.client.shortAnalysis.findUnique({ where: { id: job.analysisId }, select: { transcriptId: true } });
+    if (!analysis) throw new RenderError('CAPTIONS_UNAVAILABLE', 'Transcript da renderizacao indisponivel.');
+    const segments = await this.client.timedTranscriptSegment.findMany({ where: { transcriptId: analysis.transcriptId, startMs: { lt: snapshot.endMs }, endMs: { gt: snapshot.startMs } }, orderBy: [{ startMs: 'asc' }, { position: 'asc' }, { id: 'asc' }] });
+    const result = buildClipCaptions(segments, snapshot.startMs, snapshot.endMs);
+    const verified = await this.validateSucceeded(await this.find(job.id));
+    if (verified.status !== 'SUCCEEDED' || verified.snapshotKey !== job.snapshotKey) throw new RenderError('OUTPUT_OUTDATED', 'Fonte ou selecao mudou durante a leitura das legendas.');
+    return { jobId: job.id, available: result.cues.length > 0, reasons: result.cues.length ? [] : ['Nenhum segmento temporal com texto esta disponivel para este corte.'], cueCount: result.cues.length, durationMs: result.durationMs, cues: result.cues, formats: ['srt', 'vtt'], warnings: result.warnings };
+  }
+  async captionFile(jobId: unknown, formatValue: unknown) {
+    if (formatValue !== 'srt' && formatValue !== 'vtt') throw new RenderError('INVALID_FORMAT', 'Formato de legenda deve ser srt ou vtt.', 400);
+    const result = await this.captions(jobId);
+    if (!result.available) throw new RenderError('CAPTIONS_UNAVAILABLE', result.reasons.join(' '));
+    return { filename: `${result.jobId}.${formatValue}`, contentType: formatValue === 'vtt' ? 'text/vtt; charset=utf-8' : 'application/x-subrip; charset=utf-8', text: serializeCaptions(result.cues, formatValue) };
   }
 }
