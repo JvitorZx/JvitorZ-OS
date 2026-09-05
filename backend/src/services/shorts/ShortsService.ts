@@ -8,6 +8,7 @@ import { SupervisorModule } from '../../modules/dashboard/supervisor/SupervisorM
 import { clipConfiguration, describeClip, detectClips, validateClipBoundaries, overlapRatio, sameVariantFamily, scoreClipHook, ShortsConflictError, ShortsNotFoundError, ShortsValidationError, type ClipConfiguration } from '../../domains/shorts';
 
 const json = (value: unknown): PrismaTypes.InputJsonValue => JSON.parse(JSON.stringify(value));
+export const createShortsSourceFingerprint = (transcript: { fingerprint: string } | null, editing: { state: string; attempts: number; completedAt: Date | null; invalidatedAt: Date | null } | undefined, asset: { id: string; libraryItemId: string } | undefined) => createHash('sha256').update(JSON.stringify({ transcript: transcript?.fingerprint ?? null, editing: editing ? { state: editing.state, attempts: editing.attempts, completedAt: editing.completedAt, invalidatedAt: editing.invalidatedAt } : null, asset: asset ? { id: asset.id, libraryItemId: asset.libraryItemId } : null })).digest('hex');
 const text = (value: unknown, field: string, max = 160) => { if (typeof value !== 'string' || !value.trim() || value.trim().length > max) throw new ShortsValidationError(`${field} is invalid`); return value.trim(); };
 const only = (raw: Record<string, unknown>, fields: string[]) => { if (!raw || typeof raw !== 'object' || Array.isArray(raw) || Object.keys(raw).some((key) => !fields.includes(key))) throw new ShortsValidationError('payload is invalid'); };
 
@@ -28,7 +29,7 @@ export class ShortsService {
     const transcript = await transaction.timedTranscript.findFirst({ where: { productionId }, orderBy: [{ version: 'desc' }], include: { segments: { orderBy: [{ position: 'asc' }] } } });
     const editing = production.steps.find(({ key }) => key === 'EDITING');
     const asset = production.assets.find(({ role }) => role === 'EDITED_VIDEO') ?? production.assets.find(({ role }) => role === 'RAW_VIDEO');
-    const sourceFingerprint = createHash('sha256').update(JSON.stringify({ transcript: transcript?.fingerprint ?? null, editing: editing ? { state: editing.state, attempts: editing.attempts, completedAt: editing.completedAt, invalidatedAt: editing.invalidatedAt } : null, asset: asset ? { id: asset.id, libraryItemId: asset.libraryItemId } : null })).digest('hex');
+    const sourceFingerprint = createShortsSourceFingerprint(transcript, editing, asset);
     const chapterSet = transcript ? await transaction.chapterSet.findFirst({ where: { productionId, transcriptId: transcript.id, status: 'SELECTED' }, include: { entries: { orderBy: [{ startMs: 'asc' }] } } }) : null;
     return { production, step, transcript, sourceFingerprint, asset, chapters: chapterSet?.entries ?? [] };
   }

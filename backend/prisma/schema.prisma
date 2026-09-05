@@ -110,6 +110,7 @@ model LibraryItem {
   conversationLinks ConversationLibraryItem[]
   productionAssets ProductionAssetRelation[]
   localMediaSource LocalMediaSource?
+  renderOutputs ClipRenderJob[]
   transcripts      TimedTranscript[]
   title             String
   type              String?
@@ -140,6 +141,7 @@ model LocalMediaSource {
   lastCheckedAt DateTime
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
+  renderJobs    ClipRenderJob[]
 
   @@index([status, updatedAt])
   @@index([rootId])
@@ -1088,9 +1090,40 @@ model ClipCandidate {
   manuallyEdited  Boolean @default(false)
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
+  renderJobs      ClipRenderJob[]
 
   @@index([analysisId, status, score])
   @@index([analysisId, momentKey])
+}
+
+model ClipRenderJob {
+  id                  String @id @default(cuid())
+  candidateId         String
+  candidate           ClipCandidate @relation(fields: [candidateId], references: [id], onDelete: Restrict)
+  productionId        String
+  analysisId          String
+  sourceId            String
+  source              LocalMediaSource @relation(fields: [sourceId], references: [id], onDelete: Restrict)
+  snapshotKey         String
+  snapshot            Json
+  layout              String
+  status              String @default("QUEUED")
+  attempt             Int @default(1)
+  progress            Int @default(0)
+  errorCode           String?
+  errorMessage        String?
+  outputLibraryItemId String?
+  outputLibraryItem   LibraryItem? @relation(fields: [outputLibraryItemId], references: [id], onDelete: SetNull)
+  outputMetadata      Json?
+  outputFingerprint   String?
+  createdAt           DateTime @default(now())
+  startedAt           DateTime?
+  completedAt         DateTime?
+  updatedAt           DateTime @updatedAt
+
+  @@unique([snapshotKey, attempt])
+  @@index([productionId, createdAt])
+  @@index([status, createdAt])
 }
 
 model ClipRevision {

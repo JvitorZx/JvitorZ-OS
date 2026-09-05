@@ -329,3 +329,11 @@ Testes aplicam todas as migrations e tambem validam a evolucao de tabelas legada
 - eventos preservam a trilha operacional e outputs anteriores nao sao apagados por invalidacao.
 
 Os testes aplicam todas as migrations em SQLite `:memory:` e possuem teste isolado da migration. Antes do deploy local foi criado backup externo com SHA-256 conferido. `backend/prisma/dev.db` permanece local e fora do commit.
+
+### Midia local e renderizacao de cortes — Sprints 51 e 52
+
+`20260916120000_local_media_sources` adiciona LocalMediaSource 1:1 com LibraryItem. `20260917120000_clip_render_jobs` adiciona ClipRenderJob, referenciando candidato, fonte local e LibraryItem de saida. Sao 36 migrations aplicadas no checkpoint 52.
+
+Registro de entrada conserva raiz identificada/caminho relativo, assinatura de stat e metadados reais do probe. Jobs conservam snapshot editorial, assinatura da fonte, perfil, tentativa, estado e referencia do resultado. Arquivos de video permanecem fora do banco e do Git; nao sao armazenados como blobs. As novas migrations sao aditivas e os dados anteriores foram comparados antes/depois sem alteracao. Backups consistentes foram criados fora do repositorio antes de cada deploy; integrity_check retornou ok e foreign_key_check zero.
+
+Referencias: [Midia local](LOCAL_MEDIA_SOURCES.md) e [Renderizacao](CLIP_RENDERING.md). O SQLite pessoal continua modificado apenas localmente, fora dos commits destas sprints.

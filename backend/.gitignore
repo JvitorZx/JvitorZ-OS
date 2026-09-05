@@ -9,3 +9,4 @@ yarn-error.log*
 google-tokens.json
 client_secret_*.json
 /media/
+/rendered/

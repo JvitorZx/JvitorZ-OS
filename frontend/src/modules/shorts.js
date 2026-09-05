@@ -18,7 +18,7 @@ const statusLabels = { CANDIDATE: 'Candidato', SHORTLISTED: 'Na shortlist', SELE
 const render = () => createPanel({
   eyebrow: 'Inteligência editorial', title: 'Candidatos a Shorts', className: 'shorts-panel',
   body: html`
-    <p class="research-disclaimer">Encontre momentos na transcrição, compare os cortes e escolha o que vale editar. O score é relativo; não prevê visualizações. Esta etapa não renderiza vídeos.</p>
+    <p class="research-disclaimer">Encontre momentos na transcrição, compare os cortes e escolha o que vale editar. O score é relativo; não prevê visualizações. Após concluir a seleção, abra a renderização do corte escolhido.</p>
     <div data-shorts-feedback class="performance-feedback" role="status" aria-live="polite" hidden></div>
     <div class="monitoring-toolbar">
       <label>Produção <select data-shorts-production><option value="">Selecione uma produção</option></select></label>
@@ -108,7 +108,7 @@ export const createShortsController = ({ api }) => {
         context.append(el('small', 'A seleção de um corte não registra um aprendizado automaticamente.')); body.append(context);
       }
       const controls = el('div', '', 'planning-item-actions');
-      controls.append(button('Revisar com Supervisor', 'review'), button('Concluir seleção', 'complete'), button('Ver contrato para edição futura', 'contract'));
+      controls.append(button('Revisar com Supervisor', 'review'), button('Concluir seleção', 'complete'), button('Ver contrato de edição', 'contract'));
       if (readOnly) for (const control of controls.children) { control.dataset.readOnly = 'true'; control.disabled = true; }
       body.append(controls);
       if (row.review) {
@@ -131,6 +131,7 @@ export const createShortsController = ({ api }) => {
         factors.append(factorList); card.append(factors);
         const evidence = el('div'); evidence.dataset.clipEvidence = candidate.id;
         card.append(button('Ver falas e timestamps', 'evidence', candidate.id), evidence);
+        if (!readOnly && candidate.status === 'SELECTED') { const link = el('a', 'Preparar renderização local'); link.href = `#/renders/${encodeURIComponent(candidate.id)}`; card.append(link); }
         if (!readOnly && candidate.status !== 'ARCHIVED') {
           const edit = el('details'); edit.append(el('summary', 'Editar corte'), editor(candidate), button('Salvar edição', 'save', candidate.id)); card.append(edit);
           const actions = el('div', '', 'research-actions');

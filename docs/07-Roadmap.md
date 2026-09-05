@@ -1498,4 +1498,15 @@ Registro 1:1 de fontes de video na Library, associacao a Production, inspecao re
 
 Detalhes e limites: [Local Media Sources](LOCAL_MEDIA_SOURCES.md). Nao ha watcher, transcodificacao ou publicacao. O fingerprint usa metadados de arquivo, nao hash de conteudo; a compatibilidade do preview depende dos codecs do navegador.
 
-**Proximo checkpoint: Sprint 52 - Controlled Local Clip Rendering - NAO INICIADA.**
+## Sprint 52 - Controlled Local Clip Rendering - CONCLUIDA
+
+Renderizacao local explicita de candidatos selecionados e revisados, a partir do mesmo asset local inspecionado. Fila serial persistida com cancelamento, retry explicito, interrupcao apos restart, preflight e verificacao real do MP4. Perfis FIT e CENTER_CROP em 720x1280 H.264/AAC, Library e preview autorizado por ID.
+
+- baseline 1.160 preservado; 25 testes backend e 10 frontend novos; total 1.195 aprovados;
+- build, Prisma, 36/36 migrations, integridade SQLite/FK e 56 arquivos JS aprovados;
+- smoke HTTP/browser: FIT e CENTER_CROP de 18 segundos, audio, preview carregado, Range/HEAD e erros estritos;
+- dados anteriores preservados; staging e Git conferidos separadamente no relatorio final.
+
+Detalhes: [Clip Rendering](CLIP_RENDERING.md). Limites: worker de uma instancia local, sem rastreamento automatico de assunto, legendas sobrepostas ou publicacao. Arquivos parciais isolados permanecem preservados apos falha/cancelamento; nao recebem preview aprovado.
+
+**Proximo checkpoint: Sprint 53 - Clip Caption Export - NAO INICIADA.**

@@ -1658,6 +1658,19 @@ dd {
 .research-warning { color: var(--warning); }
 .research-legacy { margin-top: 18px; border-top: 1px solid var(--border); padding-top: 14px; }
 
+.workspace .workspace-module .renders-panel { height: auto; min-height: calc(100vh - 160px); overflow: visible; }
+.renders-panel .panel-body { overflow: visible; }
+.renders-panel label { display: grid; gap: 6px; }
+.renders-panel select { color: var(--text); background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 10px; max-width: 100%; }
+.renders-grid { display: grid; grid-template-columns: minmax(220px, 1fr) minmax(300px, 2fr); gap: 24px; margin-top: 24px; }
+.renders-grid > section { min-width: 0; }
+.renders-panel [data-render-jobs] { display: grid; gap: 8px; }
+.renders-panel [data-render-jobs] button { text-align: left; overflow-wrap: anywhere; white-space: normal; }
+.renders-panel [data-render-preflight] { padding-block: 14px; }
+.renders-panel [data-render-detail] article { display: grid; gap: 12px; }
+.render-preview { display: block; max-width: 100%; width: auto; max-height: 600px; background: #000; border-radius: 8px; }
+@media (max-width: 900px) { .renders-grid { grid-template-columns: 1fr; } }
+
 @media (max-width: 720px) {
   .research-form-grid { grid-template-columns: 1fr; }
 }

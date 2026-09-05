@@ -69,6 +69,14 @@ const transitionStrategicSignal = (baseUrl, signalId, action, reason) => {
 
 export const createApiClient = (baseUrl) => ({
   async mediaHealth() { return requestJson(`${baseUrl}/api/media/health`, undefined, 'Erro ao verificar inspeção local'); },
+  async renderHealth() { return requestJson(`${baseUrl}/api/renders/health`, undefined, 'Erro ao verificar renderização'); },
+  async renderPreflight(id) { return requestJson(`${baseUrl}/api/renders/candidates/${encodeURIComponent(requireIdentifier(id, 'candidateId'))}/preflight`, undefined, 'Erro ao conferir corte'); },
+  async listRenderJobs(productionId) { const query = productionId ? `?productionId=${encodeURIComponent(requireIdentifier(productionId, 'productionId'))}` : ''; return requestJson(`${baseUrl}/api/renders/jobs${query}`, undefined, 'Erro ao carregar renderizações'); },
+  async getRenderJob(id) { return requestJson(`${baseUrl}/api/renders/jobs/${encodeURIComponent(requireIdentifier(id, 'jobId'))}`, undefined, 'Erro ao abrir trabalho'); },
+  async enqueueRender(input) { return requestJson(`${baseUrl}/api/renders/jobs`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(input) }, 'Erro ao gerar vídeo'); },
+  async cancelRenderJob(id) { return requestJson(`${baseUrl}/api/renders/jobs/${encodeURIComponent(requireIdentifier(id, 'jobId'))}/cancel`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' }, 'Erro ao cancelar trabalho'); },
+  async retryRenderJob(id) { return requestJson(`${baseUrl}/api/renders/jobs/${encodeURIComponent(requireIdentifier(id, 'jobId'))}/retry`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' }, 'Erro ao repetir trabalho'); },
+  renderPreviewUrl(id) { return `${baseUrl}/api/renders/jobs/${encodeURIComponent(requireIdentifier(id, 'jobId'))}/preview`; },
   async listMediaRoots() { return requestJson(`${baseUrl}/api/media/roots`, undefined, 'Erro ao carregar pastas de mídia'); },
   async listMediaSources() { return requestJson(`${baseUrl}/api/media/sources`, undefined, 'Erro ao carregar fontes de vídeo'); },
   async getMediaSource(id) { return requestJson(`${baseUrl}/api/media/sources/${encodeURIComponent(requireIdentifier(id, 'sourceId'))}`, undefined, 'Erro ao abrir fonte de vídeo'); },
