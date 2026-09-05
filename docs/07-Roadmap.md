@@ -1521,3 +1521,7 @@ Exportacao SRT/WebVTT sobre os segmentos reais da transcricao vinculada ao corte
 Detalhes: [Clip Caption Export](CLIP_CAPTION_EXPORT.md). A qualidade depende da transcricao existente. Falas parcialmente cortadas preservam texto completo com aviso; nao ha alinhamento por palavra ou legendas gravadas no video.
 
 **Proximo checkpoint: Sprint 54 - NAO INICIADA; escopo ainda nao definido.**
+
+### Revisao de encerramento apos Sprint 53
+
+Renderer compartilhado entre rotas e servidor; shutdown bloqueia novos pedidos, preserva trabalhos interrompidos e aguarda o processo de video antes de desconectar o banco. Tres testes de regressao adicionados: total final 1.223 aprovados. Smoke adicional com servidor real em banco isolado confirmou enqueue HTTP seguido de shutdown, estado INTERRUPTED e worker ocioso antes do fechamento do banco. Sem migration adicional.

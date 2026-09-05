@@ -23,6 +23,8 @@ Enqueue repetido com o mesmo snapshot retorna o job existente, inclusive falha a
 
 Estados persistidos: QUEUED, RUNNING, SUCCEEDED, FAILED, CANCELLED e INTERRUPTED. Ao inicializar o servico em um processo novo, jobs QUEUED/RUNNING antigos sao marcados INTERRUPTED e nao sao reexecutados silenciosamente. Inicializacao ocorre no primeiro acesso operacional a jobs/health; preflight permanece somente leitura. Falha interna de banco encerra o worker, tenta marcar pendencias como INTERRUPTED e sinaliza indisponibilidade; nao inicia um loop infinito de tentativas. Reiniciar e solicitar retry e explicito.
 
+No encerramento normal do servidor, a mesma instancia do renderer usada pelas rotas bloqueia novos pedidos, aguarda validacoes de enqueue em andamento, marca trabalhos pendentes como INTERRUPTED/APPLICATION_STOPPED, aborta o processo ativo e aguarda o worker parar antes de desconectar o banco. A fila nao e relancada durante shutdown. Um renderer nunca inicializado encerra sem consultar o banco nem criar a pasta de saida.
+
 Cancelamento aborta o processo e impede a associacao de uma saida como aprovada. Progresso e limitado a 95 durante o processamento e chega a 100 somente apos verificacao e persistencia. Timeout padrao de 10 minutos, stderr limitado a 128 KB, stdout de progresso a 512 KB e buffer parcial a 16 KB. O processo usa spawn sem shell, janela oculta no Windows, protocolo de entrada `file` e whitelist fechada de containers. Nenhum comando ou path fornecido pelo usuario e interpolado em shell.
 
 ## Fonte, saida e validacao

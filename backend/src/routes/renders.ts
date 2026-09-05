@@ -1,9 +1,9 @@
 import { Router, type Response } from 'express';
-import { ClipRenderService, RenderError } from '../services/rendering';
+import { clipRenderService, RenderError, type ClipRenderService } from '../services/rendering';
 import { MediaError, parseByteRange } from '../services/media';
 const object = (value: unknown): value is Record<string, unknown> => Boolean(value && typeof value === 'object' && !Array.isArray(value));
 const failure = (res: Response, error: unknown) => { if (res.headersSent) return res.destroy(); if (error instanceof RenderError || error instanceof MediaError) return res.status(error.httpStatus).json({ error: error.message, code: error.code }); console.error(`Render request failed (${error instanceof Error ? error.name : 'UnknownError'})`); return res.status(500).json({ error: 'Renderizacao falhou.' }); };
-export const createRenderRouter = (service = new ClipRenderService()) => {
+export const createRenderRouter = (service = clipRenderService) => {
   const router = Router();
   router.get('/health', async (_req, res) => { try { return res.json(await service.health()); } catch (error) { return failure(res, error); } });
   router.get('/candidates/:id/preflight', async (req, res) => { try { return res.json(await service.preflight(req.params.id)); } catch (error) { return failure(res, error); } });

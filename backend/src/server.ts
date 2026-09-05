@@ -4,6 +4,7 @@ import { automationRuntime, readAutomationRuntimeConfig } from './services/autom
 import { DatabaseService } from './database/DatabaseService';
 import { MonitoringControlService } from './services/strategic-monitoring';
 import { ChannelContextBootstrap } from './services/channel-context';
+import { clipRenderService } from './services/rendering';
 
 loadEnv();
 
@@ -35,7 +36,9 @@ export const shutdown = async (): Promise<void> => {
   if (shuttingDown) return;
   shuttingDown = true;
   await automationRuntime.stop().catch(() => undefined);
-  await new Promise<void>((resolve) => server.close(() => resolve()));
+  const httpClosed = new Promise<void>((resolve) => server.close(() => resolve()));
+  await clipRenderService.shutdown();
+  await httpClosed;
   await DatabaseService.disconnect();
 };
 

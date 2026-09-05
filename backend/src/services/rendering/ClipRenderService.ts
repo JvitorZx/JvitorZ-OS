@@ -17,14 +17,29 @@ export class ClipRenderService {
   private workerError: string | null = null;
   private controllers = new Map<string, AbortController>();
   private enqueueLock: Promise<unknown> = Promise.resolve();
+  private closing = false;
+  private shutdownPromise: Promise<void> | null = null;
   constructor(private readonly client: PrismaClient = DatabaseService.client, private readonly files = new MediaFiles(), private readonly probe = new MediaProbe(), private readonly runner: RenderRunner = createRenderRunner(), private readonly outputRoot = path.resolve(__dirname, '../../../rendered')) {}
   async initialize() {
+    if (this.closing) throw new RenderError('APPLICATION_STOPPED', 'Aplicativo em encerramento; novos trabalhos estao bloqueados.');
     if (!this.initialized) this.initialized = (async () => {
       await fs.mkdir(this.outputRoot, { recursive: true });
       if ((await fs.lstat(this.outputRoot)).isSymbolicLink()) throw new RenderError('OUTPUT_ROOT_INVALID', 'Pasta de saida nao pode ser um link.');
       await this.client.clipRenderJob.updateMany({ where: { status: { in: ['QUEUED', 'RUNNING'] } }, data: { status: 'INTERRUPTED', errorCode: 'PROCESS_RESTARTED', errorMessage: 'Execucao interrompida; tente novamente explicitamente.', completedAt: new Date() } });
     })();
     return this.initialized;
+  }
+  shutdown(): Promise<void> {
+    if (this.shutdownPromise) return this.shutdownPromise;
+    this.closing = true;
+    this.shutdownPromise = (async () => {
+      if (!this.initialized) return;
+      await this.initialized;
+      await this.enqueueLock.catch(() => undefined);
+      try { await this.client.clipRenderJob.updateMany({ where: { status: { in: ['QUEUED', 'RUNNING'] } }, data: { status: 'INTERRUPTED', errorCode: 'APPLICATION_STOPPED', errorMessage: 'Aplicativo encerrado; tente novamente explicitamente.', completedAt: new Date() } }); }
+      finally { for (const controller of this.controllers.values()) controller.abort(); await this.waitForIdle(); }
+    })();
+    return this.shutdownPromise;
   }
   async health() {
     await this.initialize();
@@ -75,12 +90,15 @@ export class ClipRenderService {
     const candidateId = id(raw.candidateId); const layout = raw.layout ?? 'FIT';
     if (layout !== 'FIT' && layout !== 'CENTER_CROP') throw new RenderError('INVALID_INPUT', 'Layout deve ser FIT ou CENTER_CROP.', 400);
     await this.initialize();
+    if (this.closing) throw new RenderError('APPLICATION_STOPPED', 'Aplicativo em encerramento; novos trabalhos estao bloqueados.');
     if (this.workerError) throw new RenderError('WORKER_STOPPED', 'Worker interrompido por falha interna; reinicie o backend antes de tentar novamente.', 503);
     const work = this.enqueueLock.then(async () => {
+      if (this.closing) throw new RenderError('APPLICATION_STOPPED', 'Aplicativo em encerramento; novos trabalhos estao bloqueados.');
       const current = await this.inspect(candidateId, layout);
       if (!current.view.eligible || !current.source) throw new RenderError('NOT_ELIGIBLE', current.view.reasons.join(' '));
       const previous = await this.client.clipRenderJob.findFirst({ where: { snapshotKey: current.snapshotKey }, orderBy: [{ attempt: 'desc' }] });
       if (previous && (!retryOf || ['QUEUED', 'RUNNING', 'SUCCEEDED'].includes(previous.status))) return { job: this.dto(await this.validateSucceeded(previous)), created: false };
+      if (this.closing) throw new RenderError('APPLICATION_STOPPED', 'Aplicativo em encerramento; novos trabalhos estao bloqueados.');
       const job = await this.client.clipRenderJob.create({ data: { id: randomUUID(), candidateId, productionId: current.snapshot.productionId, analysisId: current.snapshot.analysisId, sourceId: current.source.id, snapshotKey: current.snapshotKey, snapshot: json(current.snapshot), layout, attempt: (previous?.attempt ?? 0) + 1 } });
       return { job: this.dto(job), created: true };
     });
@@ -90,11 +108,11 @@ export class ClipRenderService {
   async retry(jobId: unknown) { await this.initialize(); const prior = await this.find(jobId); if (!['FAILED', 'CANCELLED', 'INTERRUPTED'].includes(prior.status)) throw new RenderError('RETRY_CONFLICT', 'Somente trabalhos falhos ou interrompidos podem ser tentados novamente.'); return this.enqueue({ candidateId: prior.candidateId, layout: prior.layout }, prior); }
   async cancel(jobId: unknown) { await this.initialize(); const job = await this.find(jobId); if (job.status === 'CANCELLED') return this.dto(job); if (!['QUEUED', 'RUNNING'].includes(job.status)) throw new RenderError('CANCEL_CONFLICT', 'Este trabalho ja terminou.'); await this.client.clipRenderJob.updateMany({ where: { id: job.id, status: { in: ['QUEUED', 'RUNNING'] } }, data: { status: 'CANCELLED', errorCode: 'CANCELLED', errorMessage: 'Renderizacao cancelada.', completedAt: new Date() } }); this.controllers.get(job.id)?.abort(); return this.dto(await this.find(job.id)); }
   private kick() {
-    if (this.worker || this.workerError) return;
+    if (this.worker || this.workerError || this.closing) return;
     this.worker = this.runQueue().catch(async () => {
       this.workerError = 'WORKER_STOPPED';
       try { await this.client.clipRenderJob.updateMany({ where: { status: { in: ['QUEUED', 'RUNNING'] } }, data: { status: 'INTERRUPTED', errorCode: 'WORKER_STOPPED', errorMessage: 'Worker interrompido por falha interna; reinicie e tente novamente.', completedAt: new Date() } }); } catch { /* Storage unavailable: initialization will mark jobs interrupted after restart. */ }
-    }).finally(async () => { this.worker = null; if (!this.workerError) { try { if (await this.client.clipRenderJob.count({ where: { status: 'QUEUED' } })) this.kick(); } catch { this.workerError = 'WORKER_STOPPED'; } } });
+    }).finally(async () => { this.worker = null; if (!this.workerError && !this.closing) { try { if (await this.client.clipRenderJob.count({ where: { status: 'QUEUED' } })) this.kick(); } catch { this.workerError = 'WORKER_STOPPED'; } } });
   }
   async waitForIdle() { while (this.worker) await this.worker; }
   private async outputFile(jobId: string, creating = false) {
@@ -108,6 +126,7 @@ export class ClipRenderService {
   }
   private async runQueue() {
     for (;;) {
+      if (this.closing) return;
       const job = await this.client.clipRenderJob.findFirst({ where: { status: 'QUEUED' }, orderBy: [{ createdAt: 'asc' }, { id: 'asc' }] }); if (!job) return;
       const claimed = await this.client.clipRenderJob.updateMany({ where: { id: job.id, status: 'QUEUED' }, data: { status: 'RUNNING', startedAt: new Date(), progress: 1 } }); if (!claimed.count) continue;
       const controller = new AbortController(); this.controllers.set(job.id, controller);
