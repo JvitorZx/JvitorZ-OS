@@ -45,6 +45,7 @@ export const createChannelController = ({ api, refreshDashboard }) => {
     const format = root.querySelector('[data-channel-video-format]');
     const sort = root.querySelector('[data-channel-video-sort]');
     const evidence = root.querySelector('[data-channel-video-evidence]');
+    const resultCount = root.querySelector('[data-channel-video-result-count]');
     let loadedVideos = [];
     const renderDetail = (result) => {
       if (!detail || !current()) return;
@@ -107,6 +108,7 @@ export const createChannelController = ({ api, refreshDashboard }) => {
         if (selectedSort === 'VIEWS') return Number(right.views ?? -1) - Number(left.views ?? -1);
         return new Date(right.collectedAt ?? 0).getTime() - new Date(left.collectedAt ?? 0).getTime();
       });
+      if (resultCount) resultCount.textContent = `${sorted.length} vídeo(s) exibido(s)`;
       renderVideos(sorted);
     };
     const onFilter = () => applyFilters();
@@ -243,7 +245,7 @@ export const channelModule = {
         eyebrow: 'Conteúdo sincronizado',
         title: 'Vídeos recentes',
         className: 'channel-videos-panel',
-        body: html`<div class="channel-video-summary" data-channel-video-summary aria-live="polite"><span>Calculando cobertura...</span></div><div class="channel-video-filters"><label>Buscar<input type="search" data-channel-video-search placeholder="Título do vídeo"></label><label>Formato<select data-channel-video-format><option value="ALL">Todos</option><option value="LONG_FORM">Long-form</option><option value="SHORTS">Shorts</option><option value="LIVE">Live</option></select></label><label>Evidência<select data-channel-video-evidence><option value="ALL">Todas</option><option value="HAS_RETENTION">Com retenção</option><option value="MISSING_CTR">Sem CTR</option></select></label><label>Ordenar<select data-channel-video-sort><option value="COLLECTED">Coleta recente</option><option value="VIEWS">Mais views</option><option value="TITLE">Título</option></select></label></div><div class="channel-video-layout"><div class="channel-video-list" data-channel-videos aria-live="polite"><p class="empty-state">Carregando vídeos...</p></div><aside class="channel-video-detail" data-channel-video-detail aria-live="polite">Selecione um vídeo para ver métricas e histórico.</aside></div>`,
+        body: html`<div class="channel-video-summary" data-channel-video-summary aria-live="polite"><span>Calculando cobertura...</span></div><div class="channel-video-filters"><label>Buscar<input type="search" data-channel-video-search placeholder="Título do vídeo"></label><label>Formato<select data-channel-video-format><option value="ALL">Todos</option><option value="LONG_FORM">Long-form</option><option value="SHORTS">Shorts</option><option value="LIVE">Live</option></select></label><label>Evidência<select data-channel-video-evidence><option value="ALL">Todas</option><option value="HAS_RETENTION">Com retenção</option><option value="MISSING_CTR">Sem CTR</option></select></label><label>Ordenar<select data-channel-video-sort><option value="COLLECTED">Coleta recente</option><option value="VIEWS">Mais views</option><option value="TITLE">Título</option></select></label></div><p class="channel-video-result-count" data-channel-video-result-count aria-live="polite">Carregando resultados...</p><div class="channel-video-layout"><div class="channel-video-list" data-channel-videos aria-live="polite"><p class="empty-state">Carregando vídeos...</p></div><aside class="channel-video-detail" data-channel-video-detail aria-live="polite">Selecione um vídeo para ver métricas e histórico.</aside></div>`,
       })}
       ${createPanel({
         eyebrow: 'Integrações oficiais',

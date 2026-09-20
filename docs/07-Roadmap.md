@@ -1648,7 +1648,11 @@ O detalhe calcula variação de views e retenção apenas quando duas coletas po
 
 Filtro local por disponibilidade explícita de retenção e ausência de CTR, combinável com busca e formato. Não existe score oculto e nenhuma nova requisição é feita ao filtrar.
 
-**Proximo checkpoint: Sprint 69 - NAO INICIADA; escopo ainda nao definido.**
+## Sprint 69 - Channel Result Feedback - CONCLUIDA
+
+A lista anuncia a quantidade filtrada em uma região acessível e mantém estados vazios coerentes. A contagem deriva da lista local já carregada.
+
+**Proximo checkpoint: Sprint 70 - NAO INICIADA; escopo ainda nao definido.**
 
 ### Revisao de encerramento apos Sprint 53
 
