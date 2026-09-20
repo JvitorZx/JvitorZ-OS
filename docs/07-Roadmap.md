@@ -1730,7 +1730,11 @@ A tela Canal apresenta a cobertura real de views, retenção e CTR dentro de cad
 
 O detalhe de vídeo classifica a direção observada de views e retenção entre duas coletas reais como subida, queda, estabilidade ou indisponibilidade. A leitura permanece descritiva e não atribui causalidade.
 
-**Proximo checkpoint: Sprint 87 - NAO INICIADA; escopo ainda nao definido.**
+## Sprint 87 - Comparison Collection Context - CONCLUIDA
+
+A comparação informa coletas ausentes ou realizadas em momentos diferentes. A regra usa os timestamps observados diretamente e não esconde limiares de compatibilidade.
+
+**Proximo checkpoint: Sprint 88 - NAO INICIADA; escopo ainda nao definido.**
 
 ### Revisao de encerramento apos Sprint 53
 

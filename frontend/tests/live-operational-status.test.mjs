@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises';
 import { test } from 'node:test';
 
 import { createApiClient, ApiRequestError } from '../src/api/client.js';
-import { channelModule, channelSourceAction, collectionAgeDays, createChannelController, observedSnapshotDelta, observedTrend } from '../src/modules/channel.js';
+import { channelModule, channelSourceAction, collectionAgeDays, comparisonCollectionWindow, createChannelController, observedSnapshotDelta, observedTrend } from '../src/modules/channel.js';
 import { homeModule } from '../src/modules/home.js';
 import { plannerModule } from '../src/modules/planner.js';
 import { settingsModule } from '../src/modules/settings.js';
@@ -170,6 +170,12 @@ test('Channel collection age reports elapsed days without a hidden freshness thr
   assert.equal(collectionAgeDays('2026-09-13T00:00:00Z', new Date('2026-09-12T00:00:00Z')), null);
 });
 
+test('Channel comparison reports incompatible collection moments without a hidden threshold', () => {
+  assert.equal(comparisonCollectionWindow({ collectedAt: '2026-09-10T10:00:00Z' }, { collectedAt: '2026-09-10T10:00:00Z' }), null);
+  assert.match(comparisonCollectionWindow({ collectedAt: '2026-09-10T10:00:00Z' }, { collectedAt: '2026-09-11T10:00:00Z' }), /momentos diferentes/);
+  assert.match(comparisonCollectionWindow({}, {}), /não informada/);
+});
+
 test('Channel filters the loaded local list without another API request', async () => {
   const originalDocument = globalThis.document; globalThis.document = { createElement: () => new FakeElement() };
   try {
@@ -246,8 +252,9 @@ test('Channel selects at most two persisted videos for local comparison', async 
     await page.videos.children[0].children[2].children[1].dispatch('click'); await page.videos.children[1].children[2].children[1].dispatch('click'); await page.videos.children[2].children[2].children[1].dispatch('click');
     assert.match(page.comparison.children[0].textContent, /2\/2 selecionado/); assert.doesNotMatch(page.comparison.children[0].textContent, /C/);
     assert.match(page.comparison.children[1].textContent, /formatos diferentes/);
-    assert.equal(page.comparison.children[2].children[2].children[1].textContent, '10');
-    assert.equal(page.comparison.children[2].children[2].children[2].textContent, '--');
+    assert.match(page.comparison.children[2].textContent, /Coleta não informada/);
+    assert.equal(page.comparison.children[3].children[2].children[1].textContent, '10');
+    assert.equal(page.comparison.children[3].children[2].children[2].textContent, '--');
   } finally { globalThis.document = originalDocument; }
 });
 

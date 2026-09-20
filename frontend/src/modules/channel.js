@@ -34,6 +34,13 @@ export const collectionAgeDays = (value, now = new Date()) => {
   return Number.isFinite(timestamp) && Number.isFinite(current) && current >= timestamp ? Math.floor((current - timestamp) / 86400000) : null;
 };
 
+export const comparisonCollectionWindow = (left, right) => {
+  const leftTime = new Date(left?.collectedAt).getTime(); const rightTime = new Date(right?.collectedAt).getTime();
+  if (!Number.isFinite(leftTime) || !Number.isFinite(rightTime)) return 'Coleta não informada para um ou ambos os vídeos.';
+  if (leftTime === rightTime) return null;
+  return `Coletas em momentos diferentes: ${new Date(leftTime).toLocaleString('pt-BR')} e ${new Date(rightTime).toLocaleString('pt-BR')}.`;
+};
+
 export const createChannelController = ({ api, refreshDashboard }) => {
   let mountedRoot = null;
   let generation = 0;
@@ -123,6 +130,8 @@ export const createChannelController = ({ api, refreshDashboard }) => {
       const status = document.createElement('p'); status.textContent = selected.length === 0 ? 'Selecione até dois vídeos para comparar.' : `${selected.length}/2 selecionado(s): ${selected.map((item) => item.title ?? item.videoId).join(' · ')}`; comparison.append(status);
       if (selected.length === 2) {
         if (selected[0].format !== selected[1].format) { const warning = document.createElement('p'); warning.className = 'performance-feedback'; warning.textContent = 'Comparação entre formatos diferentes: interprete métricas com cautela.'; comparison.append(warning); }
+        const collectionWarning = comparisonCollectionWindow(selected[0], selected[1]);
+        if (collectionWarning) { const warning = document.createElement('p'); warning.className = 'performance-feedback'; warning.textContent = collectionWarning; comparison.append(warning); }
         const table = document.createElement('table'); table.className = 'channel-comparison-table';
         const head = document.createElement('tr'); for (const value of ['Métrica', selected[0].title ?? selected[0].videoId, selected[1].title ?? selected[1].videoId]) { const cell = document.createElement('th'); cell.textContent = value; head.append(cell); } table.append(head);
         for (const [label, field, suffix = ''] of [['Formato', 'format'], ['Views', 'views'], ['Retenção', 'averageViewPercentage', '%'], ['CTR', 'ctr', '%']]) {
