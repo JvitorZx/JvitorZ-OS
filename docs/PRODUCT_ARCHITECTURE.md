@@ -675,3 +675,9 @@ SBV / SRT / VTT / segmentos internos
 O gerador conserva a ordem temporal, exige intervalos minimos entre mudancas e limita a quantidade de capitulos. Cada entrada aponta para a faixa de segmentos que a sustenta. Edicoes humanas ficam em revisoes append-only; regeneracao cria nova versao e nunca sobrescreve a anterior. Uma fonte temporal diferente torna a selecao anterior `STALE` e a etapa `OUTDATED`.
 
 Importacoes de arquivo criam um `LibraryItem` e `ProductionAssetRelation` na mesma transacao. Nao existe download, scraping, speech-to-text ou acesso de escrita ao YouTube. Creator Context nao e forcado nos titulos: fidelidade ao transcript prevalece.
+
+## Channel Operations - Sprints 54-65
+
+`ChannelDataService` controla sincronizacao explicita e preserva o ultimo snapshot valido. `ChannelContentService` oferece somente leituras locais sobre `VideoPerformanceSnapshot`: lista deduplicada, detalhe com historico e resumo de cobertura. As rotas nao exigem autenticacao para ler o que ja esta persistido e nunca estimam campos ausentes.
+
+O workspace `#/channel` combina o estado consolidado das fontes com o acervo local. Reconexao e sincronizacao permanecem acoes humanas; busca, filtro e ordenacao acontecem localmente depois de uma unica leitura. Lifecycle, single-flight e tokens de montagem impedem listeners duplicados e atualizacoes tardias.

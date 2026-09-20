@@ -1623,7 +1623,20 @@ Entregas: ordenação local por coleta recente, views observadas ou título; fil
 
 Entregas: estado vazio distinto de busca sem resultado, nomes acessíveis específicos para abertura de cada vídeo e regressão do lifecycle/listeners. A página continua renderizando conteúdo externo apenas como texto.
 
-**Proximo checkpoint: Sprint 65 - NAO INICIADA; escopo ainda nao definido.**
+## Sprint 65 - Channel Operations Stabilization - CONCLUIDA
+
+**Objetivo:** encerrar o ciclo 54-65 com regressao completa, contratos e arquitetura alinhados ao comportamento real.
+
+Entregas:
+
+- sincronizacao manual e OAuth degradado validados sem apagar last-known-good;
+- acervo persistido, detalhe historico, cobertura, busca, filtro e ordenacao validados no navegador;
+- ações das fontes coerentes com o estado consolidado;
+- lifecycle, acessibilidade, XSS e respostas obsoletas cobertos por testes;
+- nenhuma chamada externa automatica, previsao ou metrica inventada;
+- documentacao de API, arquitetura e fluxo atualizada.
+
+**Proximo checkpoint: Sprint 66 - NAO INICIADA; escopo ainda nao definido.**
 
 ### Revisao de encerramento apos Sprint 53
 

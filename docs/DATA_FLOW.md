@@ -932,3 +932,22 @@ gerar ou regenerar explicitamente
 ```
 
 Leitura e `resume` reutilizam a versao selecionada. Uma importacao idempotente nao cria novo asset ou transcript. Uma fonte temporal realmente nova preserva versoes anteriores, marca a selecionada `STALE` e a etapa `OUTDATED`. Respostas tardias da UI sao ignoradas por token de montagem/request.
+
+## Canal operacional - Sprints 54-65
+
+```text
+acao explicita Sincronizar
+  -> POST /api/youtube/channel/sync
+  -> ChannelDataService -> Google/YouTube
+  -> ChannelSnapshot persistido
+  -> Dashboard recarrega estado consolidado
+
+abertura da workspace Canal
+  -> GET /api/youtube/videos?limit=50
+  -> GET /api/youtube/videos-summary
+  -> VideoPerformanceSnapshotRepository -> SQLite
+  -> busca/filtro/ordenacao locais
+  -> GET /api/youtube/videos/:videoId sob selecao
+```
+
+Falha de OAuth preserva last-known-good e permanece visivel como `AUTH_REQUIRED`. Leitura local nao dispara Google. Resumo de cobertura conta somente campos observados; ausencias continuam explicitas.
