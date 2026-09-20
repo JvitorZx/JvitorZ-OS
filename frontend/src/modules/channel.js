@@ -55,6 +55,7 @@ export const createChannelController = ({ api, refreshDashboard }) => {
       if (!item) { detail.textContent = 'Detalhes indisponíveis.'; return; }
       const heading = document.createElement('h3'); heading.textContent = item.title ?? 'Vídeo sem título';
       const identity = document.createElement('p'); identity.textContent = `${item.format ?? 'Formato desconhecido'} · ${item.videoId}`;
+      const youtube = document.createElement('a'); youtube.className = 'button secondary'; youtube.textContent = 'Abrir no YouTube'; youtube.href = `https://www.youtube.com/watch?v=${encodeURIComponent(item.videoId)}`; youtube.target = '_blank'; youtube.rel = 'noopener noreferrer';
       const metrics = document.createElement('dl'); metrics.className = 'channel-video-metrics';
       for (const [label, value] of [['Views', item.views], ['Watch time (min)', item.watchTimeMinutes], ['Retenção média (%)', item.averageViewPercentage], ['Impressões', item.impressions], ['CTR', item.ctr], ['Likes', item.likes], ['Comentários', item.comments]]) {
         const term = document.createElement('dt'); term.textContent = label; const description = document.createElement('dd'); description.textContent = value === null || value === undefined ? '--' : String(value); metrics.append(term, description);
@@ -69,7 +70,7 @@ export const createChannelController = ({ api, refreshDashboard }) => {
         entry.textContent = `${snapshot.collectedAt ? new Date(snapshot.collectedAt).toLocaleString('pt-BR') : 'Data ausente'} · ${snapshot.views ?? '--'} views · retenção ${snapshot.averageViewPercentage ?? '--'}% · CTR ${snapshot.ctr ?? '--'}%`;
         timeline.append(entry);
       }
-      detail.append(heading, identity, metrics, history, change, timeline);
+      detail.append(heading, identity, youtube, metrics, history, change, timeline);
     };
     const openVideo = async (videoId) => {
       const request = ++detailRequest;

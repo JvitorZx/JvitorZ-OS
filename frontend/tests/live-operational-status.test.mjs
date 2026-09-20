@@ -140,10 +140,12 @@ test('Channel opens persisted video detail and keeps missing metrics explicit', 
     controller.mount(page.root); await new Promise((resolve) => setTimeout(resolve, 0));
     const open = page.videos.children[0].children[2]; await open.dispatch('click');
     assert.equal(page.detail.children[0].textContent, '<b>Vídeo</b>');
-    assert.match(page.detail.children[3].textContent, /1 coleta/);
-    assert.match(page.detail.children[4].textContent, /não há uma coleta anterior/);
-    assert.match(page.detail.children[5].children[0].textContent, /10 views/);
-    assert.match(page.detail.children[5].children[0].textContent, /CTR --%/);
+    assert.equal(page.detail.children[2].href, 'https://www.youtube.com/watch?v=v1');
+    assert.equal(page.detail.children[2].rel, 'noopener noreferrer');
+    assert.match(page.detail.children[4].textContent, /1 coleta/);
+    assert.match(page.detail.children[5].textContent, /não há uma coleta anterior/);
+    assert.match(page.detail.children[6].children[0].textContent, /10 views/);
+    assert.match(page.detail.children[6].children[0].textContent, /CTR --%/);
   } finally { globalThis.document = originalDocument; }
 });
 

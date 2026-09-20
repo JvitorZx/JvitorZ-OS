@@ -1656,7 +1656,11 @@ A lista anuncia a quantidade filtrada em uma região acessível e mantém estado
 
 Uma única ação restaura busca, formato, evidência e ordenação sem remontar o workspace ou duplicar listeners.
 
-**Proximo checkpoint: Sprint 71 - NAO INICIADA; escopo ainda nao definido.**
+## Sprint 71 - Channel Video Source Link - CONCLUIDA
+
+O detalhe oferece abertura explícita do vídeo persistido no YouTube em nova aba, com ID codificado e proteção de contexto. Nenhuma escrita externa é realizada.
+
+**Proximo checkpoint: Sprint 72 - NAO INICIADA; escopo ainda nao definido.**
 
 ### Revisao de encerramento apos Sprint 53
 
