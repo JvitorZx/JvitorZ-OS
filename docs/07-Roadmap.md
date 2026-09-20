@@ -1770,7 +1770,11 @@ O usuário pode escolher 12, 24 ou 50 vídeos por página. A mudança volta à p
 
 O backend exporta o snapshot mais recente de cada vídeo em CSV, sem rede externa. Campos são escapados e prefixos interpretáveis como fórmula por planilhas são neutralizados.
 
-**Proximo checkpoint: Sprint 97 - NAO INICIADA; escopo ainda nao definido.**
+## Sprint 97 - Channel Export Action - CONCLUIDA
+
+A workspace oferece download do CSV persistido por uma URL construída no client central. O navegador não reconstrói nem envia o conteúdo dos vídeos.
+
+**Proximo checkpoint: Sprint 98 - NAO INICIADA; escopo ainda nao definido.**
 
 ### Revisao de encerramento apos Sprint 53
 

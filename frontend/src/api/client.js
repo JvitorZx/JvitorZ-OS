@@ -179,6 +179,8 @@ export const createApiClient = (baseUrl) => ({
     return requestJson(`${baseUrl}/api/youtube/videos-page?page=${page}&pageSize=${pageSize}`, undefined, 'Erro ao paginar vídeos do canal');
   },
 
+  channelVideoExportUrl() { return `${baseUrl}/api/youtube/videos-export.csv`; },
+
   async getYouTubeChannelVideo(videoId) {
     const id = requireIdentifier(videoId, 'videoId');
     return requestJson(`${baseUrl}/api/youtube/videos/${encodeURIComponent(id)}`, undefined, 'Erro ao abrir vídeo do canal');

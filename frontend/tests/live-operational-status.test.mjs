@@ -40,9 +40,9 @@ class FakeElement {
 }
 
 const channelDom = () => {
-  const root = new FakeElement(); const panel = new FakeElement(); const button = new FakeElement(); const feedback = new FakeElement(); const videos = new FakeElement(); const detail = new FakeElement(); const summary = new FakeElement(); const comparison = new FakeElement(); const resultCount = new FakeElement(); const reset = new FakeElement(); const refresh = new FakeElement(); const previousPage = new FakeElement(); const nextPage = new FakeElement(); const pageStatus = new FakeElement(); const pageSize = new FakeElement(); const search = new FakeElement(); const format = new FakeElement(); const sort = new FakeElement(); const evidence = new FakeElement(); format.value = 'ALL'; sort.value = 'COLLECTED'; evidence.value = 'ALL'; pageSize.value = '12';
-  root.map.set('.channel-panel', panel); root.map.set('[data-channel-videos]', videos); root.map.set('[data-channel-video-detail]', detail); root.map.set('[data-channel-video-summary]', summary); root.map.set('[data-channel-video-comparison]', comparison); root.map.set('[data-channel-video-result-count]', resultCount); root.map.set('[data-channel-video-reset]', reset); root.map.set('[data-channel-video-refresh]', refresh); root.map.set('[data-channel-page-previous]', previousPage); root.map.set('[data-channel-page-next]', nextPage); root.map.set('[data-channel-page-status]', pageStatus); root.map.set('[data-channel-page-size]', pageSize); root.map.set('[data-channel-video-search]', search); root.map.set('[data-channel-video-format]', format); root.map.set('[data-channel-video-sort]', sort); root.map.set('[data-channel-video-evidence]', evidence); panel.map.set('[data-channel-sync]', button); panel.map.set('[data-channel-feedback]', feedback);
-  return { root, button, feedback, videos, detail, summary, comparison, resultCount, reset, refresh, previousPage, nextPage, pageStatus, pageSize, search, format, sort, evidence };
+  const root = new FakeElement(); const panel = new FakeElement(); const button = new FakeElement(); const feedback = new FakeElement(); const videos = new FakeElement(); const detail = new FakeElement(); const summary = new FakeElement(); const comparison = new FakeElement(); const resultCount = new FakeElement(); const reset = new FakeElement(); const refresh = new FakeElement(); const exportLink = new FakeElement(); const previousPage = new FakeElement(); const nextPage = new FakeElement(); const pageStatus = new FakeElement(); const pageSize = new FakeElement(); const search = new FakeElement(); const format = new FakeElement(); const sort = new FakeElement(); const evidence = new FakeElement(); format.value = 'ALL'; sort.value = 'COLLECTED'; evidence.value = 'ALL'; pageSize.value = '12';
+  root.map.set('.channel-panel', panel); root.map.set('[data-channel-videos]', videos); root.map.set('[data-channel-video-detail]', detail); root.map.set('[data-channel-video-summary]', summary); root.map.set('[data-channel-video-comparison]', comparison); root.map.set('[data-channel-video-result-count]', resultCount); root.map.set('[data-channel-video-reset]', reset); root.map.set('[data-channel-video-refresh]', refresh); root.map.set('[data-channel-video-export]', exportLink); root.map.set('[data-channel-page-previous]', previousPage); root.map.set('[data-channel-page-next]', nextPage); root.map.set('[data-channel-page-status]', pageStatus); root.map.set('[data-channel-page-size]', pageSize); root.map.set('[data-channel-video-search]', search); root.map.set('[data-channel-video-format]', format); root.map.set('[data-channel-video-sort]', sort); root.map.set('[data-channel-video-evidence]', evidence); panel.map.set('[data-channel-sync]', button); panel.map.set('[data-channel-feedback]', feedback);
+  return { root, button, feedback, videos, detail, summary, comparison, resultCount, reset, refresh, exportLink, previousPage, nextPage, pageStatus, pageSize, search, format, sort, evidence };
 };
 
 const deferred = () => { let resolve; let reject; const promise = new Promise((ok, fail) => { resolve = ok; reject = fail; }); return { promise, resolve, reject }; };
@@ -107,6 +107,7 @@ test('channel client exposes explicit read and synchronization contracts', async
     assert.equal((await api.syncYouTubeChannel()).id, 'channel-1');
     assert.equal((await api.listYouTubeChannelVideos(8)).length, 1);
     assert.equal((await api.pageYouTubeChannelVideos(2, 8)).total, 9);
+    assert.equal(api.channelVideoExportUrl(), 'http://localhost:3000/api/youtube/videos-export.csv');
     assert.equal((await api.getYouTubeChannelVideoSummary()).videos, 2);
     assert.equal((await api.getYouTubeChannelVideo('video/1')).current.videoId, 'video/1');
     assert.deepEqual(calls, [
@@ -128,10 +129,11 @@ test('Channel renders recent persisted videos as text and ignores duplicates fro
   const originalDocument = globalThis.document; globalThis.document = { createElement: () => new FakeElement() };
   try {
     let calls = 0; const page = channelDom();
-    const controller = createChannelController({ api: { listYouTubeChannelVideos: async () => { calls += 1; return [{ videoId: 'v1', title: '<img src=x onerror=alert(1)>', format: 'SHORTS', views: 12, collectedAt: '2026-09-10T00:00:00Z' }]; } } });
+    const controller = createChannelController({ api: { channelVideoExportUrl: () => 'http://localhost:3000/api/youtube/videos-export.csv', listYouTubeChannelVideos: async () => { calls += 1; return [{ videoId: 'v1', title: '<img src=x onerror=alert(1)>', format: 'SHORTS', views: 12, collectedAt: '2026-09-10T00:00:00Z' }]; } } });
     controller.mount(page.root); controller.mount(page.root); await new Promise((resolve) => setTimeout(resolve, 0));
     assert.equal(calls, 1); assert.equal(page.videos.children.length, 1);
     assert.equal(page.videos.children[0].children[0].children[0].textContent, '<img src=x onerror=alert(1)>');
+    assert.equal(page.exportLink.href, 'http://localhost:3000/api/youtube/videos-export.csv');
   } finally { globalThis.document = originalDocument; }
 });
 
@@ -338,6 +340,7 @@ test('Channel exposes safe local controls according to the operational state', (
   assert.match(output, /Reconectar Google/);
   assert.match(output, /aria-live="polite"/);
   assert.match(output, /aria-label="Comparação de vídeos"/);
+  assert.match(output, /data-channel-video-export/);
   assert.doesNotMatch(output, /access_token|client_secret/);
 });
 
