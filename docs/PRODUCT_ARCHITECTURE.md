@@ -446,6 +446,8 @@ O refresh do OAuth é lazy e tokens atualizados são persistidos sem logs sensí
 
 A Sprint 54 acrescenta um controle operacional local à workspace Canal sem duplicar a integração. Reconexão continua no OAuth existente; sincronização explícita delega ao `ChannelDataService`, persiste antes de responder e atualiza o Dashboard. Autorização expirada com cache mantém os dados visíveis, mas conserva o estado `AUTH_REQUIRED`. Lifecycle, feedback e single-flight pertencem ao controller do Canal; o Dashboard não conhece detalhes desse controller.
 
+A Sprint 55 apresenta o mesmo contrato consolidado na workspace Canal como control plane de leitura. O frontend não recalcula disponibilidade: cada fonte usa `IntegrationStatusService` e encaminha o usuário ao fluxo operacional já existente. Abrir a página não chama Google nem inicia sincronizações.
+
 ## Reach Reporting e Data Quality
 
 A Sprint 32 adiciona `GoogleYouTubeReachProvider`, uma integração separada com a YouTube Reporting API. O report type oficial `channel_reach_basic_a1` entrega `date`, `channel_id`, `video_id`, `video_thumbnail_impressions` e `video_thumbnail_impressions_ctr`. O provider reutiliza jobs remotos, trata conflito concorrente de criação, limita a leitura a 31 relatórios e usa parser CSV estruturado.

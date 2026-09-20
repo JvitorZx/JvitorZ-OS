@@ -82,6 +82,24 @@ export const channelModule = {
       ${needsReconnect || isDegraded ? html`<a class="button secondary" href="${data.authUrl ?? `${context.apiBaseUrl ?? ''}/api/auth/google`}">Reconectar Google</a>` : ''}
       ${integration.state !== 'NOT_CONFIGURED' ? html`<button class="button secondary" type="button" data-channel-sync>Sincronizar canal</button>` : ''}
     </div>`;
+    const sources = [
+      ['googleOAuth', 'Google OAuth', 'Autorização usada pelas APIs do YouTube', `${context.apiBaseUrl ?? ''}/api/auth/google`],
+      ['youtubeData', 'Dados do canal', 'Identidade e totais públicos do canal', '#/channel'],
+      ['youtubeAnalytics', 'YouTube Analytics', 'Performance, audiência e retenção', '#/analytics'],
+      ['youtubeReach', 'YouTube Reach', 'Impressões e CTR dos relatórios oficiais', '#/analytics/ctr'],
+    ];
+    const sourceRows = sources.map(([id, label, description, href]) => {
+      const source = integrationFrom(data, id) ?? {};
+      const sourceState = operationalStatus(source.state);
+      const actionLabel = source.action === 'RECONNECT' || source.action === 'CONNECT'
+        ? 'Reconectar'
+        : source.action === 'SYNC' ? 'Abrir sincronização' : 'Abrir';
+      return html`<div class="channel-source-row">
+        <div><strong>${label}</strong><small>${description}</small><small>${source.summary ?? sourceState.label}</small></div>
+        ${createStatusPill(sourceState.label, sourceState.variant)}
+        <a class="button secondary" href="${href}">${actionLabel}</a>
+      </div>`;
+    }).join('');
 
     return html`
       <section class="summary-grid" aria-label="Metricas principais">
@@ -114,6 +132,12 @@ export const channelModule = {
           { label: 'Última atualização', value: formatDate(integration.lastSuccessAt) },
           { label: 'Estado', value: integration.summary ?? state.label },
         ])}<div class="performance-feedback" data-channel-feedback role="status" aria-live="polite" aria-atomic="true" hidden></div>`,
+      })}
+      ${createPanel({
+        eyebrow: 'Integrações oficiais',
+        title: 'Fontes do YouTube',
+        className: 'channel-sources-panel',
+        body: html`<div class="channel-source-list">${sourceRows}</div>`,
       })}
     `;
   },

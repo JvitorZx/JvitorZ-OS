@@ -114,6 +114,17 @@ test('Channel exposes safe local controls according to the operational state', (
   assert.doesNotMatch(output, /access_token|client_secret/);
 });
 
+test('Channel consolidates every real YouTube source without inventing availability', () => {
+  const output = channelModule.render(dashboard, { apiBaseUrl: 'http://localhost:3000' });
+  assert.match(output, /Fontes do YouTube/);
+  assert.match(output, /Google OAuth/);
+  assert.match(output, /Dados do canal/);
+  assert.match(output, /YouTube Analytics/);
+  assert.match(output, /YouTube Reach/);
+  assert.match(output, /Último dado válido/);
+  assert.doesNotMatch(output, /Tudo funcionando|100% disponível/);
+});
+
 test('Channel synchronization is single-flight and refreshes only after persisted success', async () => {
   const pending = deferred(); let calls = 0; let refreshes = 0;
   const page = channelDom();
