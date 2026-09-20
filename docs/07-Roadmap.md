@@ -1676,7 +1676,11 @@ O resumo mostra a idade exata da última coleta em dias junto da data absoluta. 
 
 O resumo local passa a expor a primeira e a última coleta persistidas, permitindo interpretar a cobertura dentro de sua janela temporal real.
 
-**Proximo checkpoint: Sprint 76 - NAO INICIADA; escopo ainda nao definido.**
+## Sprint 76 - Local Channel Content Refresh - CONCLUIDA
+
+A workspace pode reler lista e cobertura persistidas sem sincronizar Google. A atualização local é single-flight, mantém feedback coerente e respeita unmount/remount.
+
+**Proximo checkpoint: Sprint 77 - NAO INICIADA; escopo ainda nao definido.**
 
 ### Revisao de encerramento apos Sprint 53
 

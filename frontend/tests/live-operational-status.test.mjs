@@ -39,9 +39,9 @@ class FakeElement {
 }
 
 const channelDom = () => {
-  const root = new FakeElement(); const panel = new FakeElement(); const button = new FakeElement(); const feedback = new FakeElement(); const videos = new FakeElement(); const detail = new FakeElement(); const summary = new FakeElement(); const resultCount = new FakeElement(); const reset = new FakeElement(); const search = new FakeElement(); const format = new FakeElement(); const sort = new FakeElement(); const evidence = new FakeElement(); format.value = 'ALL'; sort.value = 'COLLECTED'; evidence.value = 'ALL';
-  root.map.set('.channel-panel', panel); root.map.set('[data-channel-videos]', videos); root.map.set('[data-channel-video-detail]', detail); root.map.set('[data-channel-video-summary]', summary); root.map.set('[data-channel-video-result-count]', resultCount); root.map.set('[data-channel-video-reset]', reset); root.map.set('[data-channel-video-search]', search); root.map.set('[data-channel-video-format]', format); root.map.set('[data-channel-video-sort]', sort); root.map.set('[data-channel-video-evidence]', evidence); panel.map.set('[data-channel-sync]', button); panel.map.set('[data-channel-feedback]', feedback);
-  return { root, button, feedback, videos, detail, summary, resultCount, reset, search, format, sort, evidence };
+  const root = new FakeElement(); const panel = new FakeElement(); const button = new FakeElement(); const feedback = new FakeElement(); const videos = new FakeElement(); const detail = new FakeElement(); const summary = new FakeElement(); const resultCount = new FakeElement(); const reset = new FakeElement(); const refresh = new FakeElement(); const search = new FakeElement(); const format = new FakeElement(); const sort = new FakeElement(); const evidence = new FakeElement(); format.value = 'ALL'; sort.value = 'COLLECTED'; evidence.value = 'ALL';
+  root.map.set('.channel-panel', panel); root.map.set('[data-channel-videos]', videos); root.map.set('[data-channel-video-detail]', detail); root.map.set('[data-channel-video-summary]', summary); root.map.set('[data-channel-video-result-count]', resultCount); root.map.set('[data-channel-video-reset]', reset); root.map.set('[data-channel-video-refresh]', refresh); root.map.set('[data-channel-video-search]', search); root.map.set('[data-channel-video-format]', format); root.map.set('[data-channel-video-sort]', sort); root.map.set('[data-channel-video-evidence]', evidence); panel.map.set('[data-channel-sync]', button); panel.map.set('[data-channel-feedback]', feedback);
+  return { root, button, feedback, videos, detail, summary, resultCount, reset, refresh, search, format, sort, evidence };
 };
 
 const deferred = () => { let resolve; let reject; const promise = new Promise((ok, fail) => { resolve = ok; reject = fail; }); return { promise, resolve, reject }; };
@@ -227,6 +227,17 @@ test('Channel resets every local content filter with one listener', async () => 
     page.search.value = 'x'; page.format.value = 'SHORTS'; page.evidence.value = 'MISSING_CTR'; page.sort.value = 'TITLE'; await page.reset.dispatch('click');
     assert.deepEqual([page.search.value, page.format.value, page.evidence.value, page.sort.value], ['', 'ALL', 'ALL', 'COLLECTED']);
     assert.equal(page.reset.listeners.get('click').size, 1);
+  } finally { globalThis.document = originalDocument; }
+});
+
+test('Channel refreshes local content single-flight without synchronizing Google', async () => {
+  const originalDocument = globalThis.document; globalThis.document = { createElement: () => new FakeElement() };
+  try {
+    const pending = deferred(); let listCalls = 0; let summaryCalls = 0; const page = channelDom();
+    createChannelController({ api: { listYouTubeChannelVideos: async () => { listCalls += 1; return listCalls === 1 ? [] : pending.promise; }, getYouTubeChannelVideoSummary: async () => { summaryCalls += 1; return {}; } } }).mount(page.root);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    const first = page.refresh.dispatch('click'); await page.refresh.dispatch('click'); assert.equal(listCalls, 2); assert.equal(summaryCalls, 2); assert.equal(page.refresh.disabled, true);
+    pending.resolve([{ videoId: 'a', title: 'Atualizado' }]); await first; assert.equal(page.refresh.disabled, false);
   } finally { globalThis.document = originalDocument; }
 });
 

@@ -52,8 +52,10 @@ export const createChannelController = ({ api, refreshDashboard }) => {
     const evidence = root.querySelector('[data-channel-video-evidence]');
     const resultCount = root.querySelector('[data-channel-video-result-count]');
     const resetFilters = root.querySelector('[data-channel-video-reset]');
+    const refreshContent = root.querySelector('[data-channel-video-refresh]');
     let loadedVideos = [];
     let selectedVideoId = null;
+    let contentLoading = false;
     const renderDetail = (result) => {
       if (!detail || !current()) return;
       const item = result?.current;
@@ -123,6 +125,18 @@ export const createChannelController = ({ api, refreshDashboard }) => {
     };
     const onFilter = () => applyFilters();
     const reset = () => { if (search) search.value = ''; if (format) format.value = 'ALL'; if (evidence) evidence.value = 'ALL'; if (sort) sort.value = 'COLLECTED'; applyFilters(); };
+    const loadContent = async () => {
+      if (contentLoading) return;
+      contentLoading = true; if (refreshContent) { refreshContent.disabled = true; refreshContent.setAttribute('aria-busy', 'true'); }
+      const hasList = typeof api.listYouTubeChannelVideos === 'function'; const hasSummary = typeof api.getYouTubeChannelVideoSummary === 'function';
+      const [listResult, summaryResult] = await Promise.allSettled([hasList ? api.listYouTubeChannelVideos(50) : undefined, hasSummary ? api.getYouTubeChannelVideoSummary() : undefined]);
+      if (!current()) { contentLoading = false; return; }
+      if (hasList && listResult.status === 'fulfilled') { loadedVideos = Array.isArray(listResult.value) ? listResult.value : []; applyFilters(); }
+      else if (hasList && videos) { videos.replaceChildren(); const message = document.createElement('p'); message.className = 'empty-state'; message.textContent = 'Não foi possível carregar os vídeos sincronizados.'; videos.append(message); }
+      if (hasSummary && summaryResult.status === 'fulfilled' && summary) renderSummary(summaryResult.value);
+      else if (hasSummary && summary) summary.textContent = 'Cobertura indisponível.';
+      contentLoading = false; if (refreshContent) { refreshContent.disabled = false; refreshContent.setAttribute('aria-busy', 'false'); }
+    };
     const sync = async () => {
       if (syncing || !button) return;
       syncing = true;
@@ -155,12 +169,9 @@ export const createChannelController = ({ api, refreshDashboard }) => {
     sort?.addEventListener('change', onFilter);
     evidence?.addEventListener('change', onFilter);
     resetFilters?.addEventListener('click', reset);
-    cleanup = () => { button?.removeEventListener('click', sync); search?.removeEventListener('input', onFilter); format?.removeEventListener('change', onFilter); sort?.removeEventListener('change', onFilter); evidence?.removeEventListener('change', onFilter); resetFilters?.removeEventListener('click', reset); };
-    api.listYouTubeChannelVideos?.(50).then((items) => { if (!current()) return; loadedVideos = Array.isArray(items) ? items : []; applyFilters(); }).catch(() => {
-      if (!videos || !current()) return;
-      videos.replaceChildren(); const message = document.createElement('p'); message.className = 'empty-state'; message.textContent = 'Não foi possível carregar os vídeos sincronizados.'; videos.append(message);
-    });
-    api.getYouTubeChannelVideoSummary?.().then((value) => {
+    refreshContent?.addEventListener('click', loadContent);
+    cleanup = () => { button?.removeEventListener('click', sync); search?.removeEventListener('input', onFilter); format?.removeEventListener('change', onFilter); sort?.removeEventListener('change', onFilter); evidence?.removeEventListener('change', onFilter); resetFilters?.removeEventListener('click', reset); refreshContent?.removeEventListener('click', loadContent); };
+    const renderSummary = (value = {}) => {
       if (!summary || !current()) return;
       summary.replaceChildren();
       for (const [label, amount] of [['Vídeos', value.videos], ['Coletas', value.observations], ['Com views', value.coverage?.views], ['Com retenção', value.coverage?.retention], ['Com CTR', value.coverage?.ctr]]) {
@@ -175,7 +186,8 @@ export const createChannelController = ({ api, refreshDashboard }) => {
         .filter(([, count]) => Number(count ?? 0) < Number(value.videos ?? 0)).map(([label, count]) => `${label} ${count ?? 0}/${value.videos ?? 0}`);
       details.textContent = `Formatos: ${formats}. Janela local desde ${windowStart}. Última coleta: ${collected}. ${missing.length ? `Cobertura parcial: ${missing.join(', ')}.` : 'Cobertura completa para os grupos adicionais.'}`;
       summary.append(details);
-    }).catch(() => { if (summary && current()) summary.textContent = 'Cobertura indisponível.'; });
+    };
+    loadContent();
   };
 
   const unmount = () => {
@@ -259,7 +271,7 @@ export const channelModule = {
         eyebrow: 'Conteúdo sincronizado',
         title: 'Vídeos recentes',
         className: 'channel-videos-panel',
-        body: html`<div class="channel-video-summary" data-channel-video-summary aria-live="polite"><span>Calculando cobertura...</span></div><div class="channel-video-filters"><label>Buscar<input type="search" data-channel-video-search placeholder="Título do vídeo"></label><label>Formato<select data-channel-video-format><option value="ALL">Todos</option><option value="LONG_FORM">Long-form</option><option value="SHORTS">Shorts</option><option value="LIVE">Live</option></select></label><label>Evidência<select data-channel-video-evidence><option value="ALL">Todas</option><option value="HAS_RETENTION">Com retenção</option><option value="MISSING_CTR">Sem CTR</option></select></label><label>Ordenar<select data-channel-video-sort><option value="COLLECTED">Coleta recente</option><option value="VIEWS">Mais views</option><option value="RETENTION">Maior retenção</option><option value="CTR">Maior CTR</option><option value="TITLE">Título</option></select></label><button class="button secondary" type="button" data-channel-video-reset>Limpar filtros</button></div><p class="channel-video-result-count" data-channel-video-result-count aria-live="polite">Carregando resultados...</p><div class="channel-video-layout"><div class="channel-video-list" data-channel-videos aria-live="polite"><p class="empty-state">Carregando vídeos...</p></div><aside class="channel-video-detail" data-channel-video-detail aria-live="polite">Selecione um vídeo para ver métricas e histórico.</aside></div>`,
+        body: html`<div class="channel-video-summary" data-channel-video-summary aria-live="polite"><span>Calculando cobertura...</span></div><div class="channel-video-filters"><label>Buscar<input type="search" data-channel-video-search placeholder="Título do vídeo"></label><label>Formato<select data-channel-video-format><option value="ALL">Todos</option><option value="LONG_FORM">Long-form</option><option value="SHORTS">Shorts</option><option value="LIVE">Live</option></select></label><label>Evidência<select data-channel-video-evidence><option value="ALL">Todas</option><option value="HAS_RETENTION">Com retenção</option><option value="MISSING_CTR">Sem CTR</option></select></label><label>Ordenar<select data-channel-video-sort><option value="COLLECTED">Coleta recente</option><option value="VIEWS">Mais views</option><option value="RETENTION">Maior retenção</option><option value="CTR">Maior CTR</option><option value="TITLE">Título</option></select></label><button class="button secondary" type="button" data-channel-video-reset>Limpar filtros</button><button class="button secondary" type="button" data-channel-video-refresh>Atualizar lista local</button></div><p class="channel-video-result-count" data-channel-video-result-count aria-live="polite">Carregando resultados...</p><div class="channel-video-layout"><div class="channel-video-list" data-channel-videos aria-live="polite"><p class="empty-state">Carregando vídeos...</p></div><aside class="channel-video-detail" data-channel-video-detail aria-live="polite">Selecione um vídeo para ver métricas e histórico.</aside></div>`,
       })}
       ${createPanel({
         eyebrow: 'Integrações oficiais',
