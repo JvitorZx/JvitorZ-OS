@@ -261,15 +261,17 @@ test('Channel renders persisted coverage summary without inventing missing metri
     const page = channelDom();
     createChannelController({ api: {
       listYouTubeChannelVideos: async () => [],
-      getYouTubeChannelVideoSummary: async () => ({ videos: 2, observations: 3, formats: { SHORTS: 1, LONG_FORM: 1 }, earliestCollectedAt: '2026-09-01T12:00:00Z', latestCollectedAt: '2026-09-10T12:00:00Z', coverage: { views: 1, watchTime: 1, retention: 0, impressions: 0, ctr: 0, subscribers: 0, interactions: 1 } }),
+      getYouTubeChannelVideoSummary: async () => ({ videos: 2, observations: 3, formats: { SHORTS: 1, LONG_FORM: 1 }, earliestCollectedAt: '2026-09-01T12:00:00Z', latestCollectedAt: '2026-09-10T12:00:00Z', coverage: { views: 1, watchTime: 1, retention: 0, impressions: 0, ctr: 0, subscribers: 0, interactions: 1 }, formatCohorts: { LONG_FORM: { videos: 1, coverage: { views: 0, retention: 0, ctr: 1 } }, SHORTS: { videos: 1, coverage: { views: 1, retention: 0, ctr: 0 } } } }),
     } }).mount(page.root);
     await new Promise((resolve) => setTimeout(resolve, 0));
-    assert.equal(page.summary.children.length, 6);
+    assert.equal(page.summary.children.length, 8);
     assert.equal(page.summary.children[0].children[0].textContent, '2');
     assert.equal(page.summary.children[3].children[0].textContent, '0');
     assert.match(page.summary.children[5].textContent, /SHORTS: 1/);
     assert.match(page.summary.children[5].textContent, /desde 01\/09\/2026/);
     assert.match(page.summary.children[5].textContent, /Cobertura parcial: watch time 1\/2/);
+    assert.equal(page.summary.children[6].textContent, 'LONG_FORM: 1 vídeo(s) · views 0/1 · retenção 0/1 · CTR 1/1');
+    assert.equal(page.summary.children[7].textContent, 'SHORTS: 1 vídeo(s) · views 1/1 · retenção 0/1 · CTR 0/1');
   } finally { globalThis.document = originalDocument; }
 });
 

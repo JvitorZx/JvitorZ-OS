@@ -209,6 +209,11 @@ export const createChannelController = ({ api, refreshDashboard }) => {
         .filter(([, count]) => Number(count ?? 0) < Number(value.videos ?? 0)).map(([label, count]) => `${label} ${count ?? 0}/${value.videos ?? 0}`);
       details.textContent = `Formatos: ${formats}. Janela local desde ${windowStart}. Última coleta: ${collected}. ${missing.length ? `Cobertura parcial: ${missing.join(', ')}.` : 'Cobertura completa para os grupos adicionais.'}`;
       summary.append(details);
+      for (const [name, cohort] of Object.entries(value.formatCohorts ?? {})) {
+        const row = document.createElement('p'); row.className = 'channel-video-summary-detail';
+        row.textContent = `${name}: ${cohort.videos ?? 0} vídeo(s) · views ${cohort.coverage?.views ?? 0}/${cohort.videos ?? 0} · retenção ${cohort.coverage?.retention ?? 0}/${cohort.videos ?? 0} · CTR ${cohort.coverage?.ctr ?? 0}/${cohort.videos ?? 0}`;
+        summary.append(row);
+      }
     };
     loadContent();
   };

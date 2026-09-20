@@ -1722,7 +1722,11 @@ Comparações entre formatos diferentes recebem aviso explícito de cautela. O s
 
 O resumo persistido do Canal agora separa contagem e cobertura factual por formato. As coortes usam o snapshot mais recente de cada vídeo e não fabricam médias ou comparações quando faltam evidências.
 
-**Proximo checkpoint: Sprint 85 - NAO INICIADA; escopo ainda nao definido.**
+## Sprint 85 - Channel Cohort Visibility - CONCLUIDA
+
+A tela Canal apresenta a cobertura real de views, retenção e CTR dentro de cada formato. A UI comunica disponibilidade de evidência sem calcular vencedores ou extrapolar desempenho.
+
+**Proximo checkpoint: Sprint 86 - NAO INICIADA; escopo ainda nao definido.**
 
 ### Revisao de encerramento apos Sprint 53
 
