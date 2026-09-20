@@ -209,3 +209,14 @@ test('recent channel content keeps the newest persisted snapshot per video', asy
   assert.equal(result[0].title, 'A novo');
   assert.equal('source' in result[0], false);
 });
+
+test('channel video detail preserves ordered collection history', async () => {
+  const records = [
+    { id: 'new', videoId: 'video-1', title: 'Novo', collectedAt: new Date('2026-09-10'), views: 20 },
+    { id: 'old', videoId: 'video-1', title: 'Antigo', collectedAt: new Date('2026-09-09'), views: 10 },
+  ];
+  const service = new ChannelContentService({ findAll: async (filters) => { assert.deepEqual(filters, { videoId: 'video-1' }); return records; } });
+  const result = await service.getVideo('video-1');
+  assert.equal(result.current.id, 'new');
+  assert.deepEqual(result.history.map(({ id }) => id), ['new', 'old']);
+});

@@ -7,13 +7,13 @@ import {
   isGoogleTemporarilyUnavailable,
 } from '../services/GoogleService';
 import { ChannelDataService } from '../services/ChannelDataService';
-import { ChannelContentService, ChannelContentValidationError } from '../services/ChannelContentService';
+import { ChannelContentService, ChannelContentValidationError, ChannelVideoNotFoundError } from '../services/ChannelContentService';
 
 type YouTubeRouteDependencies = {
   googleService: Pick<GoogleService, 'isAuthenticated'>;
   createChannelService: () => Pick<ChannelService, 'getChannelInfo'>;
   channelDataService: Pick<ChannelDataService, 'getChannel'>;
-  channelContentService: Pick<ChannelContentService, 'listRecent'>;
+  channelContentService: Pick<ChannelContentService, 'listRecent' | 'getVideo'>;
 };
 
 export const createYouTubeRouter = (dependencies: Partial<YouTubeRouteDependencies> = {}): Router => {
@@ -95,6 +95,17 @@ export const createYouTubeRouter = (dependencies: Partial<YouTubeRouteDependenci
       const name = error instanceof Error ? error.name : 'UnknownError';
       console.error(`Failed to list persisted channel videos (${name})`);
       return res.status(500).json({ code: 'INTERNAL_ERROR', error: 'Failed to list channel videos' });
+    }
+  });
+  router.get('/videos/:videoId', async (req, res) => {
+    try {
+      return res.status(200).json(await channelContentService.getVideo(req.params.videoId));
+    } catch (error) {
+      if (error instanceof ChannelContentValidationError) return res.status(400).json({ code: 'INVALID_REQUEST', error: error.message });
+      if (error instanceof ChannelVideoNotFoundError) return res.status(404).json({ code: 'NO_DATA', error: 'Video not found' });
+      const name = error instanceof Error ? error.name : 'UnknownError';
+      console.error(`Failed to open persisted channel video (${name})`);
+      return res.status(500).json({ code: 'INTERNAL_ERROR', error: 'Failed to open channel video' });
     }
   });
   return router;

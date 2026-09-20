@@ -1571,7 +1571,19 @@ Entregas:
 - campos ausentes permanecem explícitos e a abertura da página não consulta Google;
 - conteúdo renderizado com DOM textual, lifecycle idempotente e resposta tardia ignorada.
 
-**Proximo checkpoint: Sprint 58 - NAO INICIADA; escopo ainda nao definido.**
+## Sprint 58 - Channel Video Evidence Detail - CONCLUIDA
+
+**Objetivo:** abrir um vídeo sincronizado e inspecionar suas métricas observadas e histórico local de coletas.
+
+Entregas:
+
+- detalhe local por `videoId`, sem chamada externa;
+- snapshot atual e até 20 observações históricas preservadas;
+- métricas ausentes exibidas como ausentes, sem estimativa;
+- seleção de vídeo na workspace Canal com renderização textual segura;
+- respostas tardias de detalhe não alteram uma montagem encerrada.
+
+**Proximo checkpoint: Sprint 59 - NAO INICIADA; escopo ainda nao definido.**
 
 ### Revisao de encerramento apos Sprint 53
 

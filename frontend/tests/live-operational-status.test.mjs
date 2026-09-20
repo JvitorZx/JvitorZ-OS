@@ -39,9 +39,9 @@ class FakeElement {
 }
 
 const channelDom = () => {
-  const root = new FakeElement(); const panel = new FakeElement(); const button = new FakeElement(); const feedback = new FakeElement(); const videos = new FakeElement();
-  root.map.set('.channel-panel', panel); root.map.set('[data-channel-videos]', videos); panel.map.set('[data-channel-sync]', button); panel.map.set('[data-channel-feedback]', feedback);
-  return { root, button, feedback, videos };
+  const root = new FakeElement(); const panel = new FakeElement(); const button = new FakeElement(); const feedback = new FakeElement(); const videos = new FakeElement(); const detail = new FakeElement();
+  root.map.set('.channel-panel', panel); root.map.set('[data-channel-videos]', videos); root.map.set('[data-channel-video-detail]', detail); panel.map.set('[data-channel-sync]', button); panel.map.set('[data-channel-feedback]', feedback);
+  return { root, button, feedback, videos, detail };
 };
 
 const deferred = () => { let resolve; let reject; const promise = new Promise((ok, fail) => { resolve = ok; reject = fail; }); return { promise, resolve, reject }; };
@@ -93,17 +93,21 @@ test('channel client exposes explicit read and synchronization contracts', async
   const calls = [];
   globalThis.fetch = async (url, options) => {
     calls.push({ url, options });
-    return { ok: true, status: 200, json: async () => url.includes('/videos?') ? [{ id: 'snapshot-1' }] : ({ id: 'channel-1' }) };
+    return { ok: true, status: 200, json: async () => url.includes('/videos?')
+      ? [{ id: 'snapshot-1' }]
+      : url.includes('/videos/') ? { current: { videoId: 'video/1' }, history: [] } : ({ id: 'channel-1' }) };
   };
   try {
     const api = createApiClient('http://localhost:3000');
     assert.equal((await api.getYouTubeChannel()).id, 'channel-1');
     assert.equal((await api.syncYouTubeChannel()).id, 'channel-1');
     assert.equal((await api.listYouTubeChannelVideos(8)).length, 1);
+    assert.equal((await api.getYouTubeChannelVideo('video/1')).current.videoId, 'video/1');
     assert.deepEqual(calls, [
       { url: 'http://localhost:3000/api/youtube/channel', options: undefined },
       { url: 'http://localhost:3000/api/youtube/channel/sync', options: { method: 'POST' } },
       { url: 'http://localhost:3000/api/youtube/videos?limit=8', options: undefined },
+      { url: 'http://localhost:3000/api/youtube/videos/video%2F1', options: undefined },
     ]);
   } finally {
     globalThis.fetch = originalFetch;
@@ -118,6 +122,21 @@ test('Channel renders recent persisted videos as text and ignores duplicates fro
     controller.mount(page.root); controller.mount(page.root); await new Promise((resolve) => setTimeout(resolve, 0));
     assert.equal(calls, 1); assert.equal(page.videos.children.length, 1);
     assert.equal(page.videos.children[0].children[0].children[0].textContent, '<img src=x onerror=alert(1)>');
+  } finally { globalThis.document = originalDocument; }
+});
+
+test('Channel opens persisted video detail and keeps missing metrics explicit', async () => {
+  const originalDocument = globalThis.document; globalThis.document = { createElement: () => new FakeElement() };
+  try {
+    const page = channelDom();
+    const controller = createChannelController({ api: {
+      listYouTubeChannelVideos: async () => [{ videoId: 'v1', title: 'Vídeo', format: 'LONG_FORM', views: 10 }],
+      getYouTubeChannelVideo: async () => ({ current: { videoId: 'v1', title: '<b>Vídeo</b>', format: 'LONG_FORM', views: 10, ctr: null }, history: [{ id: 'one' }] }),
+    } });
+    controller.mount(page.root); await new Promise((resolve) => setTimeout(resolve, 0));
+    const open = page.videos.children[0].children[2]; await open.dispatch('click');
+    assert.equal(page.detail.children[0].textContent, '<b>Vídeo</b>');
+    assert.match(page.detail.children[3].textContent, /1 coleta/);
   } finally { globalThis.document = originalDocument; }
 });
 

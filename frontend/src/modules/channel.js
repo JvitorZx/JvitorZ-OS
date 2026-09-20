@@ -12,6 +12,7 @@ const channelErrorMessage = (error) => {
 export const createChannelController = ({ api, refreshDashboard }) => {
   let mountedRoot = null;
   let generation = 0;
+  let detailRequest = 0;
   let syncing = false;
   let cleanup = () => {};
 
@@ -25,6 +26,28 @@ export const createChannelController = ({ api, refreshDashboard }) => {
     const button = panel.querySelector('[data-channel-sync]');
     const feedback = panel.querySelector('[data-channel-feedback]');
     const videos = root.querySelector('[data-channel-videos]');
+    const detail = root.querySelector('[data-channel-video-detail]');
+    const renderDetail = (result) => {
+      if (!detail || !current()) return;
+      const item = result?.current;
+      detail.replaceChildren();
+      if (!item) { detail.textContent = 'Detalhes indisponíveis.'; return; }
+      const heading = document.createElement('h3'); heading.textContent = item.title ?? 'Vídeo sem título';
+      const identity = document.createElement('p'); identity.textContent = `${item.format ?? 'Formato desconhecido'} · ${item.videoId}`;
+      const metrics = document.createElement('dl'); metrics.className = 'channel-video-metrics';
+      for (const [label, value] of [['Views', item.views], ['Watch time (min)', item.watchTimeMinutes], ['Retenção média (%)', item.averageViewPercentage], ['Impressões', item.impressions], ['CTR', item.ctr], ['Likes', item.likes], ['Comentários', item.comments]]) {
+        const term = document.createElement('dt'); term.textContent = label; const description = document.createElement('dd'); description.textContent = value === null || value === undefined ? '--' : String(value); metrics.append(term, description);
+      }
+      const history = document.createElement('small'); history.textContent = `${result.history?.length ?? 0} coleta(s) preservada(s). Última coleta: ${item.collectedAt ? new Date(item.collectedAt).toLocaleString('pt-BR') : '--'}`;
+      detail.append(heading, identity, metrics, history);
+    };
+    const openVideo = async (videoId) => {
+      const request = ++detailRequest;
+      if (detail) { detail.textContent = 'Carregando detalhes...'; detail.setAttribute('aria-busy', 'true'); }
+      try { const result = await api.getYouTubeChannelVideo(videoId); if (current() && request === detailRequest) renderDetail(result); }
+      catch (error) { if (detail && current() && request === detailRequest) detail.textContent = error?.status === 404 ? 'Este vídeo não está mais disponível.' : 'Não foi possível abrir os detalhes do vídeo.'; }
+      finally { if (detail && current() && request === detailRequest) detail.setAttribute('aria-busy', 'false'); }
+    };
     const renderVideos = (items) => {
       if (!videos || !current()) return;
       videos.replaceChildren();
@@ -37,7 +60,8 @@ export const createChannelController = ({ api, refreshDashboard }) => {
         const title = document.createElement('strong'); title.textContent = item.title ?? 'Vídeo sem título';
         const meta = document.createElement('small'); meta.textContent = `${item.format ?? 'Formato desconhecido'} · ${item.videoId ?? 'ID indisponível'}`;
         const facts = document.createElement('span'); facts.textContent = `${Number(item.views ?? 0).toLocaleString('pt-BR')} views · coletado em ${item.collectedAt ? new Date(item.collectedAt).toLocaleDateString('pt-BR') : '--'}`;
-        copy.append(title, meta); row.append(copy, facts); videos.append(row);
+        const open = document.createElement('button'); open.type = 'button'; open.className = 'button secondary'; open.textContent = 'Detalhes'; open.addEventListener('click', () => openVideo(item.videoId));
+        copy.append(title, meta); row.append(copy, facts, open); videos.append(row);
       }
     };
     const sync = async () => {
@@ -76,7 +100,7 @@ export const createChannelController = ({ api, refreshDashboard }) => {
 
   const unmount = () => {
     cleanup(); cleanup = () => {};
-    mountedRoot = null; generation += 1; syncing = false;
+    mountedRoot = null; generation += 1; detailRequest += 1; syncing = false;
   };
 
   return { mount, unmount };
@@ -157,7 +181,7 @@ export const channelModule = {
         eyebrow: 'Conteúdo sincronizado',
         title: 'Vídeos recentes',
         className: 'channel-videos-panel',
-        body: html`<div class="channel-video-list" data-channel-videos aria-live="polite"><p class="empty-state">Carregando vídeos...</p></div>`,
+        body: html`<div class="channel-video-layout"><div class="channel-video-list" data-channel-videos aria-live="polite"><p class="empty-state">Carregando vídeos...</p></div><aside class="channel-video-detail" data-channel-video-detail aria-live="polite">Selecione um vídeo para ver métricas e histórico.</aside></div>`,
       })}
       ${createPanel({
         eyebrow: 'Integrações oficiais',

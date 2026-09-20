@@ -222,4 +222,17 @@ describe('YouTube route expected states', { concurrency: false }, () => {
     assert.equal(response.status, 400);
     assert.equal((await response.json()).code, 'INVALID_REQUEST');
   });
+
+  test('opens one persisted video and returns 404 safely when absent', async () => {
+    youtubeDependencies = {
+      channelContentService: { getVideo: async (id) => ({ current: { videoId: id }, history: [] }) },
+    };
+    const found = await fetch(`${baseUrl}/api/youtube/videos/video-1`);
+    assert.equal(found.status, 200); assert.equal((await found.json()).current.videoId, 'video-1');
+
+    const { ChannelVideoNotFoundError } = require('../dist/services/ChannelContentService');
+    youtubeDependencies = { channelContentService: { getVideo: async () => { throw new ChannelVideoNotFoundError('missing'); } } };
+    const missing = await fetch(`${baseUrl}/api/youtube/videos/missing`);
+    assert.equal(missing.status, 404); assert.equal((await missing.json()).code, 'NO_DATA');
+  });
 });

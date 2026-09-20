@@ -1090,6 +1090,10 @@ Executa uma atualização explícita e única do canal. Não recebe body. Retorn
 
 Lista o snapshot persistido mais recente de cada vídeo, em ordem de coleta, sem acessar a rede externa. `limit` é opcional, inteiro entre 1 e 50. Retorna somente identidade, formato, datas e métricas realmente armazenadas; campos ausentes permanecem `null`. Payload inválido retorna `400` e falha inesperada retorna `500` sanitizado.
 
+### `GET /api/youtube/videos/:videoId`
+
+Retorna `current` com o snapshot persistido mais recente e `history` com até 20 coletas do mesmo vídeo, em ordem decrescente. Não chama Google. Retorna `400` para ID inválido, `404` com `NO_DATA` quando não há snapshot e `500` sanitizado para falha inesperada.
+
 ## Audience e fontes de tráfego
 
 Base: `/api/operators/creator-intelligence/audience`.
