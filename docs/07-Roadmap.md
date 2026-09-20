@@ -1762,7 +1762,11 @@ Requisições paginadas possuem identidade própria de montagem. Respostas tardi
 
 A workspace diferencia a quantidade exibida na página do total persistido retornado pelo backend. Filtros locais continuam descrevendo apenas o recorte carregado.
 
-**Proximo checkpoint: Sprint 95 - NAO INICIADA; escopo ainda nao definido.**
+## Sprint 95 - Channel Page Size Control - CONCLUIDA
+
+O usuário pode escolher 12, 24 ou 50 vídeos por página. A mudança volta à primeira página e reutiliza validação e paginação centralizadas.
+
+**Proximo checkpoint: Sprint 96 - NAO INICIADA; escopo ainda nao definido.**
 
 ### Revisao de encerramento apos Sprint 53
 
