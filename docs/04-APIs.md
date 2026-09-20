@@ -1090,6 +1090,14 @@ Executa uma atualização explícita e única do canal. Não recebe body. Retorn
 
 Lista o snapshot persistido mais recente de cada vídeo, em ordem de coleta, sem acessar a rede externa. `limit` é opcional, inteiro entre 1 e 50. Retorna somente identidade, formato, datas e métricas realmente armazenadas; campos ausentes permanecem `null`. Payload inválido retorna `400` e falha inesperada retorna `500` sanitizado.
 
+### `GET /api/youtube/videos-page?page=1&pageSize=12`
+
+Pagina os vídeos persistidos depois de deduplicar snapshots por `videoId`. `page` deve ser inteiro positivo e `pageSize` aceita 1 a 50. Retorna `items`, `page`, `pageSize`, `total` e `totalPages`. Não acessa Google; payload inválido retorna `400`.
+
+### `GET /api/youtube/videos-export.csv`
+
+Baixa CSV com o snapshot mais recente de cada vídeo. O arquivo contém somente campos persistidos, usa escape de aspas e neutraliza células iniciadas por `=`, `+`, `-` ou `@` para evitar execução como fórmula em planilhas. Retorna `Content-Disposition: attachment` e não consulta rede externa.
+
 ### `GET /api/youtube/videos/:videoId`
 
 Retorna `current` com o snapshot persistido mais recente e `history` com até 20 coletas do mesmo vídeo, em ordem decrescente. Não chama Google. Retorna `400` para ID inválido, `404` com `NO_DATA` quando não há snapshot e `500` sanitizado para falha inesperada.
@@ -1495,4 +1503,4 @@ Nenhum endpoint publica ou modifica video no YouTube. O backend nao aceita camin
 
 Resume a cobertura local dos snapshots persistidos, sem consultar o Google. Retorna quantidade de vídeos únicos, observações, formatos, início/fim da janela local e contagens de vídeos que realmente possuem cada grupo de métricas. Campos ausentes não são estimados.
 
-As leituras `/videos`, `/videos-summary` e `/videos/:videoId` usam `Cache-Control: no-store` para que atualização local explícita reflita o SQLite atual.
+As leituras `/videos`, `/videos-page`, `/videos-export.csv`, `/videos-summary` e `/videos/:videoId` usam `Cache-Control: no-store` para que atualização local explícita reflita o SQLite atual.

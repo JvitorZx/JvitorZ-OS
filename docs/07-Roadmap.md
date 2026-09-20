@@ -1774,7 +1774,11 @@ O backend exporta o snapshot mais recente de cada vídeo em CSV, sem rede extern
 
 A workspace oferece download do CSV persistido por uma URL construída no client central. O navegador não reconstrói nem envia o conteúdo dos vídeos.
 
-**Proximo checkpoint: Sprint 98 - NAO INICIADA; escopo ainda nao definido.**
+## Sprint 98 - Channel Export Integrity - CONCLUIDA
+
+O contrato CSV foi submetido a casos de fórmula, vírgula e aspas e documentado junto à paginação. O download continua local, factual e sem acesso adicional ao provider.
+
+**Proximo checkpoint: Sprint 99 - NAO INICIADA; escopo ainda nao definido.**
 
 ### Revisao de encerramento apos Sprint 53
 

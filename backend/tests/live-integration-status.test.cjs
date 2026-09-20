@@ -223,9 +223,17 @@ test('channel content pagination deduplicates before slicing and reports totals'
 });
 
 test('channel CSV export deduplicates snapshots and neutralizes spreadsheet formulas', async () => {
-  const records = [{ id: 'new', videoId: 'a', title: '=2+2', format: 'SHORTS', collectedAt: new Date('2026-09-10'), views: 20 }, { id: 'old', videoId: 'a', title: 'Old', collectedAt: new Date('2026-09-08'), views: 5 }];
+  const records = [
+    { id: 'new', videoId: 'a', title: '=2+2', format: 'SHORTS', collectedAt: new Date('2026-09-10'), views: 20 },
+    { id: 'b', videoId: 'b', title: '+SUM(A1)', collectedAt: new Date('2026-09-09') },
+    { id: 'c', videoId: 'c', title: '-1', collectedAt: new Date('2026-09-09') },
+    { id: 'd', videoId: 'd', title: '@cmd', collectedAt: new Date('2026-09-09') },
+    { id: 'e', videoId: 'e', title: 'Título "com aspas", e vírgula', collectedAt: new Date('2026-09-09') },
+    { id: 'old', videoId: 'a', title: 'Old', collectedAt: new Date('2026-09-08'), views: 5 },
+  ];
   const csv = await new ChannelContentService({ findAll: async () => records }).exportCsv();
-  assert.match(csv, /^videoId,title,format/); assert.match(csv, /"'=2\+2"/); assert.equal(csv.split('\r\n').length, 2); assert.doesNotMatch(csv, /Old/);
+  assert.match(csv, /^videoId,title,format/); for (const value of ["'=2+2", "'+SUM(A1)", "'-1", "'@cmd"]) assert.ok(csv.includes(`"${value}"`));
+  assert.match(csv, /"Título ""com aspas"", e vírgula"/); assert.equal(csv.split('\r\n').length, 6); assert.doesNotMatch(csv, /Old/);
 });
 
 test('channel video detail preserves ordered collection history', async () => {
