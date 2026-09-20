@@ -1746,7 +1746,11 @@ A região e a tabela de comparação possuem nomes acessíveis específicos. Em 
 
 O backend oferece paginação explícita e compatível para vídeos persistidos, deduplicando snapshots antes do recorte e retornando total e número de páginas. O endpoint legado foi preservado.
 
-**Proximo checkpoint: Sprint 91 - NAO INICIADA; escopo ainda nao definido.**
+## Sprint 91 - Channel Pagination Client - CONCLUIDA
+
+O client central expõe o contrato paginado com validação local de página e tamanho. URLs e erros permanecem centralizados, sem chamadas `fetch` espalhadas pelo módulo Canal.
+
+**Proximo checkpoint: Sprint 92 - NAO INICIADA; escopo ainda nao definido.**
 
 ### Revisao de encerramento apos Sprint 53
 

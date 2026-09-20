@@ -96,6 +96,7 @@ test('channel client exposes explicit read and synchronization contracts', async
     calls.push({ url, options });
     return { ok: true, status: 200, json: async () => url.includes('/videos-summary')
       ? { videos: 2, observations: 3, coverage: { views: 1 } }
+      : url.includes('/videos-page?') ? { items: [{ id: 'snapshot-2' }], page: 2, pageSize: 8, total: 9, totalPages: 2 }
       : url.includes('/videos?')
       ? [{ id: 'snapshot-1' }]
       : url.includes('/videos/') ? { current: { videoId: 'video/1' }, history: [] } : ({ id: 'channel-1' }) };
@@ -105,15 +106,19 @@ test('channel client exposes explicit read and synchronization contracts', async
     assert.equal((await api.getYouTubeChannel()).id, 'channel-1');
     assert.equal((await api.syncYouTubeChannel()).id, 'channel-1');
     assert.equal((await api.listYouTubeChannelVideos(8)).length, 1);
+    assert.equal((await api.pageYouTubeChannelVideos(2, 8)).total, 9);
     assert.equal((await api.getYouTubeChannelVideoSummary()).videos, 2);
     assert.equal((await api.getYouTubeChannelVideo('video/1')).current.videoId, 'video/1');
     assert.deepEqual(calls, [
       { url: 'http://localhost:3000/api/youtube/channel', options: undefined },
       { url: 'http://localhost:3000/api/youtube/channel/sync', options: { method: 'POST' } },
       { url: 'http://localhost:3000/api/youtube/videos?limit=8', options: undefined },
+      { url: 'http://localhost:3000/api/youtube/videos-page?page=2&pageSize=8', options: undefined },
       { url: 'http://localhost:3000/api/youtube/videos-summary', options: undefined },
       { url: 'http://localhost:3000/api/youtube/videos/video%2F1', options: undefined },
     ]);
+    await assert.rejects(() => api.pageYouTubeChannelVideos(0, 8), /page/);
+    await assert.rejects(() => api.pageYouTubeChannelVideos(1, 51), /pageSize/);
   } finally {
     globalThis.fetch = originalFetch;
   }

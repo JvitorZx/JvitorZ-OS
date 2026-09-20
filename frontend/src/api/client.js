@@ -173,6 +173,12 @@ export const createApiClient = (baseUrl) => ({
     return requestJson(`${baseUrl}/api/youtube/videos?limit=${limit}`, undefined, 'Erro ao carregar vídeos do canal');
   },
 
+  async pageYouTubeChannelVideos(page = 1, pageSize = 12) {
+    if (!Number.isInteger(page) || page < 1) throw new TypeError('page must be a positive integer');
+    if (!Number.isInteger(pageSize) || pageSize < 1 || pageSize > 50) throw new TypeError('pageSize must be an integer from 1 to 50');
+    return requestJson(`${baseUrl}/api/youtube/videos-page?page=${page}&pageSize=${pageSize}`, undefined, 'Erro ao paginar vídeos do canal');
+  },
+
   async getYouTubeChannelVideo(videoId) {
     const id = requireIdentifier(videoId, 'videoId');
     return requestJson(`${baseUrl}/api/youtube/videos/${encodeURIComponent(id)}`, undefined, 'Erro ao abrir vídeo do canal');
