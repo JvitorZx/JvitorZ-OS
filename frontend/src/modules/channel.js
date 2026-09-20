@@ -27,6 +27,9 @@ export const createChannelController = ({ api, refreshDashboard }) => {
     const feedback = panel.querySelector('[data-channel-feedback]');
     const videos = root.querySelector('[data-channel-videos]');
     const detail = root.querySelector('[data-channel-video-detail]');
+    const search = root.querySelector('[data-channel-video-search]');
+    const format = root.querySelector('[data-channel-video-format]');
+    let loadedVideos = [];
     const renderDetail = (result) => {
       if (!detail || !current()) return;
       const item = result?.current;
@@ -64,6 +67,15 @@ export const createChannelController = ({ api, refreshDashboard }) => {
         copy.append(title, meta); row.append(copy, facts, open); videos.append(row);
       }
     };
+    const applyFilters = () => {
+      const query = String(search?.value ?? '').trim().toLocaleLowerCase('pt-BR');
+      const selectedFormat = String(format?.value ?? 'ALL');
+      renderVideos(loadedVideos.filter((item) => (
+        (selectedFormat === 'ALL' || item.format === selectedFormat)
+        && (!query || String(item.title ?? '').toLocaleLowerCase('pt-BR').includes(query))
+      )));
+    };
+    const onFilter = () => applyFilters();
     const sync = async () => {
       if (syncing || !button) return;
       syncing = true;
@@ -91,8 +103,10 @@ export const createChannelController = ({ api, refreshDashboard }) => {
       }
     };
     button?.addEventListener('click', sync);
-    cleanup = () => button?.removeEventListener('click', sync);
-    api.listYouTubeChannelVideos?.(12).then(renderVideos).catch(() => {
+    search?.addEventListener('input', onFilter);
+    format?.addEventListener('change', onFilter);
+    cleanup = () => { button?.removeEventListener('click', sync); search?.removeEventListener('input', onFilter); format?.removeEventListener('change', onFilter); };
+    api.listYouTubeChannelVideos?.(50).then((items) => { if (!current()) return; loadedVideos = Array.isArray(items) ? items : []; applyFilters(); }).catch(() => {
       if (!videos || !current()) return;
       videos.replaceChildren(); const message = document.createElement('p'); message.className = 'empty-state'; message.textContent = 'Não foi possível carregar os vídeos sincronizados.'; videos.append(message);
     });
@@ -181,7 +195,7 @@ export const channelModule = {
         eyebrow: 'Conteúdo sincronizado',
         title: 'Vídeos recentes',
         className: 'channel-videos-panel',
-        body: html`<div class="channel-video-layout"><div class="channel-video-list" data-channel-videos aria-live="polite"><p class="empty-state">Carregando vídeos...</p></div><aside class="channel-video-detail" data-channel-video-detail aria-live="polite">Selecione um vídeo para ver métricas e histórico.</aside></div>`,
+        body: html`<div class="channel-video-filters"><label>Buscar<input type="search" data-channel-video-search placeholder="Título do vídeo"></label><label>Formato<select data-channel-video-format><option value="ALL">Todos</option><option value="LONG_FORM">Long-form</option><option value="SHORTS">Shorts</option><option value="LIVE">Live</option></select></label></div><div class="channel-video-layout"><div class="channel-video-list" data-channel-videos aria-live="polite"><p class="empty-state">Carregando vídeos...</p></div><aside class="channel-video-detail" data-channel-video-detail aria-live="polite">Selecione um vídeo para ver métricas e histórico.</aside></div>`,
       })}
       ${createPanel({
         eyebrow: 'Integrações oficiais',

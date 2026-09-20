@@ -39,9 +39,9 @@ class FakeElement {
 }
 
 const channelDom = () => {
-  const root = new FakeElement(); const panel = new FakeElement(); const button = new FakeElement(); const feedback = new FakeElement(); const videos = new FakeElement(); const detail = new FakeElement();
-  root.map.set('.channel-panel', panel); root.map.set('[data-channel-videos]', videos); root.map.set('[data-channel-video-detail]', detail); panel.map.set('[data-channel-sync]', button); panel.map.set('[data-channel-feedback]', feedback);
-  return { root, button, feedback, videos, detail };
+  const root = new FakeElement(); const panel = new FakeElement(); const button = new FakeElement(); const feedback = new FakeElement(); const videos = new FakeElement(); const detail = new FakeElement(); const search = new FakeElement(); const format = new FakeElement(); format.value = 'ALL';
+  root.map.set('.channel-panel', panel); root.map.set('[data-channel-videos]', videos); root.map.set('[data-channel-video-detail]', detail); root.map.set('[data-channel-video-search]', search); root.map.set('[data-channel-video-format]', format); panel.map.set('[data-channel-sync]', button); panel.map.set('[data-channel-feedback]', feedback);
+  return { root, button, feedback, videos, detail, search, format };
 };
 
 const deferred = () => { let resolve; let reject; const promise = new Promise((ok, fail) => { resolve = ok; reject = fail; }); return { promise, resolve, reject }; };
@@ -137,6 +137,20 @@ test('Channel opens persisted video detail and keeps missing metrics explicit', 
     const open = page.videos.children[0].children[2]; await open.dispatch('click');
     assert.equal(page.detail.children[0].textContent, '<b>Vídeo</b>');
     assert.match(page.detail.children[3].textContent, /1 coleta/);
+  } finally { globalThis.document = originalDocument; }
+});
+
+test('Channel filters the loaded local list without another API request', async () => {
+  const originalDocument = globalThis.document; globalThis.document = { createElement: () => new FakeElement() };
+  try {
+    let calls = 0; const page = channelDom();
+    createChannelController({ api: { listYouTubeChannelVideos: async (limit) => { calls += 1; assert.equal(limit, 50); return [
+      { videoId: 'a', title: 'City Car', format: 'LONG_FORM' }, { videoId: 'b', title: 'Forza Short', format: 'SHORTS' },
+    ]; } } }).mount(page.root);
+    await new Promise((resolve) => setTimeout(resolve, 0)); assert.equal(page.videos.children.length, 2);
+    page.search.value = 'forza'; await page.search.dispatch('input'); assert.equal(page.videos.children.length, 1);
+    page.search.value = ''; page.format.value = 'LONG_FORM'; await page.format.dispatch('change'); assert.equal(page.videos.children.length, 1);
+    assert.equal(calls, 1);
   } finally { globalThis.document = originalDocument; }
 });
 

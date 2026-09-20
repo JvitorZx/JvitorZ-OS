@@ -937,6 +937,10 @@ h1 {
 }
 
 .channel-video-layout { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(260px, .6fr); gap: 16px; }
+.channel-video-filters { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 12px; }
+.channel-video-filters label { display: grid; gap: 5px; color: var(--muted); font-size: 12px; min-width: 180px; }
+.channel-video-filters input,
+.channel-video-filters select { min-height: 38px; }
 .channel-video-detail { border-left: 1px solid var(--line); padding-left: 16px; min-width: 0; }
 .channel-video-detail h3 { font-size: 16px; margin: 0 0 6px; }
 .channel-video-metrics { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px 12px; margin: 16px 0; }

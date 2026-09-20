@@ -1583,7 +1583,11 @@ Entregas:
 - seleção de vídeo na workspace Canal com renderização textual segura;
 - respostas tardias de detalhe não alteram uma montagem encerrada.
 
-**Proximo checkpoint: Sprint 59 - NAO INICIADA; escopo ainda nao definido.**
+## Sprint 59 - Channel Content Navigation - CONCLUIDA
+
+Busca por título e filtro por formato sobre os vídeos persistidos da workspace Canal. A lista é carregada uma vez, filtrada localmente e mantém listeners/lifecycle idempotentes. Nenhuma tecla dispara consulta ao Google ou nova chamada ao backend.
+
+**Proximo checkpoint: Sprint 60 - NAO INICIADA; escopo ainda nao definido.**
 
 ### Revisao de encerramento apos Sprint 53
 
