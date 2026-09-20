@@ -951,3 +951,16 @@ abertura da workspace Canal
 ```
 
 Falha de OAuth preserva last-known-good e permanece visivel como `AUTH_REQUIRED`. Leitura local nao dispara Google. Resumo de cobertura conta somente campos observados; ausencias continuam explicitas.
+
+```text
+selecionar video
+  -> GET /api/youtube/videos/:videoId (no-store)
+  -> snapshot atual + historico limitado
+  -> timeline e deltas observados no frontend
+
+atualizar lista local
+  -> GET /videos + GET /videos-summary (single-flight, no-store)
+  -> nenhuma chamada Google
+```
+
+Busca, filtros por formato/evidência e ordenação são transformações locais sobre a leitura atual. Banco vazio, métrica ausente e falta de comparação possuem estados distintos.

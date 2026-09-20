@@ -681,3 +681,5 @@ Importacoes de arquivo criam um `LibraryItem` e `ProductionAssetRelation` na mes
 `ChannelDataService` controla sincronizacao explicita e preserva o ultimo snapshot valido. `ChannelContentService` oferece somente leituras locais sobre `VideoPerformanceSnapshot`: lista deduplicada, detalhe com historico e resumo de cobertura. As rotas nao exigem autenticacao para ler o que ja esta persistido e nunca estimam campos ausentes.
 
 O workspace `#/channel` combina o estado consolidado das fontes com o acervo local. Reconexao e sincronizacao permanecem acoes humanas; busca, filtro e ordenacao acontecem localmente depois de uma unica leitura. Lifecycle, single-flight e tokens de montagem impedem listeners duplicados e atualizacoes tardias.
+
+Entre as Sprints 66-80, o detalhe passou a expor snapshots e deltas estritamente observados, janela de coleta, idade, disponibilidade de evidência e vínculo seguro com o vídeo original. Atualização local é separada de sincronização externa. A UI não transforma ordenação, variação ou cobertura em recomendação editorial.

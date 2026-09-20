@@ -1692,7 +1692,21 @@ Banco sem snapshots recebe estado vazio explícito e nunca é descrito como cobe
 
 Filtros e linhas de vídeo passam para uma coluna em viewport estreito; ações mantêm área utilizável e o detalhe continua abaixo da lista. Sem redesign ou mudança de contrato.
 
-**Proximo checkpoint: Sprint 80 - NAO INICIADA; escopo ainda nao definido.**
+## Sprint 80 - Channel Operations Release Checkpoint - CONCLUIDA
+
+**Objetivo:** consolidar e validar o ciclo de operações do Canal entregue entre as Sprints 54 e 80.
+
+Entregas finais:
+
+- timeline e deltas de snapshots observados;
+- janela e idade das coletas sem thresholds ocultos;
+- busca, filtros, ordenação, reset e contagem acessível;
+- atualização local independente de sincronização Google;
+- estados vazios honestos, links externos seguros e seleção persistente em runtime;
+- respostas locais `no-store`, layout estreito validado e lifecycle single-flight;
+- documentação, testes, build, Prisma, SQLite e smoke HTTP/navegador revalidados.
+
+**Proximo checkpoint: Sprint 81 - NAO INICIADA; escopo ainda nao definido.**
 
 ### Revisao de encerramento apos Sprint 53
 
