@@ -256,6 +256,7 @@ test('Channel selects at most two persisted videos for local comparison', async 
     assert.match(page.comparison.children[3].textContent, /Coleta não informada/);
     assert.equal(page.comparison.children[4].children[2].children[1].textContent, '10');
     assert.equal(page.comparison.children[4].children[2].children[2].textContent, '--');
+    assert.equal(page.comparison.children[4].attributes.get('aria-label'), 'Comparação de métricas dos vídeos selecionados');
     await page.comparison.children[1].dispatch('click');
     assert.equal(page.comparison.children.length, 1); assert.match(page.comparison.children[0].textContent, /Selecione até dois/);
   } finally { globalThis.document = originalDocument; }
@@ -306,6 +307,7 @@ test('Channel exposes safe local controls according to the operational state', (
   assert.match(output, /Sincronizar canal/);
   assert.match(output, /Reconectar Google/);
   assert.match(output, /aria-live="polite"/);
+  assert.match(output, /aria-label="Comparação de vídeos"/);
   assert.doesNotMatch(output, /access_token|client_secret/);
 });
 

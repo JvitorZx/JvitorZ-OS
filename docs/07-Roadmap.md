@@ -1738,7 +1738,11 @@ A comparação informa coletas ausentes ou realizadas em momentos diferentes. A 
 
 A seleção comparativa pode ser limpa em uma única ação local. O controle não consulta a rede, atualiza os estados acessíveis das linhas e não acumula listeners entre montagens.
 
-**Proximo checkpoint: Sprint 89 - NAO INICIADA; escopo ainda nao definido.**
+## Sprint 89 - Accessible Channel Comparison - CONCLUIDA
+
+A região e a tabela de comparação possuem nomes acessíveis específicos. Em telas estreitas, a tabela permanece contida com rolagem horizontal sem deslocar o workspace.
+
+**Proximo checkpoint: Sprint 90 - NAO INICIADA; escopo ainda nao definido.**
 
 ### Revisao de encerramento apos Sprint 53
 
