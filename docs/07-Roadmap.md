@@ -1680,7 +1680,11 @@ O resumo local passa a expor a primeira e a última coleta persistidas, permitin
 
 A workspace pode reler lista e cobertura persistidas sem sincronizar Google. A atualização local é single-flight, mantém feedback coerente e respeita unmount/remount.
 
-**Proximo checkpoint: Sprint 77 - NAO INICIADA; escopo ainda nao definido.**
+## Sprint 77 - Channel Read Freshness Contract - CONCLUIDA
+
+Lista, resumo e detalhe locais declaram `Cache-Control: no-store`, evitando que atualização explícita reutilize uma resposta HTTP obsoleta.
+
+**Proximo checkpoint: Sprint 78 - NAO INICIADA; escopo ainda nao definido.**
 
 ### Revisao de encerramento apos Sprint 53
 

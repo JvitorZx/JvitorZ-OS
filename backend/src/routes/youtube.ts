@@ -84,6 +84,7 @@ export const createYouTubeRouter = (dependencies: Partial<YouTubeRouteDependenci
     }
   });
   router.get('/videos', async (req, res) => {
+    res.set('Cache-Control', 'no-store');
     const rawLimit = req.query.limit;
     const limit = rawLimit === undefined ? 12 : Number(rawLimit);
     try {
@@ -98,6 +99,7 @@ export const createYouTubeRouter = (dependencies: Partial<YouTubeRouteDependenci
     }
   });
   router.get('/videos-summary', async (_req, res) => {
+    res.set('Cache-Control', 'no-store');
     try { return res.status(200).json(await channelContentService.getSummary()); }
     catch (error) {
       const name = error instanceof Error ? error.name : 'UnknownError';
@@ -106,6 +108,7 @@ export const createYouTubeRouter = (dependencies: Partial<YouTubeRouteDependenci
     }
   });
   router.get('/videos/:videoId', async (req, res) => {
+    res.set('Cache-Control', 'no-store');
     try {
       return res.status(200).json(await channelContentService.getVideo(req.params.videoId));
     } catch (error) {

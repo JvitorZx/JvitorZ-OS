@@ -210,6 +210,7 @@ describe('YouTube route expected states', { concurrency: false }, () => {
     };
     const response = await fetch(`${baseUrl}/api/youtube/videos?limit=7`);
     assert.equal(response.status, 200);
+    assert.equal(response.headers.get('cache-control'), 'no-store');
     assert.deepEqual(await response.json(), [{ videoId: 'video-1', title: 'Persistido' }]);
     assert.equal(calls, 1);
   });
@@ -221,6 +222,7 @@ describe('YouTube route expected states', { concurrency: false }, () => {
     };
     const response = await fetch(`${baseUrl}/api/youtube/videos-summary`);
     assert.equal(response.status, 200);
+    assert.equal(response.headers.get('cache-control'), 'no-store');
     assert.equal((await response.json()).videos, 2);
     assert.equal(calls, 1);
   });
@@ -239,7 +241,7 @@ describe('YouTube route expected states', { concurrency: false }, () => {
       channelContentService: { getVideo: async (id) => ({ current: { videoId: id }, history: [] }) },
     };
     const found = await fetch(`${baseUrl}/api/youtube/videos/video-1`);
-    assert.equal(found.status, 200); assert.equal((await found.json()).current.videoId, 'video-1');
+    assert.equal(found.status, 200); assert.equal(found.headers.get('cache-control'), 'no-store'); assert.equal((await found.json()).current.videoId, 'video-1');
 
     const { ChannelVideoNotFoundError } = require('../dist/services/ChannelContentService');
     youtubeDependencies = { channelContentService: { getVideo: async () => { throw new ChannelVideoNotFoundError('missing'); } } };
