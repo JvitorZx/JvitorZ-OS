@@ -423,6 +423,14 @@ body {
   .chat-body { height: 40vh; }
 }
 
+@media (max-width: 620px) {
+  .channel-video-filters { display: grid; grid-template-columns: 1fr; }
+  .channel-video-filters label { min-width: 0; width: 100%; }
+  .channel-video-filters .button { width: 100%; justify-content: center; }
+  .channel-video-row { grid-template-columns: 1fr; gap: 8px; }
+  .channel-video-row .button { justify-self: start; }
+}
+
 /* Shared workspace mode keeps the application shell visible. */
 .workspace.workspace-fullscreen {
   padding: 32px 38px;

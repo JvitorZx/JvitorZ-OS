@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
 import { test } from 'node:test';
 
 import { createApiClient, ApiRequestError } from '../src/api/client.js';
@@ -322,4 +323,11 @@ test('Channel maps synchronization failures to local safe feedback', async () =>
   controller.mount(page.root); await page.button.dispatch('click');
   assert.match(page.feedback.textContent, /Reconecte sua conta Google/);
   assert.doesNotMatch(page.feedback.textContent, /private|token|stack/);
+});
+
+test('Channel keeps filters and video rows usable on narrow viewports', async () => {
+  const styles = await readFile(new URL('../styles.css', import.meta.url), 'utf8');
+  assert.match(styles, /@media \(max-width: 620px\)/);
+  assert.match(styles, /\.channel-video-filters \{ display: grid; grid-template-columns: 1fr; \}/);
+  assert.match(styles, /\.channel-video-row \{ grid-template-columns: 1fr;/);
 });

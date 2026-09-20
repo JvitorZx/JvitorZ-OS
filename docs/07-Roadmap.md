@@ -1688,7 +1688,11 @@ Lista, resumo e detalhe locais declaram `Cache-Control: no-store`, evitando que 
 
 Banco sem snapshots recebe estado vazio explícito e nunca é descrito como cobertura completa.
 
-**Proximo checkpoint: Sprint 79 - NAO INICIADA; escopo ainda nao definido.**
+## Sprint 79 - Responsive Channel Operations - CONCLUIDA
+
+Filtros e linhas de vídeo passam para uma coluna em viewport estreito; ações mantêm área utilizável e o detalhe continua abaixo da lista. Sem redesign ou mudança de contrato.
+
+**Proximo checkpoint: Sprint 80 - NAO INICIADA; escopo ainda nao definido.**
 
 ### Revisao de encerramento apos Sprint 53
 
