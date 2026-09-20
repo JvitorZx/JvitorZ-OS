@@ -1664,7 +1664,11 @@ O detalhe oferece abertura explícita do vídeo persistido no YouTube em nova ab
 
 O item aberto permanece identificado visual e semanticamente com `aria-pressed`, inclusive após reordenação ou refiltro da lista local.
 
-**Proximo checkpoint: Sprint 73 - NAO INICIADA; escopo ainda nao definido.**
+## Sprint 73 - Observed Metric Ordering - CONCLUIDA
+
+Ordenação local por retenção e CTR observados, mantendo métricas ausentes no fim. Ordenar não altera ranking estratégico nem implica recomendação.
+
+**Proximo checkpoint: Sprint 74 - NAO INICIADA; escopo ainda nao definido.**
 
 ### Revisao de encerramento apos Sprint 53
 

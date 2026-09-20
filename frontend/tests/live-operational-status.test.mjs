@@ -187,11 +187,13 @@ test('Channel sorts loaded videos locally without another API request', async ()
   try {
     let calls = 0; const page = channelDom();
     createChannelController({ api: { listYouTubeChannelVideos: async () => { calls += 1; return [
-      { videoId: 'a', title: 'Zulu', views: 2, collectedAt: '2026-09-01' }, { videoId: 'b', title: 'Alpha', views: 20, collectedAt: '2026-09-02' },
+      { videoId: 'a', title: 'Zulu', views: 2, averageViewPercentage: 70, ctr: null, collectedAt: '2026-09-01' }, { videoId: 'b', title: 'Alpha', views: 20, averageViewPercentage: 40, ctr: 5, collectedAt: '2026-09-02' },
     ]; } } }).mount(page.root);
     await new Promise((resolve) => setTimeout(resolve, 0));
     page.sort.value = 'TITLE'; await page.sort.dispatch('change'); assert.equal(page.videos.children[0].children[0].children[0].textContent, 'Alpha');
     page.sort.value = 'VIEWS'; await page.sort.dispatch('change'); assert.equal(page.videos.children[0].children[0].children[0].textContent, 'Alpha');
+    page.sort.value = 'RETENTION'; await page.sort.dispatch('change'); assert.equal(page.videos.children[0].children[0].children[0].textContent, 'Zulu');
+    page.sort.value = 'CTR'; await page.sort.dispatch('change'); assert.equal(page.videos.children[0].children[0].children[0].textContent, 'Alpha');
     assert.equal(calls, 1);
   } finally { globalThis.document = originalDocument; }
 });
