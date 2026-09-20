@@ -1710,7 +1710,11 @@ Entregas finais:
 
 Seleção local e explícita de até dois vídeos persistidos, com estado acessível e sem novas chamadas externas. A seleção não altera estratégia nem dados.
 
-**Proximo checkpoint: Sprint 82 - NAO INICIADA; escopo ainda nao definido.**
+## Sprint 82 - Channel Metric Comparison - CONCLUIDA
+
+Dois vídeos selecionados recebem tabela factual de formato, views, retenção e CTR. Valores ausentes aparecem como `--`; a comparação não declara vencedor.
+
+**Proximo checkpoint: Sprint 83 - NAO INICIADA; escopo ainda nao definido.**
 
 ### Revisao de encerramento apos Sprint 53
 

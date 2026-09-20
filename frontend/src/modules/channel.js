@@ -114,6 +114,15 @@ export const createChannelController = ({ api, refreshDashboard }) => {
       if (!comparison || !current()) return;
       comparison.replaceChildren(); const selected = loadedVideos.filter((item) => comparedVideoIds.has(item.videoId));
       const status = document.createElement('p'); status.textContent = selected.length === 0 ? 'Selecione até dois vídeos para comparar.' : `${selected.length}/2 selecionado(s): ${selected.map((item) => item.title ?? item.videoId).join(' · ')}`; comparison.append(status);
+      if (selected.length === 2) {
+        const table = document.createElement('table'); table.className = 'channel-comparison-table';
+        const head = document.createElement('tr'); for (const value of ['Métrica', selected[0].title ?? selected[0].videoId, selected[1].title ?? selected[1].videoId]) { const cell = document.createElement('th'); cell.textContent = value; head.append(cell); } table.append(head);
+        for (const [label, field, suffix = ''] of [['Formato', 'format'], ['Views', 'views'], ['Retenção', 'averageViewPercentage', '%'], ['CTR', 'ctr', '%']]) {
+          const row = document.createElement('tr'); const term = document.createElement('th'); term.textContent = label; row.append(term);
+          for (const item of selected) { const cell = document.createElement('td'); const value = item[field]; cell.textContent = value === null || value === undefined ? '--' : `${value}${suffix}`; row.append(cell); } table.append(row);
+        }
+        comparison.append(table);
+      }
     };
     const applyFilters = () => {
       const query = String(search?.value ?? '').trim().toLocaleLowerCase('pt-BR');

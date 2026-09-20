@@ -976,6 +976,8 @@ h1 {
 .channel-video-row > div { display: grid; gap: 4px; min-width: 0; }
 .channel-video-row-actions { display: flex !important; flex-wrap: wrap; gap: 6px; }
 .channel-video-comparison { margin: 0 0 12px; padding: 10px; border: 1px solid var(--line); color: var(--muted); }
+.channel-comparison-table { width: 100%; margin-top: 10px; border-collapse: collapse; color: var(--text); }
+.channel-comparison-table th, .channel-comparison-table td { padding: 8px; border-top: 1px solid var(--line); text-align: left; vertical-align: top; }
 .channel-video-row small,
 .channel-video-row span { color: var(--muted); }
 
