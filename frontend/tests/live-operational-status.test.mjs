@@ -153,8 +153,19 @@ test('Channel filters the loaded local list without another API request', async 
     ]; } } }).mount(page.root);
     await new Promise((resolve) => setTimeout(resolve, 0)); assert.equal(page.videos.children.length, 2);
     page.search.value = 'forza'; await page.search.dispatch('input'); assert.equal(page.videos.children.length, 1);
+    page.search.value = 'inexistente'; await page.search.dispatch('input'); assert.equal(page.videos.children[0].textContent, 'Nenhum vídeo corresponde aos filtros.');
     page.search.value = ''; page.format.value = 'LONG_FORM'; await page.format.dispatch('change'); assert.equal(page.videos.children.length, 1);
     assert.equal(calls, 1);
+  } finally { globalThis.document = originalDocument; }
+});
+
+test('Channel video detail controls have specific accessible names', async () => {
+  const originalDocument = globalThis.document; globalThis.document = { createElement: () => new FakeElement() };
+  try {
+    const page = channelDom();
+    createChannelController({ api: { listYouTubeChannelVideos: async () => [{ videoId: 'v1', title: 'Meu vídeo' }] } }).mount(page.root);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    assert.equal(page.videos.children[0].children[2].attributes.get('aria-label'), 'Abrir detalhes de Meu vídeo');
   } finally { globalThis.document = originalDocument; }
 });
 

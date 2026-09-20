@@ -65,7 +65,7 @@ export const createChannelController = ({ api, refreshDashboard }) => {
       if (!videos || !current()) return;
       videos.replaceChildren();
       if (!Array.isArray(items) || items.length === 0) {
-        const empty = document.createElement('p'); empty.className = 'empty-state'; empty.textContent = 'Nenhum vídeo sincronizado ainda.'; videos.append(empty); return;
+        const empty = document.createElement('p'); empty.className = 'empty-state'; empty.textContent = loadedVideos.length > 0 ? 'Nenhum vídeo corresponde aos filtros.' : 'Nenhum vídeo sincronizado ainda.'; videos.append(empty); return;
       }
       for (const item of items) {
         const row = document.createElement('article'); row.className = 'channel-video-row';
@@ -73,7 +73,7 @@ export const createChannelController = ({ api, refreshDashboard }) => {
         const title = document.createElement('strong'); title.textContent = item.title ?? 'Vídeo sem título';
         const meta = document.createElement('small'); meta.textContent = `${item.format ?? 'Formato desconhecido'} · ${item.videoId ?? 'ID indisponível'}`;
         const facts = document.createElement('span'); facts.textContent = `${Number(item.views ?? 0).toLocaleString('pt-BR')} views · coletado em ${item.collectedAt ? new Date(item.collectedAt).toLocaleDateString('pt-BR') : '--'}`;
-        const open = document.createElement('button'); open.type = 'button'; open.className = 'button secondary'; open.textContent = 'Detalhes'; open.addEventListener('click', () => openVideo(item.videoId));
+        const open = document.createElement('button'); open.type = 'button'; open.className = 'button secondary'; open.textContent = 'Detalhes'; open.setAttribute('aria-label', `Abrir detalhes de ${item.title ?? 'vídeo sem título'}`); open.addEventListener('click', () => openVideo(item.videoId));
         copy.append(title, meta); row.append(copy, facts, open); videos.append(row);
       }
     };

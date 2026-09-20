@@ -1617,7 +1617,13 @@ Entregas: orientação determinística para abrir, sincronizar, revisar ou recon
 
 Entregas: ordenação local por coleta recente, views observadas ou título; filtros e busca continuam componíveis; nenhuma interação adicional consulta Google ou duplica listeners.
 
-**Proximo checkpoint: Sprint 64 - NAO INICIADA; escopo ainda nao definido.**
+## Sprint 64 - Channel UX Resilience - CONCLUIDA
+
+**Objetivo:** eliminar ambiguidades operacionais da workspace Canal sem redesign.
+
+Entregas: estado vazio distinto de busca sem resultado, nomes acessíveis específicos para abertura de cada vídeo e regressão do lifecycle/listeners. A página continua renderizando conteúdo externo apenas como texto.
+
+**Proximo checkpoint: Sprint 65 - NAO INICIADA; escopo ainda nao definido.**
 
 ### Revisao de encerramento apos Sprint 53
 
