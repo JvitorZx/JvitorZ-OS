@@ -40,9 +40,9 @@ class FakeElement {
 }
 
 const channelDom = () => {
-  const root = new FakeElement(); const panel = new FakeElement(); const button = new FakeElement(); const feedback = new FakeElement(); const videos = new FakeElement(); const detail = new FakeElement(); const summary = new FakeElement(); const resultCount = new FakeElement(); const reset = new FakeElement(); const refresh = new FakeElement(); const search = new FakeElement(); const format = new FakeElement(); const sort = new FakeElement(); const evidence = new FakeElement(); format.value = 'ALL'; sort.value = 'COLLECTED'; evidence.value = 'ALL';
-  root.map.set('.channel-panel', panel); root.map.set('[data-channel-videos]', videos); root.map.set('[data-channel-video-detail]', detail); root.map.set('[data-channel-video-summary]', summary); root.map.set('[data-channel-video-result-count]', resultCount); root.map.set('[data-channel-video-reset]', reset); root.map.set('[data-channel-video-refresh]', refresh); root.map.set('[data-channel-video-search]', search); root.map.set('[data-channel-video-format]', format); root.map.set('[data-channel-video-sort]', sort); root.map.set('[data-channel-video-evidence]', evidence); panel.map.set('[data-channel-sync]', button); panel.map.set('[data-channel-feedback]', feedback);
-  return { root, button, feedback, videos, detail, summary, resultCount, reset, refresh, search, format, sort, evidence };
+  const root = new FakeElement(); const panel = new FakeElement(); const button = new FakeElement(); const feedback = new FakeElement(); const videos = new FakeElement(); const detail = new FakeElement(); const summary = new FakeElement(); const comparison = new FakeElement(); const resultCount = new FakeElement(); const reset = new FakeElement(); const refresh = new FakeElement(); const search = new FakeElement(); const format = new FakeElement(); const sort = new FakeElement(); const evidence = new FakeElement(); format.value = 'ALL'; sort.value = 'COLLECTED'; evidence.value = 'ALL';
+  root.map.set('.channel-panel', panel); root.map.set('[data-channel-videos]', videos); root.map.set('[data-channel-video-detail]', detail); root.map.set('[data-channel-video-summary]', summary); root.map.set('[data-channel-video-comparison]', comparison); root.map.set('[data-channel-video-result-count]', resultCount); root.map.set('[data-channel-video-reset]', reset); root.map.set('[data-channel-video-refresh]', refresh); root.map.set('[data-channel-video-search]', search); root.map.set('[data-channel-video-format]', format); root.map.set('[data-channel-video-sort]', sort); root.map.set('[data-channel-video-evidence]', evidence); panel.map.set('[data-channel-sync]', button); panel.map.set('[data-channel-feedback]', feedback);
+  return { root, button, feedback, videos, detail, summary, comparison, resultCount, reset, refresh, search, format, sort, evidence };
 };
 
 const deferred = () => { let resolve; let reject; const promise = new Promise((ok, fail) => { resolve = ok; reject = fail; }); return { promise, resolve, reject }; };
@@ -139,8 +139,8 @@ test('Channel opens persisted video detail and keeps missing metrics explicit', 
       getYouTubeChannelVideo: async () => ({ current: { videoId: 'v1', title: '<b>Vídeo</b>', format: 'LONG_FORM', views: 10, averageViewPercentage: 50, ctr: null }, history: [{ id: 'one', collectedAt: '2026-09-10T00:00:00Z', views: 10, averageViewPercentage: 50, ctr: null }] }),
     } });
     controller.mount(page.root); await new Promise((resolve) => setTimeout(resolve, 0));
-    const open = page.videos.children[0].children[2]; await open.dispatch('click');
-    assert.equal(page.videos.children[0].children[2].attributes.get('aria-pressed'), 'true');
+    const open = page.videos.children[0].children[2].children[0]; await open.dispatch('click');
+    assert.equal(page.videos.children[0].children[2].children[0].attributes.get('aria-pressed'), 'true');
     assert.equal(page.detail.children[0].textContent, '<b>Vídeo</b>');
     assert.equal(page.detail.children[2].href, 'https://www.youtube.com/watch?v=v1');
     assert.equal(page.detail.children[2].rel, 'noopener noreferrer');
@@ -185,7 +185,7 @@ test('Channel video detail controls have specific accessible names', async () =>
     const page = channelDom();
     createChannelController({ api: { listYouTubeChannelVideos: async () => [{ videoId: 'v1', title: 'Meu vídeo' }] } }).mount(page.root);
     await new Promise((resolve) => setTimeout(resolve, 0));
-    assert.equal(page.videos.children[0].children[2].attributes.get('aria-label'), 'Abrir detalhes de Meu vídeo');
+    assert.equal(page.videos.children[0].children[2].children[0].attributes.get('aria-label'), 'Abrir detalhes de Meu vídeo');
   } finally { globalThis.document = originalDocument; }
 });
 
@@ -228,6 +228,16 @@ test('Channel resets every local content filter with one listener', async () => 
     page.search.value = 'x'; page.format.value = 'SHORTS'; page.evidence.value = 'MISSING_CTR'; page.sort.value = 'TITLE'; await page.reset.dispatch('click');
     assert.deepEqual([page.search.value, page.format.value, page.evidence.value, page.sort.value], ['', 'ALL', 'ALL', 'COLLECTED']);
     assert.equal(page.reset.listeners.get('click').size, 1);
+  } finally { globalThis.document = originalDocument; }
+});
+
+test('Channel selects at most two persisted videos for local comparison', async () => {
+  const originalDocument = globalThis.document; globalThis.document = { createElement: () => new FakeElement() };
+  try {
+    const page = channelDom(); createChannelController({ api: { listYouTubeChannelVideos: async () => ['A', 'B', 'C'].map((title) => ({ videoId: title, title })) } }).mount(page.root);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    await page.videos.children[0].children[2].children[1].dispatch('click'); await page.videos.children[1].children[2].children[1].dispatch('click'); await page.videos.children[2].children[2].children[1].dispatch('click');
+    assert.match(page.comparison.children[0].textContent, /2\/2 selecionado/); assert.doesNotMatch(page.comparison.children[0].textContent, /C/);
   } finally { globalThis.document = originalDocument; }
 });
 

@@ -53,8 +53,10 @@ export const createChannelController = ({ api, refreshDashboard }) => {
     const resultCount = root.querySelector('[data-channel-video-result-count]');
     const resetFilters = root.querySelector('[data-channel-video-reset]');
     const refreshContent = root.querySelector('[data-channel-video-refresh]');
+    const comparison = root.querySelector('[data-channel-video-comparison]');
     let loadedVideos = [];
     let selectedVideoId = null;
+    const comparedVideoIds = new Set();
     let contentLoading = false;
     const renderDetail = (result) => {
       if (!detail || !current()) return;
@@ -99,9 +101,19 @@ export const createChannelController = ({ api, refreshDashboard }) => {
         const title = document.createElement('strong'); title.textContent = item.title ?? 'Vídeo sem título';
         const meta = document.createElement('small'); meta.textContent = `${item.format ?? 'Formato desconhecido'} · ${item.videoId ?? 'ID indisponível'}`;
         const facts = document.createElement('span'); facts.textContent = `${Number(item.views ?? 0).toLocaleString('pt-BR')} views · coletado em ${item.collectedAt ? new Date(item.collectedAt).toLocaleDateString('pt-BR') : '--'}`;
+        const actions = document.createElement('div'); actions.className = 'channel-video-row-actions';
         const open = document.createElement('button'); open.type = 'button'; open.className = 'button secondary'; open.textContent = 'Detalhes'; open.setAttribute('aria-label', `Abrir detalhes de ${item.title ?? 'vídeo sem título'}`); open.setAttribute('aria-pressed', String(selectedVideoId === item.videoId)); open.addEventListener('click', () => { selectedVideoId = item.videoId; applyFilters(); openVideo(item.videoId); });
-        copy.append(title, meta); row.append(copy, facts, open); videos.append(row);
+        const compare = document.createElement('button'); compare.type = 'button'; compare.className = 'button secondary'; compare.textContent = comparedVideoIds.has(item.videoId) ? 'Remover comparação' : 'Comparar'; compare.setAttribute('aria-pressed', String(comparedVideoIds.has(item.videoId))); compare.addEventListener('click', () => {
+          if (comparedVideoIds.has(item.videoId)) comparedVideoIds.delete(item.videoId); else if (comparedVideoIds.size < 2) comparedVideoIds.add(item.videoId);
+          renderComparison(); applyFilters();
+        });
+        actions.append(open, compare); copy.append(title, meta); row.append(copy, facts, actions); videos.append(row);
       }
+    };
+    const renderComparison = () => {
+      if (!comparison || !current()) return;
+      comparison.replaceChildren(); const selected = loadedVideos.filter((item) => comparedVideoIds.has(item.videoId));
+      const status = document.createElement('p'); status.textContent = selected.length === 0 ? 'Selecione até dois vídeos para comparar.' : `${selected.length}/2 selecionado(s): ${selected.map((item) => item.title ?? item.videoId).join(' · ')}`; comparison.append(status);
     };
     const applyFilters = () => {
       const query = String(search?.value ?? '').trim().toLocaleLowerCase('pt-BR');
@@ -131,7 +143,7 @@ export const createChannelController = ({ api, refreshDashboard }) => {
       const hasList = typeof api.listYouTubeChannelVideos === 'function'; const hasSummary = typeof api.getYouTubeChannelVideoSummary === 'function';
       const [listResult, summaryResult] = await Promise.allSettled([hasList ? api.listYouTubeChannelVideos(50) : undefined, hasSummary ? api.getYouTubeChannelVideoSummary() : undefined]);
       if (!current()) { contentLoading = false; return; }
-      if (hasList && listResult.status === 'fulfilled') { loadedVideos = Array.isArray(listResult.value) ? listResult.value : []; applyFilters(); }
+      if (hasList && listResult.status === 'fulfilled') { loadedVideos = Array.isArray(listResult.value) ? listResult.value : []; for (const id of comparedVideoIds) if (!loadedVideos.some((item) => item.videoId === id)) comparedVideoIds.delete(id); renderComparison(); applyFilters(); }
       else if (hasList && videos) { videos.replaceChildren(); const message = document.createElement('p'); message.className = 'empty-state'; message.textContent = 'Não foi possível carregar os vídeos sincronizados.'; videos.append(message); }
       if (hasSummary && summaryResult.status === 'fulfilled' && summary) renderSummary(summaryResult.value);
       else if (hasSummary && summary) summary.textContent = 'Cobertura indisponível.';
@@ -272,7 +284,7 @@ export const channelModule = {
         eyebrow: 'Conteúdo sincronizado',
         title: 'Vídeos recentes',
         className: 'channel-videos-panel',
-        body: html`<div class="channel-video-summary" data-channel-video-summary aria-live="polite"><span>Calculando cobertura...</span></div><div class="channel-video-filters"><label>Buscar<input type="search" data-channel-video-search placeholder="Título do vídeo"></label><label>Formato<select data-channel-video-format><option value="ALL">Todos</option><option value="LONG_FORM">Long-form</option><option value="SHORTS">Shorts</option><option value="LIVE">Live</option></select></label><label>Evidência<select data-channel-video-evidence><option value="ALL">Todas</option><option value="HAS_RETENTION">Com retenção</option><option value="MISSING_CTR">Sem CTR</option></select></label><label>Ordenar<select data-channel-video-sort><option value="COLLECTED">Coleta recente</option><option value="VIEWS">Mais views</option><option value="RETENTION">Maior retenção</option><option value="CTR">Maior CTR</option><option value="TITLE">Título</option></select></label><button class="button secondary" type="button" data-channel-video-reset>Limpar filtros</button><button class="button secondary" type="button" data-channel-video-refresh>Atualizar lista local</button></div><p class="channel-video-result-count" data-channel-video-result-count aria-live="polite">Carregando resultados...</p><div class="channel-video-layout"><div class="channel-video-list" data-channel-videos aria-live="polite"><p class="empty-state">Carregando vídeos...</p></div><aside class="channel-video-detail" data-channel-video-detail aria-live="polite">Selecione um vídeo para ver métricas e histórico.</aside></div>`,
+        body: html`<div class="channel-video-summary" data-channel-video-summary aria-live="polite"><span>Calculando cobertura...</span></div><div class="channel-video-filters"><label>Buscar<input type="search" data-channel-video-search placeholder="Título do vídeo"></label><label>Formato<select data-channel-video-format><option value="ALL">Todos</option><option value="LONG_FORM">Long-form</option><option value="SHORTS">Shorts</option><option value="LIVE">Live</option></select></label><label>Evidência<select data-channel-video-evidence><option value="ALL">Todas</option><option value="HAS_RETENTION">Com retenção</option><option value="MISSING_CTR">Sem CTR</option></select></label><label>Ordenar<select data-channel-video-sort><option value="COLLECTED">Coleta recente</option><option value="VIEWS">Mais views</option><option value="RETENTION">Maior retenção</option><option value="CTR">Maior CTR</option><option value="TITLE">Título</option></select></label><button class="button secondary" type="button" data-channel-video-reset>Limpar filtros</button><button class="button secondary" type="button" data-channel-video-refresh>Atualizar lista local</button></div><p class="channel-video-result-count" data-channel-video-result-count aria-live="polite">Carregando resultados...</p><div class="channel-video-comparison" data-channel-video-comparison aria-live="polite">Selecione até dois vídeos para comparar.</div><div class="channel-video-layout"><div class="channel-video-list" data-channel-videos aria-live="polite"><p class="empty-state">Carregando vídeos...</p></div><aside class="channel-video-detail" data-channel-video-detail aria-live="polite">Selecione um vídeo para ver métricas e histórico.</aside></div>`,
       })}
       ${createPanel({
         eyebrow: 'Integrações oficiais',

@@ -1706,7 +1706,11 @@ Entregas finais:
 - respostas locais `no-store`, layout estreito validado e lifecycle single-flight;
 - documentação, testes, build, Prisma, SQLite e smoke HTTP/navegador revalidados.
 
-**Proximo checkpoint: Sprint 81 - NAO INICIADA; escopo ainda nao definido.**
+## Sprint 81 - Channel Comparison Selection - CONCLUIDA
+
+Seleção local e explícita de até dois vídeos persistidos, com estado acessível e sem novas chamadas externas. A seleção não altera estratégia nem dados.
+
+**Proximo checkpoint: Sprint 82 - NAO INICIADA; escopo ainda nao definido.**
 
 ### Revisao de encerramento apos Sprint 53
 
