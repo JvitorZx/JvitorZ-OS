@@ -1636,7 +1636,11 @@ Entregas:
 - nenhuma chamada externa automatica, previsao ou metrica inventada;
 - documentacao de API, arquitetura e fluxo atualizada.
 
-**Proximo checkpoint: Sprint 66 - NAO INICIADA; escopo ainda nao definido.**
+## Sprint 66 - Video Snapshot Timeline - CONCLUIDA
+
+O detalhe de vídeo passa a apresentar a linha do tempo das coletas persistidas, com views, retenção e CTR observados em cada instante. Ausências permanecem explícitas e nenhum dado é interpolado.
+
+**Proximo checkpoint: Sprint 67 - NAO INICIADA; escopo ainda nao definido.**
 
 ### Revisao de encerramento apos Sprint 53
 

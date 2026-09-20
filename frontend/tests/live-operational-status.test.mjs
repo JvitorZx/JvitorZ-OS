@@ -135,12 +135,14 @@ test('Channel opens persisted video detail and keeps missing metrics explicit', 
     const page = channelDom();
     const controller = createChannelController({ api: {
       listYouTubeChannelVideos: async () => [{ videoId: 'v1', title: 'Vídeo', format: 'LONG_FORM', views: 10 }],
-      getYouTubeChannelVideo: async () => ({ current: { videoId: 'v1', title: '<b>Vídeo</b>', format: 'LONG_FORM', views: 10, ctr: null }, history: [{ id: 'one' }] }),
+      getYouTubeChannelVideo: async () => ({ current: { videoId: 'v1', title: '<b>Vídeo</b>', format: 'LONG_FORM', views: 10, ctr: null }, history: [{ id: 'one', collectedAt: '2026-09-10T00:00:00Z', views: 10, averageViewPercentage: 50, ctr: null }] }),
     } });
     controller.mount(page.root); await new Promise((resolve) => setTimeout(resolve, 0));
     const open = page.videos.children[0].children[2]; await open.dispatch('click');
     assert.equal(page.detail.children[0].textContent, '<b>Vídeo</b>');
     assert.match(page.detail.children[3].textContent, /1 coleta/);
+    assert.match(page.detail.children[4].children[0].textContent, /10 views/);
+    assert.match(page.detail.children[4].children[0].textContent, /CTR --%/);
   } finally { globalThis.document = originalDocument; }
 });
 

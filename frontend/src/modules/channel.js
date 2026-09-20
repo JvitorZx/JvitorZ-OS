@@ -52,7 +52,13 @@ export const createChannelController = ({ api, refreshDashboard }) => {
         const term = document.createElement('dt'); term.textContent = label; const description = document.createElement('dd'); description.textContent = value === null || value === undefined ? '--' : String(value); metrics.append(term, description);
       }
       const history = document.createElement('small'); history.textContent = `${result.history?.length ?? 0} coleta(s) preservada(s). Última coleta: ${item.collectedAt ? new Date(item.collectedAt).toLocaleString('pt-BR') : '--'}`;
-      detail.append(heading, identity, metrics, history);
+      const timeline = document.createElement('ol'); timeline.className = 'channel-video-history';
+      for (const snapshot of result.history ?? []) {
+        const entry = document.createElement('li');
+        entry.textContent = `${snapshot.collectedAt ? new Date(snapshot.collectedAt).toLocaleString('pt-BR') : 'Data ausente'} · ${snapshot.views ?? '--'} views · retenção ${snapshot.averageViewPercentage ?? '--'}% · CTR ${snapshot.ctr ?? '--'}%`;
+        timeline.append(entry);
+      }
+      detail.append(heading, identity, metrics, history, timeline);
     };
     const openVideo = async (videoId) => {
       const request = ++detailRequest;

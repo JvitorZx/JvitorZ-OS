@@ -944,6 +944,7 @@ h1 {
 .channel-video-summary strong { font-size: 18px; }
 .channel-video-summary small { color: var(--muted); }
 .channel-video-summary-detail { grid-column: 1 / -1; margin: 0; padding: 10px; color: var(--muted); background: var(--surface); line-height: 1.45; }
+.channel-video-history { display: grid; gap: 6px; margin: 12px 0 0; padding-left: 20px; color: var(--muted); font-size: 13px; }
 .channel-video-filters label { display: grid; gap: 5px; color: var(--muted); font-size: 12px; min-width: 180px; }
 .channel-video-filters input,
 .channel-video-filters select { min-height: 38px; }
