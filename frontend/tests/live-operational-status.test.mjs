@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises';
 import { test } from 'node:test';
 
 import { createApiClient, ApiRequestError } from '../src/api/client.js';
-import { channelModule, channelSourceAction, collectionAgeDays, createChannelController, observedSnapshotDelta } from '../src/modules/channel.js';
+import { channelModule, channelSourceAction, collectionAgeDays, createChannelController, observedSnapshotDelta, observedTrend } from '../src/modules/channel.js';
 import { homeModule } from '../src/modules/home.js';
 import { plannerModule } from '../src/modules/planner.js';
 import { settingsModule } from '../src/modules/settings.js';
@@ -155,6 +155,13 @@ test('Channel snapshot deltas require two observed numeric values', () => {
   assert.equal(observedSnapshotDelta({ views: 15 }, { views: 10 }, 'views'), 5);
   assert.equal(observedSnapshotDelta({ views: null }, { views: 10 }, 'views'), null);
   assert.equal(observedSnapshotDelta({ views: 15 }, undefined, 'views'), null);
+});
+
+test('Channel describes only the observed direction between comparable snapshots', () => {
+  assert.equal(observedTrend({ views: 12 }, { views: 10 }, 'views'), 'subiu');
+  assert.equal(observedTrend({ views: 8 }, { views: 10 }, 'views'), 'caiu');
+  assert.equal(observedTrend({ views: 10 }, { views: 10 }, 'views'), 'estável');
+  assert.equal(observedTrend({ views: null }, { views: 10 }, 'views'), 'indisponível');
 });
 
 test('Channel collection age reports elapsed days without a hidden freshness threshold', () => {

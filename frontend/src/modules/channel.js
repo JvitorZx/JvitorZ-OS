@@ -22,6 +22,13 @@ export const observedSnapshotDelta = (current, previous, field) => {
   return Number.isFinite(left) && Number.isFinite(right) ? left - right : null;
 };
 
+export const observedTrend = (current, previous, field) => {
+  const delta = observedSnapshotDelta(current, previous, field);
+  if (delta === null) return 'indisponível';
+  if (delta === 0) return 'estável';
+  return delta > 0 ? 'subiu' : 'caiu';
+};
+
 export const collectionAgeDays = (value, now = new Date()) => {
   const timestamp = new Date(value).getTime(); const current = new Date(now).getTime();
   return Number.isFinite(timestamp) && Number.isFinite(current) && current >= timestamp ? Math.floor((current - timestamp) / 86400000) : null;
@@ -73,7 +80,7 @@ export const createChannelController = ({ api, refreshDashboard }) => {
       const history = document.createElement('small'); history.textContent = `${result.history?.length ?? 0} coleta(s) preservada(s). Última coleta: ${item.collectedAt ? new Date(item.collectedAt).toLocaleString('pt-BR') : '--'}`;
       const change = document.createElement('p'); change.className = 'channel-video-change';
       const previous = result.history?.[1]; const viewsDelta = observedSnapshotDelta(item, previous, 'views'); const retentionDelta = observedSnapshotDelta(item, previous, 'averageViewPercentage');
-      change.textContent = previous ? `Variação desde a coleta anterior: views ${viewsDelta === null ? '--' : `${viewsDelta >= 0 ? '+' : ''}${viewsDelta}`}; retenção ${retentionDelta === null ? '--' : `${retentionDelta >= 0 ? '+' : ''}${retentionDelta} p.p.`}.` : 'Ainda não há uma coleta anterior comparável.';
+      change.textContent = previous ? `Variação observada desde a coleta anterior: views ${viewsDelta === null ? '--' : `${viewsDelta >= 0 ? '+' : ''}${viewsDelta}`} (${observedTrend(item, previous, 'views')}); retenção ${retentionDelta === null ? '--' : `${retentionDelta >= 0 ? '+' : ''}${retentionDelta} p.p.`} (${observedTrend(item, previous, 'averageViewPercentage')}).` : 'Ainda não há uma coleta anterior comparável.';
       const timeline = document.createElement('ol'); timeline.className = 'channel-video-history';
       for (const snapshot of result.history ?? []) {
         const entry = document.createElement('li');

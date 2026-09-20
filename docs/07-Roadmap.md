@@ -1726,7 +1726,11 @@ O resumo persistido do Canal agora separa contagem e cobertura factual por forma
 
 A tela Canal apresenta a cobertura real de views, retenção e CTR dentro de cada formato. A UI comunica disponibilidade de evidência sem calcular vencedores ou extrapolar desempenho.
 
-**Proximo checkpoint: Sprint 86 - NAO INICIADA; escopo ainda nao definido.**
+## Sprint 86 - Observed Snapshot Direction - CONCLUIDA
+
+O detalhe de vídeo classifica a direção observada de views e retenção entre duas coletas reais como subida, queda, estabilidade ou indisponibilidade. A leitura permanece descritiva e não atribui causalidade.
+
+**Proximo checkpoint: Sprint 87 - NAO INICIADA; escopo ainda nao definido.**
 
 ### Revisao de encerramento apos Sprint 53
 
