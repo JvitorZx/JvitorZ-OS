@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import { createApiClient, ApiRequestError } from '../src/api/client.js';
-import { channelModule, channelSourceAction, createChannelController, observedSnapshotDelta } from '../src/modules/channel.js';
+import { channelModule, channelSourceAction, collectionAgeDays, createChannelController, observedSnapshotDelta } from '../src/modules/channel.js';
 import { homeModule } from '../src/modules/home.js';
 import { plannerModule } from '../src/modules/planner.js';
 import { settingsModule } from '../src/modules/settings.js';
@@ -154,6 +154,12 @@ test('Channel snapshot deltas require two observed numeric values', () => {
   assert.equal(observedSnapshotDelta({ views: 15 }, { views: 10 }, 'views'), 5);
   assert.equal(observedSnapshotDelta({ views: null }, { views: 10 }, 'views'), null);
   assert.equal(observedSnapshotDelta({ views: 15 }, undefined, 'views'), null);
+});
+
+test('Channel collection age reports elapsed days without a hidden freshness threshold', () => {
+  assert.equal(collectionAgeDays('2026-09-10T00:00:00Z', new Date('2026-09-12T23:59:00Z')), 2);
+  assert.equal(collectionAgeDays('invalid', new Date('2026-09-12T00:00:00Z')), null);
+  assert.equal(collectionAgeDays('2026-09-13T00:00:00Z', new Date('2026-09-12T00:00:00Z')), null);
 });
 
 test('Channel filters the loaded local list without another API request', async () => {

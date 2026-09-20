@@ -22,6 +22,11 @@ export const observedSnapshotDelta = (current, previous, field) => {
   return Number.isFinite(left) && Number.isFinite(right) ? left - right : null;
 };
 
+export const collectionAgeDays = (value, now = new Date()) => {
+  const timestamp = new Date(value).getTime(); const current = new Date(now).getTime();
+  return Number.isFinite(timestamp) && Number.isFinite(current) && current >= timestamp ? Math.floor((current - timestamp) / 86400000) : null;
+};
+
 export const createChannelController = ({ api, refreshDashboard }) => {
   let mountedRoot = null;
   let generation = 0;
@@ -163,7 +168,8 @@ export const createChannelController = ({ api, refreshDashboard }) => {
       }
       const details = document.createElement('p'); details.className = 'channel-video-summary-detail';
       const formats = Object.entries(value.formats ?? {}).map(([name, count]) => `${name}: ${count}`).join(' · ') || 'formatos não informados';
-      const collected = value.latestCollectedAt ? new Date(value.latestCollectedAt).toLocaleString('pt-BR') : 'sem coleta registrada';
+      const age = value.latestCollectedAt ? collectionAgeDays(value.latestCollectedAt) : null;
+      const collected = value.latestCollectedAt ? `${new Date(value.latestCollectedAt).toLocaleString('pt-BR')}${age === null ? '' : ` (há ${age} dia(s))`}` : 'sem coleta registrada';
       const missing = [['watch time', value.coverage?.watchTime], ['impressões', value.coverage?.impressions], ['inscritos', value.coverage?.subscribers], ['interações', value.coverage?.interactions]]
         .filter(([, count]) => Number(count ?? 0) < Number(value.videos ?? 0)).map(([label, count]) => `${label} ${count ?? 0}/${value.videos ?? 0}`);
       details.textContent = `Formatos: ${formats}. Última coleta: ${collected}. ${missing.length ? `Cobertura parcial: ${missing.join(', ')}.` : 'Cobertura completa para os grupos adicionais.'}`;

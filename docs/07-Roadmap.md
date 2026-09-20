@@ -1668,7 +1668,11 @@ O item aberto permanece identificado visual e semanticamente com `aria-pressed`,
 
 Ordenação local por retenção e CTR observados, mantendo métricas ausentes no fim. Ordenar não altera ranking estratégico nem implica recomendação.
 
-**Proximo checkpoint: Sprint 74 - NAO INICIADA; escopo ainda nao definido.**
+## Sprint 74 - Channel Collection Age - CONCLUIDA
+
+O resumo mostra a idade exata da última coleta em dias junto da data absoluta. Nenhum threshold escondido converte idade em qualidade ou disponibilidade.
+
+**Proximo checkpoint: Sprint 75 - NAO INICIADA; escopo ainda nao definido.**
 
 ### Revisao de encerramento apos Sprint 53
 
