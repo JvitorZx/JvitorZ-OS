@@ -251,10 +251,13 @@ test('Channel selects at most two persisted videos for local comparison', async 
     await new Promise((resolve) => setTimeout(resolve, 0));
     await page.videos.children[0].children[2].children[1].dispatch('click'); await page.videos.children[1].children[2].children[1].dispatch('click'); await page.videos.children[2].children[2].children[1].dispatch('click');
     assert.match(page.comparison.children[0].textContent, /2\/2 selecionado/); assert.doesNotMatch(page.comparison.children[0].textContent, /C/);
-    assert.match(page.comparison.children[1].textContent, /formatos diferentes/);
-    assert.match(page.comparison.children[2].textContent, /Coleta não informada/);
-    assert.equal(page.comparison.children[3].children[2].children[1].textContent, '10');
-    assert.equal(page.comparison.children[3].children[2].children[2].textContent, '--');
+    assert.equal(page.comparison.children[1].textContent, 'Limpar comparação');
+    assert.match(page.comparison.children[2].textContent, /formatos diferentes/);
+    assert.match(page.comparison.children[3].textContent, /Coleta não informada/);
+    assert.equal(page.comparison.children[4].children[2].children[1].textContent, '10');
+    assert.equal(page.comparison.children[4].children[2].children[2].textContent, '--');
+    await page.comparison.children[1].dispatch('click');
+    assert.equal(page.comparison.children.length, 1); assert.match(page.comparison.children[0].textContent, /Selecione até dois/);
   } finally { globalThis.document = originalDocument; }
 });
 

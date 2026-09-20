@@ -1734,7 +1734,11 @@ O detalhe de vídeo classifica a direção observada de views e retenção entre
 
 A comparação informa coletas ausentes ou realizadas em momentos diferentes. A regra usa os timestamps observados diretamente e não esconde limiares de compatibilidade.
 
-**Proximo checkpoint: Sprint 88 - NAO INICIADA; escopo ainda nao definido.**
+## Sprint 88 - Comparison Selection Control - CONCLUIDA
+
+A seleção comparativa pode ser limpa em uma única ação local. O controle não consulta a rede, atualiza os estados acessíveis das linhas e não acumula listeners entre montagens.
+
+**Proximo checkpoint: Sprint 89 - NAO INICIADA; escopo ainda nao definido.**
 
 ### Revisao de encerramento apos Sprint 53
 

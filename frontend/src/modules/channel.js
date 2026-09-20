@@ -128,6 +128,10 @@ export const createChannelController = ({ api, refreshDashboard }) => {
       if (!comparison || !current()) return;
       comparison.replaceChildren(); const selected = loadedVideos.filter((item) => comparedVideoIds.has(item.videoId));
       const status = document.createElement('p'); status.textContent = selected.length === 0 ? 'Selecione até dois vídeos para comparar.' : `${selected.length}/2 selecionado(s): ${selected.map((item) => item.title ?? item.videoId).join(' · ')}`; comparison.append(status);
+      if (selected.length > 0) {
+        const clear = document.createElement('button'); clear.type = 'button'; clear.className = 'button secondary'; clear.textContent = 'Limpar comparação';
+        clear.addEventListener('click', () => { comparedVideoIds.clear(); renderComparison(); applyFilters(); }); comparison.append(clear);
+      }
       if (selected.length === 2) {
         if (selected[0].format !== selected[1].format) { const warning = document.createElement('p'); warning.className = 'performance-feedback'; warning.textContent = 'Comparação entre formatos diferentes: interprete métricas com cautela.'; comparison.append(warning); }
         const collectionWarning = comparisonCollectionWindow(selected[0], selected[1]);
