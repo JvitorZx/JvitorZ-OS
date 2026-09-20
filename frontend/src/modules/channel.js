@@ -117,6 +117,13 @@ export const createChannelController = ({ api, refreshDashboard }) => {
       for (const [label, amount] of [['Vídeos', value.videos], ['Coletas', value.observations], ['Com views', value.coverage?.views], ['Com retenção', value.coverage?.retention], ['Com CTR', value.coverage?.ctr]]) {
         const item = document.createElement('div'); const strong = document.createElement('strong'); strong.textContent = String(amount ?? 0); const small = document.createElement('small'); small.textContent = label; item.append(strong, small); summary.append(item);
       }
+      const details = document.createElement('p'); details.className = 'channel-video-summary-detail';
+      const formats = Object.entries(value.formats ?? {}).map(([name, count]) => `${name}: ${count}`).join(' · ') || 'formatos não informados';
+      const collected = value.latestCollectedAt ? new Date(value.latestCollectedAt).toLocaleString('pt-BR') : 'sem coleta registrada';
+      const missing = [['watch time', value.coverage?.watchTime], ['impressões', value.coverage?.impressions], ['inscritos', value.coverage?.subscribers], ['interações', value.coverage?.interactions]]
+        .filter(([, count]) => Number(count ?? 0) < Number(value.videos ?? 0)).map(([label, count]) => `${label} ${count ?? 0}/${value.videos ?? 0}`);
+      details.textContent = `Formatos: ${formats}. Última coleta: ${collected}. ${missing.length ? `Cobertura parcial: ${missing.join(', ')}.` : 'Cobertura completa para os grupos adicionais.'}`;
+      summary.append(details);
     }).catch(() => { if (summary && current()) summary.textContent = 'Cobertura indisponível.'; });
   };
 

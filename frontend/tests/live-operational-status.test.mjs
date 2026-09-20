@@ -164,12 +164,14 @@ test('Channel renders persisted coverage summary without inventing missing metri
     const page = channelDom();
     createChannelController({ api: {
       listYouTubeChannelVideos: async () => [],
-      getYouTubeChannelVideoSummary: async () => ({ videos: 2, observations: 3, coverage: { views: 1, retention: 0, ctr: 0 } }),
+      getYouTubeChannelVideoSummary: async () => ({ videos: 2, observations: 3, formats: { SHORTS: 1, LONG_FORM: 1 }, latestCollectedAt: '2026-09-10T00:00:00Z', coverage: { views: 1, watchTime: 1, retention: 0, impressions: 0, ctr: 0, subscribers: 0, interactions: 1 } }),
     } }).mount(page.root);
     await new Promise((resolve) => setTimeout(resolve, 0));
-    assert.equal(page.summary.children.length, 5);
+    assert.equal(page.summary.children.length, 6);
     assert.equal(page.summary.children[0].children[0].textContent, '2');
     assert.equal(page.summary.children[3].children[0].textContent, '0');
+    assert.match(page.summary.children[5].textContent, /SHORTS: 1/);
+    assert.match(page.summary.children[5].textContent, /Cobertura parcial: watch time 1\/2/);
   } finally { globalThis.document = originalDocument; }
 });
 

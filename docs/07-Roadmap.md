@@ -1599,7 +1599,13 @@ Entregas:
 - painel compacto na workspace Canal, protegido contra respostas após unmount;
 - contagens observadas, sem percentuais ou thresholds ocultos.
 
-**Proximo checkpoint: Sprint 61 - NAO INICIADA; escopo ainda nao definido.**
+## Sprint 61 - Channel Coverage Detail - CONCLUIDA
+
+**Objetivo:** explicar a cobertura observada dos dados locais sem converter ausência em estimativa.
+
+Entregas: distribuição por formato, horário da última coleta e lacunas exatas por grupo de métrica na workspace Canal. A apresentação deriva do resumo persistido da Sprint 60, não consulta o Google e não usa thresholds ocultos.
+
+**Proximo checkpoint: Sprint 62 - NAO INICIADA; escopo ainda nao definido.**
 
 ### Revisao de encerramento apos Sprint 53
 
