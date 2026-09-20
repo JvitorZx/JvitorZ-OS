@@ -44,6 +44,7 @@ export const createChannelController = ({ api, refreshDashboard }) => {
     const search = root.querySelector('[data-channel-video-search]');
     const format = root.querySelector('[data-channel-video-format]');
     const sort = root.querySelector('[data-channel-video-sort]');
+    const evidence = root.querySelector('[data-channel-video-evidence]');
     let loadedVideos = [];
     const renderDetail = (result) => {
       if (!detail || !current()) return;
@@ -94,9 +95,11 @@ export const createChannelController = ({ api, refreshDashboard }) => {
     const applyFilters = () => {
       const query = String(search?.value ?? '').trim().toLocaleLowerCase('pt-BR');
       const selectedFormat = String(format?.value ?? 'ALL');
+      const selectedEvidence = String(evidence?.value ?? 'ALL');
       const filtered = loadedVideos.filter((item) => (
         (selectedFormat === 'ALL' || item.format === selectedFormat)
         && (!query || String(item.title ?? '').toLocaleLowerCase('pt-BR').includes(query))
+        && (selectedEvidence === 'ALL' || (selectedEvidence === 'HAS_RETENTION' && item.averageViewPercentage !== null && item.averageViewPercentage !== undefined) || (selectedEvidence === 'MISSING_CTR' && (item.ctr === null || item.ctr === undefined)))
       ));
       const selectedSort = String(sort?.value ?? 'COLLECTED');
       const sorted = [...filtered].sort((left, right) => {
@@ -137,7 +140,8 @@ export const createChannelController = ({ api, refreshDashboard }) => {
     search?.addEventListener('input', onFilter);
     format?.addEventListener('change', onFilter);
     sort?.addEventListener('change', onFilter);
-    cleanup = () => { button?.removeEventListener('click', sync); search?.removeEventListener('input', onFilter); format?.removeEventListener('change', onFilter); sort?.removeEventListener('change', onFilter); };
+    evidence?.addEventListener('change', onFilter);
+    cleanup = () => { button?.removeEventListener('click', sync); search?.removeEventListener('input', onFilter); format?.removeEventListener('change', onFilter); sort?.removeEventListener('change', onFilter); evidence?.removeEventListener('change', onFilter); };
     api.listYouTubeChannelVideos?.(50).then((items) => { if (!current()) return; loadedVideos = Array.isArray(items) ? items : []; applyFilters(); }).catch(() => {
       if (!videos || !current()) return;
       videos.replaceChildren(); const message = document.createElement('p'); message.className = 'empty-state'; message.textContent = 'Não foi possível carregar os vídeos sincronizados.'; videos.append(message);
@@ -239,7 +243,7 @@ export const channelModule = {
         eyebrow: 'Conteúdo sincronizado',
         title: 'Vídeos recentes',
         className: 'channel-videos-panel',
-        body: html`<div class="channel-video-summary" data-channel-video-summary aria-live="polite"><span>Calculando cobertura...</span></div><div class="channel-video-filters"><label>Buscar<input type="search" data-channel-video-search placeholder="Título do vídeo"></label><label>Formato<select data-channel-video-format><option value="ALL">Todos</option><option value="LONG_FORM">Long-form</option><option value="SHORTS">Shorts</option><option value="LIVE">Live</option></select></label><label>Ordenar<select data-channel-video-sort><option value="COLLECTED">Coleta recente</option><option value="VIEWS">Mais views</option><option value="TITLE">Título</option></select></label></div><div class="channel-video-layout"><div class="channel-video-list" data-channel-videos aria-live="polite"><p class="empty-state">Carregando vídeos...</p></div><aside class="channel-video-detail" data-channel-video-detail aria-live="polite">Selecione um vídeo para ver métricas e histórico.</aside></div>`,
+        body: html`<div class="channel-video-summary" data-channel-video-summary aria-live="polite"><span>Calculando cobertura...</span></div><div class="channel-video-filters"><label>Buscar<input type="search" data-channel-video-search placeholder="Título do vídeo"></label><label>Formato<select data-channel-video-format><option value="ALL">Todos</option><option value="LONG_FORM">Long-form</option><option value="SHORTS">Shorts</option><option value="LIVE">Live</option></select></label><label>Evidência<select data-channel-video-evidence><option value="ALL">Todas</option><option value="HAS_RETENTION">Com retenção</option><option value="MISSING_CTR">Sem CTR</option></select></label><label>Ordenar<select data-channel-video-sort><option value="COLLECTED">Coleta recente</option><option value="VIEWS">Mais views</option><option value="TITLE">Título</option></select></label></div><div class="channel-video-layout"><div class="channel-video-list" data-channel-videos aria-live="polite"><p class="empty-state">Carregando vídeos...</p></div><aside class="channel-video-detail" data-channel-video-detail aria-live="polite">Selecione um vídeo para ver métricas e histórico.</aside></div>`,
       })}
       ${createPanel({
         eyebrow: 'Integrações oficiais',

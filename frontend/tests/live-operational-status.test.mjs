@@ -39,9 +39,9 @@ class FakeElement {
 }
 
 const channelDom = () => {
-  const root = new FakeElement(); const panel = new FakeElement(); const button = new FakeElement(); const feedback = new FakeElement(); const videos = new FakeElement(); const detail = new FakeElement(); const summary = new FakeElement(); const search = new FakeElement(); const format = new FakeElement(); const sort = new FakeElement(); format.value = 'ALL'; sort.value = 'COLLECTED';
-  root.map.set('.channel-panel', panel); root.map.set('[data-channel-videos]', videos); root.map.set('[data-channel-video-detail]', detail); root.map.set('[data-channel-video-summary]', summary); root.map.set('[data-channel-video-search]', search); root.map.set('[data-channel-video-format]', format); root.map.set('[data-channel-video-sort]', sort); panel.map.set('[data-channel-sync]', button); panel.map.set('[data-channel-feedback]', feedback);
-  return { root, button, feedback, videos, detail, summary, search, format, sort };
+  const root = new FakeElement(); const panel = new FakeElement(); const button = new FakeElement(); const feedback = new FakeElement(); const videos = new FakeElement(); const detail = new FakeElement(); const summary = new FakeElement(); const search = new FakeElement(); const format = new FakeElement(); const sort = new FakeElement(); const evidence = new FakeElement(); format.value = 'ALL'; sort.value = 'COLLECTED'; evidence.value = 'ALL';
+  root.map.set('.channel-panel', panel); root.map.set('[data-channel-videos]', videos); root.map.set('[data-channel-video-detail]', detail); root.map.set('[data-channel-video-summary]', summary); root.map.set('[data-channel-video-search]', search); root.map.set('[data-channel-video-format]', format); root.map.set('[data-channel-video-sort]', sort); root.map.set('[data-channel-video-evidence]', evidence); panel.map.set('[data-channel-sync]', button); panel.map.set('[data-channel-feedback]', feedback);
+  return { root, button, feedback, videos, detail, summary, search, format, sort, evidence };
 };
 
 const deferred = () => { let resolve; let reject; const promise = new Promise((ok, fail) => { resolve = ok; reject = fail; }); return { promise, resolve, reject }; };
@@ -188,6 +188,20 @@ test('Channel sorts loaded videos locally without another API request', async ()
     await new Promise((resolve) => setTimeout(resolve, 0));
     page.sort.value = 'TITLE'; await page.sort.dispatch('change'); assert.equal(page.videos.children[0].children[0].children[0].textContent, 'Alpha');
     page.sort.value = 'VIEWS'; await page.sort.dispatch('change'); assert.equal(page.videos.children[0].children[0].children[0].textContent, 'Alpha');
+    assert.equal(calls, 1);
+  } finally { globalThis.document = originalDocument; }
+});
+
+test('Channel filters explicit metric availability locally', async () => {
+  const originalDocument = globalThis.document; globalThis.document = { createElement: () => new FakeElement() };
+  try {
+    let calls = 0; const page = channelDom();
+    createChannelController({ api: { listYouTubeChannelVideos: async () => { calls += 1; return [
+      { videoId: 'a', title: 'Com dados', averageViewPercentage: 50, ctr: 4 }, { videoId: 'b', title: 'Sem CTR', averageViewPercentage: null, ctr: null },
+    ]; } } }).mount(page.root);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    page.evidence.value = 'HAS_RETENTION'; await page.evidence.dispatch('change'); assert.equal(page.videos.children.length, 1);
+    page.evidence.value = 'MISSING_CTR'; await page.evidence.dispatch('change'); assert.equal(page.videos.children[0].children[0].children[0].textContent, 'Sem CTR');
     assert.equal(calls, 1);
   } finally { globalThis.document = originalDocument; }
 });

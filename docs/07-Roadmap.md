@@ -1644,7 +1644,11 @@ O detalhe de vídeo passa a apresentar a linha do tempo das coletas persistidas,
 
 O detalhe calcula variação de views e retenção apenas quando duas coletas possuem valores numéricos. O texto identifica a comparação temporal, usa pontos percentuais para retenção e exibe ausência quando não há base comparável.
 
-**Proximo checkpoint: Sprint 68 - NAO INICIADA; escopo ainda nao definido.**
+## Sprint 68 - Channel Evidence Filtering - CONCLUIDA
+
+Filtro local por disponibilidade explícita de retenção e ausência de CTR, combinável com busca e formato. Não existe score oculto e nenhuma nova requisição é feita ao filtrar.
+
+**Proximo checkpoint: Sprint 69 - NAO INICIADA; escopo ainda nao definido.**
 
 ### Revisao de encerramento apos Sprint 53
 
