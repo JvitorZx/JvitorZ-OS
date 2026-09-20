@@ -67,8 +67,9 @@ describe('strategic learning memory', { concurrency: false }, () => {
     assert.match(JSON.stringify(result.limitations), /nao demonstra causalidade/i);
   });
   test('repeated comparable evidence progresses from emerging to supported', () => {
-    const emerging = analyzeStrategicLearning(null, [observation('a'), observation('b')]);
-    const supported = analyzeStrategicLearning(null, [observation('a'), observation('b'), observation('c'), observation('d')]);
+    const now = new Date('2026-09-07T12:00:00.000Z');
+    const emerging = analyzeStrategicLearning(null, [observation('a'), observation('b')], now);
+    const supported = analyzeStrategicLearning(null, [observation('a'), observation('b'), observation('c'), observation('d')], now);
     assert.equal(emerging.status, 'EMERGING'); assert.equal(supported.status, 'SUPPORTED'); assert.ok(supported.confidence > emerging.confidence);
   });
   test('contradictory and stale evidence remain explicit', () => {

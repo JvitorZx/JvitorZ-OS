@@ -84,6 +84,19 @@ describe('live channel persistence', { concurrency: false }, () => {
     assert.equal(result.id, null);
     assert.equal(calls, 0);
   });
+
+  test('missing authorization preserves cached data and remains explicitly AUTH_REQUIRED', async () => {
+    const cached = { id: 'cached', createdAt: new Date(), updatedAt: new Date(), ...snapshot() };
+    const service = new ChannelDataService(
+      { isConfigured: () => true, isAuthenticated: () => false },
+      { findLatest: async () => cached },
+      { getChannelInfo: async () => { throw new Error('must not call provider'); } },
+    );
+    const result = await service.getChannel();
+    assert.equal(result.integration.state, 'AUTH_REQUIRED');
+    assert.equal(result.integration.stale, true);
+    assert.equal(result.title, 'Canal real');
+  });
 });
 
 describe('standard integration state', () => {

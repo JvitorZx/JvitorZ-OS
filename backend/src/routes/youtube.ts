@@ -63,6 +63,23 @@ export const createYouTubeRouter = (dependencies: Partial<YouTubeRouteDependenci
       return res.status(500).json({ code: 'INTERNAL_ERROR', error: 'Failed to fetch channel information' });
     }
   });
+  router.post('/channel/sync', async (_req, res) => {
+    try {
+      const channel = await channelDataService.getChannel({ refresh: true });
+      if (channel.id && channel.integration.state === 'CONNECTED') return res.status(200).json(channel);
+      if (channel.integration.state === 'AUTH_REQUIRED' || (channel.integration.stale && !googleService.isAuthenticated())) {
+        return res.status(401).json({ code: 'AUTH_REQUIRED', error: 'Google authorization is required' });
+      }
+      if (channel.integration.state === 'NOT_CONFIGURED') {
+        return res.status(503).json({ code: 'CONFIG_MISSING', error: 'Google integration is not configured' });
+      }
+      return res.status(503).json({ code: 'PROVIDER_UNAVAILABLE', error: 'YouTube is temporarily unavailable' });
+    } catch (error) {
+      const name = error instanceof Error ? error.name : 'UnknownError';
+      console.error(`Failed to synchronize channel data (${name})`);
+      return res.status(500).json({ code: 'INTERNAL_ERROR', error: 'Failed to synchronize channel information' });
+    }
+  });
   return router;
 };
 

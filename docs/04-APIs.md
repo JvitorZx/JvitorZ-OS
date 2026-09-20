@@ -1082,6 +1082,10 @@ O endpoint nunca retorna client secret, token, chave, caminho local ou payload b
 
 Coleta o canal autenticado e persiste o último resultado válido. Retorna `200` com ID, título, contagens públicas, país, publicação e o estado operacional da coleta. Quando a rede externa falha e existe cache, retorna o dado conhecido com estado `DEGRADED`; configuração ausente retorna `503` com `CONFIG_MISSING`, autenticação ausente retorna `401` com `AUTH_REQUIRED` e indisponibilidade sem cache retorna `503` com `PROVIDER_UNAVAILABLE`.
 
+### `POST /api/youtube/channel/sync`
+
+Executa uma atualização explícita e única do canal. Não recebe body. Retorna `200` somente depois que o snapshot atualizado foi persistido. Autorização ausente ou expirada retorna `401` com `AUTH_REQUIRED`; configuração ausente e indisponibilidade temporária retornam `503` com `CONFIG_MISSING` ou `PROVIDER_UNAVAILABLE`; falha inesperada retorna `500` sanitizado. Dados anteriores nunca são apagados por falha externa.
+
 ## Audience e fontes de tráfego
 
 Base: `/api/operators/creator-intelligence/audience`.

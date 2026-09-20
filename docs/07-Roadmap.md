@@ -1520,7 +1520,22 @@ Exportacao SRT/WebVTT sobre os segmentos reais da transcricao vinculada ao corte
 
 Detalhes: [Clip Caption Export](CLIP_CAPTION_EXPORT.md). A qualidade depende da transcricao existente. Falas parcialmente cortadas preservam texto completo com aviso; nao ha alinhamento por palavra ou legendas gravadas no video.
 
-**Proximo checkpoint: Sprint 54 - NAO INICIADA; escopo ainda nao definido.**
+## Sprint 54 - YouTube Sync Control & Freshness Recovery - CONCLUIDA
+
+**Objetivo:** tornar a workspace Canal operacional para recuperar dados reais sem esconder expiração de OAuth nem descartar o último snapshot válido.
+
+Entregas:
+
+- sincronização explícita `POST /api/youtube/channel/sync`, persistida antes da resposta;
+- reconexão Google e sincronização disponíveis diretamente na página Canal;
+- estado `AUTH_REQUIRED` preservado mesmo quando existe last-known-good;
+- single-flight, feedback local acessível e proteção contra respostas após unmount;
+- erros HTTP sanitizados e nenhum segredo, token ou payload bruto exposto;
+- teste temporal antigo estabilizado com relógio explícito, sem alterar regras de produção.
+
+Limites: a sincronização continua manual, não cria polling e não garante disponibilidade externa. YouTube Reach permanece dependente do consentimento correspondente; dados antigos continuam identificados como stale.
+
+**Proximo checkpoint: Sprint 55 - NAO INICIADA; escopo ainda nao definido.**
 
 ### Revisao de encerramento apos Sprint 53
 

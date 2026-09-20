@@ -156,6 +156,18 @@ export const createApiClient = (baseUrl) => ({
     return requestJson(`${baseUrl}/api/integrations/status`, undefined, 'Erro ao consultar integracoes');
   },
 
+  async getYouTubeChannel() {
+    return requestJson(`${baseUrl}/api/youtube/channel`, undefined, 'Erro ao carregar o canal do YouTube');
+  },
+
+  async syncYouTubeChannel() {
+    return requestJson(
+      `${baseUrl}/api/youtube/channel/sync`,
+      { method: 'POST' },
+      'Erro ao sincronizar o canal do YouTube',
+    );
+  },
+
   async listChannelOperators(projectId) {
     const query = projectId === undefined
       ? ''

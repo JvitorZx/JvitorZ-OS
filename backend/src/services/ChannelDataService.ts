@@ -74,7 +74,7 @@ export class ChannelDataService {
     }
     if (!this.google.isAuthenticated()) {
       return latest
-        ? fromSnapshot(latest, 'DEGRADED', true, 'Reconexão Google necessária; exibindo o último dado válido.')
+        ? fromSnapshot(latest, 'AUTH_REQUIRED', true, 'Reconexão Google necessária; exibindo o último dado válido.')
         : empty('AUTH_REQUIRED', 'Conecte novamente a conta Google.');
     }
     if (!refresh) {
@@ -108,7 +108,8 @@ export class ChannelDataService {
         : temporary
           ? 'YouTube temporariamente indisponível.'
           : 'Não foi possível atualizar os dados do canal.';
-      return latest ? fromSnapshot(latest, 'DEGRADED', true, `${summary} Exibindo o último dado válido.`) : empty(state, summary);
+      const cachedState: OperationalState = authRequired ? 'AUTH_REQUIRED' : 'DEGRADED';
+      return latest ? fromSnapshot(latest, cachedState, true, `${summary} Exibindo o último dado válido.`) : empty(state, summary);
     }
   }
 }

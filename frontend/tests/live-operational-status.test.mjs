@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import { createApiClient, ApiRequestError } from '../src/api/client.js';
-import { channelModule } from '../src/modules/channel.js';
+import { channelModule, createChannelController } from '../src/modules/channel.js';
 import { homeModule } from '../src/modules/home.js';
 import { plannerModule } from '../src/modules/planner.js';
 import { settingsModule } from '../src/modules/settings.js';
@@ -26,6 +26,23 @@ const dashboard = {
     { id: 'ctr', status: 'LIMITED', confidence: 0.4, summary: 'CTR limitado: faltam impressions, ctr.' },
   ], editorial: {}, automations: {} },
 };
+
+class FakeElement {
+  constructor() { this.map = new Map(); this.listeners = new Map(); this.attributes = new Map(); this.textContent = ''; this.className = ''; this.hidden = false; this.disabled = false; }
+  querySelector(selector) { return this.map.get(selector) ?? null; }
+  addEventListener(type, handler) { if (!this.listeners.has(type)) this.listeners.set(type, new Set()); this.listeners.get(type).add(handler); }
+  removeEventListener(type, handler) { this.listeners.get(type)?.delete(handler); }
+  setAttribute(name, value) { this.attributes.set(name, String(value)); }
+  async dispatch(type) { for (const handler of this.listeners.get(type) ?? []) await handler({ currentTarget: this, preventDefault() {} }); }
+}
+
+const channelDom = () => {
+  const root = new FakeElement(); const panel = new FakeElement(); const button = new FakeElement(); const feedback = new FakeElement();
+  root.map.set('.channel-panel', panel); panel.map.set('[data-channel-sync]', button); panel.map.set('[data-channel-feedback]', feedback);
+  return { root, button, feedback };
+};
+
+const deferred = () => { let resolve; let reject; const promise = new Promise((ok, fail) => { resolve = ok; reject = fail; }); return { promise, resolve, reject }; };
 
 test('Dashboard, Channel, Planner and Supervisor use the same operational truth', () => {
   const home = homeModule.render(dashboard);
@@ -67,4 +84,62 @@ test('central API client exposes integration status and a safe error code', asyn
   } finally {
     globalThis.fetch = originalFetch;
   }
+});
+
+test('channel client exposes explicit read and synchronization contracts', async () => {
+  const originalFetch = globalThis.fetch;
+  const calls = [];
+  globalThis.fetch = async (url, options) => {
+    calls.push({ url, options });
+    return { ok: true, status: 200, json: async () => ({ id: 'channel-1' }) };
+  };
+  try {
+    const api = createApiClient('http://localhost:3000');
+    assert.equal((await api.getYouTubeChannel()).id, 'channel-1');
+    assert.equal((await api.syncYouTubeChannel()).id, 'channel-1');
+    assert.deepEqual(calls, [
+      { url: 'http://localhost:3000/api/youtube/channel', options: undefined },
+      { url: 'http://localhost:3000/api/youtube/channel/sync', options: { method: 'POST' } },
+    ]);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('Channel exposes safe local controls according to the operational state', () => {
+  const output = channelModule.render({ ...dashboard, authUrl: 'http://localhost:3000/api/auth/google' }, { apiBaseUrl: 'http://localhost:3000' });
+  assert.match(output, /Sincronizar canal/);
+  assert.match(output, /Reconectar Google/);
+  assert.match(output, /aria-live="polite"/);
+  assert.doesNotMatch(output, /access_token|client_secret/);
+});
+
+test('Channel synchronization is single-flight and refreshes only after persisted success', async () => {
+  const pending = deferred(); let calls = 0; let refreshes = 0;
+  const page = channelDom();
+  const controller = createChannelController({
+    api: { syncYouTubeChannel: async () => { calls += 1; return pending.promise; } },
+    refreshDashboard: async () => { refreshes += 1; },
+  });
+  controller.mount(page.root); controller.mount(page.root);
+  const first = page.button.dispatch('click'); await page.button.dispatch('click');
+  assert.equal(calls, 1); assert.equal(page.button.disabled, true);
+  pending.resolve({ id: 'channel-1' }); await first;
+  assert.equal(refreshes, 1); assert.equal(page.button.disabled, false);
+});
+
+test('Channel ignores a late synchronization response after unmount', async () => {
+  const pending = deferred(); let refreshes = 0; const page = channelDom();
+  const controller = createChannelController({ api: { syncYouTubeChannel: async () => pending.promise }, refreshDashboard: async () => { refreshes += 1; } });
+  controller.mount(page.root); const request = page.button.dispatch('click'); controller.unmount();
+  pending.resolve({ id: 'channel-1' }); await request;
+  assert.equal(refreshes, 0); assert.doesNotMatch(page.feedback.textContent, /sucesso/i);
+});
+
+test('Channel maps synchronization failures to local safe feedback', async () => {
+  const page = channelDom();
+  const controller = createChannelController({ api: { syncYouTubeChannel: async () => { throw new ApiRequestError('private', 401, 'AUTH_REQUIRED'); } } });
+  controller.mount(page.root); await page.button.dispatch('click');
+  assert.match(page.feedback.textContent, /Reconecte sua conta Google/);
+  assert.doesNotMatch(page.feedback.textContent, /private|token|stack/);
 });

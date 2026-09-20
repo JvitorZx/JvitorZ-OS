@@ -172,4 +172,34 @@ describe('YouTube route expected states', { concurrency: false }, () => {
       console.warn = originalWarn;
     }
   });
+
+  test('explicit channel synchronization returns the persisted result once', async () => {
+    let calls = 0;
+    youtubeDependencies = {
+      googleService: { isAuthenticated: () => true },
+      channelDataService: {
+        getChannel: async (options) => {
+          calls += 1;
+          assert.deepEqual(options, { refresh: true });
+          return { id: 'channel-1', title: 'Canal', integration: { state: 'CONNECTED', stale: false } };
+        },
+      },
+    };
+    const response = await fetch(`${baseUrl}/api/youtube/channel/sync`, { method: 'POST' });
+    assert.equal(response.status, 200);
+    assert.equal((await response.json()).id, 'channel-1');
+    assert.equal(calls, 1);
+  });
+
+  test('explicit channel synchronization maps authorization safely', async () => {
+    youtubeDependencies = {
+      googleService: { isAuthenticated: () => false },
+      channelDataService: {
+        getChannel: async () => ({ id: 'channel-1', integration: { state: 'AUTH_REQUIRED', stale: true } }),
+      },
+    };
+    const response = await fetch(`${baseUrl}/api/youtube/channel/sync`, { method: 'POST' });
+    assert.equal(response.status, 401);
+    assert.deepEqual(await response.json(), { code: 'AUTH_REQUIRED', error: 'Google authorization is required' });
+  });
 });

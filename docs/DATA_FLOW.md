@@ -589,6 +589,8 @@ Sincronização recente consulta IDs de uploads e sincronização por período d
 
 `ChannelDataService` tenta coletar o canal quando autorizado. Em falha temporária, consulta `ChannelSnapshotRepository` e retorna o último dado com `stale = true`, sem apagar o registro. `IntegrationStatusService` consulta apenas estado e persistência; não dispara uma sincronização.
 
+Desde a Sprint 54, a workspace Canal oferece reconexão e sincronização explícitas. O fluxo é `Canal -> API client -> POST /api/youtube/channel/sync -> ChannelDataService -> YouTube Data API -> ChannelSnapshotRepository`. A UI bloqueia cliques concorrentes, ignora respostas após unmount e recarrega o estado global somente depois da persistência. Um snapshot existente continua visível durante falhas, mas OAuth expirado permanece identificado como `AUTH_REQUIRED`, não como indisponibilidade genérica.
+
 ## Reach Reporting e observabilidade — Sprint 32
 
 ```text
