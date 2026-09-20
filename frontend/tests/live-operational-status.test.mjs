@@ -234,12 +234,13 @@ test('Channel resets every local content filter with one listener', async () => 
 test('Channel selects at most two persisted videos for local comparison', async () => {
   const originalDocument = globalThis.document; globalThis.document = { createElement: () => new FakeElement() };
   try {
-    const page = channelDom(); createChannelController({ api: { listYouTubeChannelVideos: async () => ['A', 'B', 'C'].map((title, index) => ({ videoId: title, title, views: index ? null : 10, averageViewPercentage: 50 + index, ctr: 4 + index })) } }).mount(page.root);
+    const page = channelDom(); createChannelController({ api: { listYouTubeChannelVideos: async () => ['A', 'B', 'C'].map((title, index) => ({ videoId: title, title, format: index ? 'LONG_FORM' : 'SHORTS', views: index ? null : 10, averageViewPercentage: 50 + index, ctr: 4 + index })) } }).mount(page.root);
     await new Promise((resolve) => setTimeout(resolve, 0));
     await page.videos.children[0].children[2].children[1].dispatch('click'); await page.videos.children[1].children[2].children[1].dispatch('click'); await page.videos.children[2].children[2].children[1].dispatch('click');
     assert.match(page.comparison.children[0].textContent, /2\/2 selecionado/); assert.doesNotMatch(page.comparison.children[0].textContent, /C/);
-    assert.equal(page.comparison.children[1].children[2].children[1].textContent, '10');
-    assert.equal(page.comparison.children[1].children[2].children[2].textContent, '--');
+    assert.match(page.comparison.children[1].textContent, /formatos diferentes/);
+    assert.equal(page.comparison.children[2].children[2].children[1].textContent, '10');
+    assert.equal(page.comparison.children[2].children[2].children[2].textContent, '--');
   } finally { globalThis.document = originalDocument; }
 });
 

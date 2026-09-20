@@ -115,6 +115,7 @@ export const createChannelController = ({ api, refreshDashboard }) => {
       comparison.replaceChildren(); const selected = loadedVideos.filter((item) => comparedVideoIds.has(item.videoId));
       const status = document.createElement('p'); status.textContent = selected.length === 0 ? 'Selecione até dois vídeos para comparar.' : `${selected.length}/2 selecionado(s): ${selected.map((item) => item.title ?? item.videoId).join(' · ')}`; comparison.append(status);
       if (selected.length === 2) {
+        if (selected[0].format !== selected[1].format) { const warning = document.createElement('p'); warning.className = 'performance-feedback'; warning.textContent = 'Comparação entre formatos diferentes: interprete métricas com cautela.'; comparison.append(warning); }
         const table = document.createElement('table'); table.className = 'channel-comparison-table';
         const head = document.createElement('tr'); for (const value of ['Métrica', selected[0].title ?? selected[0].videoId, selected[1].title ?? selected[1].videoId]) { const cell = document.createElement('th'); cell.textContent = value; head.append(cell); } table.append(head);
         for (const [label, field, suffix = ''] of [['Formato', 'format'], ['Views', 'views'], ['Retenção', 'averageViewPercentage', '%'], ['CTR', 'ctr', '%']]) {

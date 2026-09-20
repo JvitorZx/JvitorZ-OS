@@ -1714,7 +1714,11 @@ Seleção local e explícita de até dois vídeos persistidos, com estado acess�
 
 Dois vídeos selecionados recebem tabela factual de formato, views, retenção e CTR. Valores ausentes aparecem como `--`; a comparação não declara vencedor.
 
-**Proximo checkpoint: Sprint 83 - NAO INICIADA; escopo ainda nao definido.**
+## Sprint 83 - Channel Comparison Compatibility - CONCLUIDA
+
+Comparações entre formatos diferentes recebem aviso explícito de cautela. O sistema não bloqueia inspeção nem trata métricas incompatíveis como equivalentes.
+
+**Proximo checkpoint: Sprint 84 - NAO INICIADA; escopo ainda nao definido.**
 
 ### Revisao de encerramento apos Sprint 53
 
