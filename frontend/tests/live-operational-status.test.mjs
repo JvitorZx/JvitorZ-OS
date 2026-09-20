@@ -191,7 +191,7 @@ test('Channel filters the loaded local list without another API request', async 
     await new Promise((resolve) => setTimeout(resolve, 0)); assert.equal(page.videos.children.length, 2);
     page.search.value = 'forza'; await page.search.dispatch('input'); assert.equal(page.videos.children.length, 1);
     page.search.value = 'inexistente'; await page.search.dispatch('input'); assert.equal(page.videos.children[0].textContent, 'Nenhum vídeo corresponde aos filtros.');
-    assert.equal(page.resultCount.textContent, '0 vídeo(s) exibido(s)');
+    assert.equal(page.resultCount.textContent, '0 vídeo(s) nesta página');
     page.search.value = ''; page.format.value = 'LONG_FORM'; await page.format.dispatch('change'); assert.equal(page.videos.children.length, 1);
     assert.equal(calls, 1);
   } finally { globalThis.document = originalDocument; }
