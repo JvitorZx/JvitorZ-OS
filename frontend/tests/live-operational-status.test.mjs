@@ -139,6 +139,7 @@ test('Channel opens persisted video detail and keeps missing metrics explicit', 
     } });
     controller.mount(page.root); await new Promise((resolve) => setTimeout(resolve, 0));
     const open = page.videos.children[0].children[2]; await open.dispatch('click');
+    assert.equal(page.videos.children[0].children[2].attributes.get('aria-pressed'), 'true');
     assert.equal(page.detail.children[0].textContent, '<b>Vídeo</b>');
     assert.equal(page.detail.children[2].href, 'https://www.youtube.com/watch?v=v1');
     assert.equal(page.detail.children[2].rel, 'noopener noreferrer');

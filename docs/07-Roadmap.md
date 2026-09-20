@@ -1660,7 +1660,11 @@ Uma única ação restaura busca, formato, evidência e ordenação sem remontar
 
 O detalhe oferece abertura explícita do vídeo persistido no YouTube em nova aba, com ID codificado e proteção de contexto. Nenhuma escrita externa é realizada.
 
-**Proximo checkpoint: Sprint 72 - NAO INICIADA; escopo ainda nao definido.**
+## Sprint 72 - Channel Video Selection State - CONCLUIDA
+
+O item aberto permanece identificado visual e semanticamente com `aria-pressed`, inclusive após reordenação ou refiltro da lista local.
+
+**Proximo checkpoint: Sprint 73 - NAO INICIADA; escopo ainda nao definido.**
 
 ### Revisao de encerramento apos Sprint 53
 

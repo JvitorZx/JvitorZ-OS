@@ -48,6 +48,7 @@ export const createChannelController = ({ api, refreshDashboard }) => {
     const resultCount = root.querySelector('[data-channel-video-result-count]');
     const resetFilters = root.querySelector('[data-channel-video-reset]');
     let loadedVideos = [];
+    let selectedVideoId = null;
     const renderDetail = (result) => {
       if (!detail || !current()) return;
       const item = result?.current;
@@ -91,7 +92,7 @@ export const createChannelController = ({ api, refreshDashboard }) => {
         const title = document.createElement('strong'); title.textContent = item.title ?? 'Vídeo sem título';
         const meta = document.createElement('small'); meta.textContent = `${item.format ?? 'Formato desconhecido'} · ${item.videoId ?? 'ID indisponível'}`;
         const facts = document.createElement('span'); facts.textContent = `${Number(item.views ?? 0).toLocaleString('pt-BR')} views · coletado em ${item.collectedAt ? new Date(item.collectedAt).toLocaleDateString('pt-BR') : '--'}`;
-        const open = document.createElement('button'); open.type = 'button'; open.className = 'button secondary'; open.textContent = 'Detalhes'; open.setAttribute('aria-label', `Abrir detalhes de ${item.title ?? 'vídeo sem título'}`); open.addEventListener('click', () => openVideo(item.videoId));
+        const open = document.createElement('button'); open.type = 'button'; open.className = 'button secondary'; open.textContent = 'Detalhes'; open.setAttribute('aria-label', `Abrir detalhes de ${item.title ?? 'vídeo sem título'}`); open.setAttribute('aria-pressed', String(selectedVideoId === item.videoId)); open.addEventListener('click', () => { selectedVideoId = item.videoId; applyFilters(); openVideo(item.videoId); });
         copy.append(title, meta); row.append(copy, facts, open); videos.append(row);
       }
     };
