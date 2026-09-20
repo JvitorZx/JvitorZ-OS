@@ -1605,7 +1605,13 @@ Entregas:
 
 Entregas: distribuição por formato, horário da última coleta e lacunas exatas por grupo de métrica na workspace Canal. A apresentação deriva do resumo persistido da Sprint 60, não consulta o Google e não usa thresholds ocultos.
 
-**Proximo checkpoint: Sprint 62 - NAO INICIADA; escopo ainda nao definido.**
+## Sprint 62 - YouTube Source Action Guidance - CONCLUIDA
+
+**Objetivo:** indicar a próxima ação válida para cada fonte oficial sem prometer disponibilidade nem iniciar trabalho automaticamente.
+
+Entregas: orientação determinística para abrir, sincronizar, revisar ou reconectar; fontes sem configuração ficam semanticamente indisponíveis em vez de oferecer link enganoso. O estado continua vindo exclusivamente do backend consolidado.
+
+**Proximo checkpoint: Sprint 63 - NAO INICIADA; escopo ainda nao definido.**
 
 ### Revisao de encerramento apos Sprint 53
 

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import { createApiClient, ApiRequestError } from '../src/api/client.js';
-import { channelModule, createChannelController } from '../src/modules/channel.js';
+import { channelModule, channelSourceAction, createChannelController } from '../src/modules/channel.js';
 import { homeModule } from '../src/modules/home.js';
 import { plannerModule } from '../src/modules/planner.js';
 import { settingsModule } from '../src/modules/settings.js';
@@ -192,6 +192,13 @@ test('Channel consolidates every real YouTube source without inventing availabil
   assert.match(output, /YouTube Reach/);
   assert.match(output, /Último dado válido/);
   assert.doesNotMatch(output, /Tudo funcionando|100% disponível/);
+});
+
+test('Channel source guidance follows the real integration state', () => {
+  assert.deepEqual(channelSourceAction({ state: 'NOT_CONFIGURED' }), { label: 'Configuração necessária', available: false });
+  assert.deepEqual(channelSourceAction({ state: 'AUTH_REQUIRED' }), { label: 'Reconectar', available: true });
+  assert.deepEqual(channelSourceAction({ state: 'CONNECTED', action: 'SYNC' }), { label: 'Abrir sincronização', available: true });
+  assert.deepEqual(channelSourceAction({ state: 'DEGRADED' }), { label: 'Revisar dados', available: true });
 });
 
 test('Channel synchronization is single-flight and refreshes only after persisted success', async () => {

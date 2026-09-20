@@ -923,6 +923,7 @@ h1 {
 .channel-source-row small {
   color: var(--muted);
 }
+.channel-source-unavailable { color: var(--muted); font-size: 13px; }
 
 @media (max-width: 720px) {
   .channel-source-row { grid-template-columns: minmax(0, 1fr) auto; }

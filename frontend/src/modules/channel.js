@@ -9,6 +9,14 @@ const channelErrorMessage = (error) => {
   return 'Não foi possível sincronizar o canal. Tente novamente.';
 };
 
+export const channelSourceAction = (source = {}) => {
+  if (source.state === 'NOT_CONFIGURED') return { label: 'Configuração necessária', available: false };
+  if (source.state === 'AUTH_REQUIRED' || source.action === 'RECONNECT' || source.action === 'CONNECT') return { label: 'Reconectar', available: true };
+  if (source.action === 'SYNC') return { label: 'Abrir sincronização', available: true };
+  if (source.state === 'DEGRADED' || source.stale) return { label: 'Revisar dados', available: true };
+  return { label: 'Abrir', available: true };
+};
+
 export const createChannelController = ({ api, refreshDashboard }) => {
   let mountedRoot = null;
   let generation = 0;
@@ -164,13 +172,11 @@ export const channelModule = {
     const sourceRows = sources.map(([id, label, description, href]) => {
       const source = integrationFrom(data, id) ?? {};
       const sourceState = operationalStatus(source.state);
-      const actionLabel = source.action === 'RECONNECT' || source.action === 'CONNECT'
-        ? 'Reconectar'
-        : source.action === 'SYNC' ? 'Abrir sincronização' : 'Abrir';
+      const action = channelSourceAction(source);
       return html`<div class="channel-source-row">
         <div><strong>${label}</strong><small>${description}</small><small>${source.summary ?? sourceState.label}</small></div>
         ${createStatusPill(sourceState.label, sourceState.variant)}
-        <a class="button secondary" href="${href}">${actionLabel}</a>
+        ${action.available ? html`<a class="button secondary" href="${href}">${action.label}</a>` : html`<span class="channel-source-unavailable" aria-disabled="true">${action.label}</span>`}
       </div>`;
     }).join('');
 
