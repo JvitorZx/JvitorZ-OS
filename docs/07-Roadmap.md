@@ -1750,7 +1750,11 @@ O backend oferece paginação explícita e compatível para vídeos persistidos,
 
 O client central expõe o contrato paginado com validação local de página e tamanho. URLs e erros permanecem centralizados, sem chamadas `fetch` espalhadas pelo módulo Canal.
 
-**Proximo checkpoint: Sprint 92 - NAO INICIADA; escopo ainda nao definido.**
+## Sprint 92 - Channel Pagination UI - CONCLUIDA
+
+A tela Canal usa o contrato paginado quando disponível, apresenta página atual e controles de navegação com limites desativados. O fallback legado permanece compatível para integrações existentes.
+
+**Proximo checkpoint: Sprint 93 - NAO INICIADA; escopo ainda nao definido.**
 
 ### Revisao de encerramento apos Sprint 53
 

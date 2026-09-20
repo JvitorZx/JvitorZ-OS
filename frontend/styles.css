@@ -955,6 +955,7 @@ h1 {
 .channel-video-history { display: grid; gap: 6px; margin: 12px 0 0; padding-left: 20px; color: var(--muted); font-size: 13px; }
 .channel-video-change { margin: 10px 0 0; font-size: 13px; color: var(--text); }
 .channel-video-result-count { margin: 0 0 10px; color: var(--muted); font-size: 13px; }
+.channel-pagination { display: flex; align-items: center; gap: 10px; margin: 0 0 12px; }
 .channel-video-filters label { display: grid; gap: 5px; color: var(--muted); font-size: 12px; min-width: 180px; }
 .channel-video-filters input,
 .channel-video-filters select { min-height: 38px; }

@@ -40,9 +40,9 @@ class FakeElement {
 }
 
 const channelDom = () => {
-  const root = new FakeElement(); const panel = new FakeElement(); const button = new FakeElement(); const feedback = new FakeElement(); const videos = new FakeElement(); const detail = new FakeElement(); const summary = new FakeElement(); const comparison = new FakeElement(); const resultCount = new FakeElement(); const reset = new FakeElement(); const refresh = new FakeElement(); const search = new FakeElement(); const format = new FakeElement(); const sort = new FakeElement(); const evidence = new FakeElement(); format.value = 'ALL'; sort.value = 'COLLECTED'; evidence.value = 'ALL';
-  root.map.set('.channel-panel', panel); root.map.set('[data-channel-videos]', videos); root.map.set('[data-channel-video-detail]', detail); root.map.set('[data-channel-video-summary]', summary); root.map.set('[data-channel-video-comparison]', comparison); root.map.set('[data-channel-video-result-count]', resultCount); root.map.set('[data-channel-video-reset]', reset); root.map.set('[data-channel-video-refresh]', refresh); root.map.set('[data-channel-video-search]', search); root.map.set('[data-channel-video-format]', format); root.map.set('[data-channel-video-sort]', sort); root.map.set('[data-channel-video-evidence]', evidence); panel.map.set('[data-channel-sync]', button); panel.map.set('[data-channel-feedback]', feedback);
-  return { root, button, feedback, videos, detail, summary, comparison, resultCount, reset, refresh, search, format, sort, evidence };
+  const root = new FakeElement(); const panel = new FakeElement(); const button = new FakeElement(); const feedback = new FakeElement(); const videos = new FakeElement(); const detail = new FakeElement(); const summary = new FakeElement(); const comparison = new FakeElement(); const resultCount = new FakeElement(); const reset = new FakeElement(); const refresh = new FakeElement(); const previousPage = new FakeElement(); const nextPage = new FakeElement(); const pageStatus = new FakeElement(); const search = new FakeElement(); const format = new FakeElement(); const sort = new FakeElement(); const evidence = new FakeElement(); format.value = 'ALL'; sort.value = 'COLLECTED'; evidence.value = 'ALL';
+  root.map.set('.channel-panel', panel); root.map.set('[data-channel-videos]', videos); root.map.set('[data-channel-video-detail]', detail); root.map.set('[data-channel-video-summary]', summary); root.map.set('[data-channel-video-comparison]', comparison); root.map.set('[data-channel-video-result-count]', resultCount); root.map.set('[data-channel-video-reset]', reset); root.map.set('[data-channel-video-refresh]', refresh); root.map.set('[data-channel-page-previous]', previousPage); root.map.set('[data-channel-page-next]', nextPage); root.map.set('[data-channel-page-status]', pageStatus); root.map.set('[data-channel-video-search]', search); root.map.set('[data-channel-video-format]', format); root.map.set('[data-channel-video-sort]', sort); root.map.set('[data-channel-video-evidence]', evidence); panel.map.set('[data-channel-sync]', button); panel.map.set('[data-channel-feedback]', feedback);
+  return { root, button, feedback, videos, detail, summary, comparison, resultCount, reset, refresh, previousPage, nextPage, pageStatus, search, format, sort, evidence };
 };
 
 const deferred = () => { let resolve; let reject; const promise = new Promise((ok, fail) => { resolve = ok; reject = fail; }); return { promise, resolve, reject }; };
@@ -275,6 +275,18 @@ test('Channel refreshes local content single-flight without synchronizing Google
     await new Promise((resolve) => setTimeout(resolve, 0));
     const first = page.refresh.dispatch('click'); await page.refresh.dispatch('click'); assert.equal(listCalls, 2); assert.equal(summaryCalls, 2); assert.equal(page.refresh.disabled, true);
     pending.resolve([{ videoId: 'a', title: 'Atualizado' }]); await first; assert.equal(page.refresh.disabled, false);
+  } finally { globalThis.document = originalDocument; }
+});
+
+test('Channel navigates persisted pages and respects their boundaries', async () => {
+  const originalDocument = globalThis.document; globalThis.document = { createElement: () => new FakeElement() };
+  try {
+    const calls = []; const page = channelDom();
+    createChannelController({ api: { pageYouTubeChannelVideos: async (number, size) => { calls.push([number, size]); return { items: [{ videoId: `v${number}`, title: `Página ${number}` }], page: number, pageSize: size, total: 13, totalPages: 2 }; } } }).mount(page.root);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    assert.equal(page.pageStatus.textContent, 'Página 1 de 2'); assert.equal(page.previousPage.disabled, true); assert.equal(page.nextPage.disabled, false);
+    await page.nextPage.dispatch('click'); await new Promise((resolve) => setTimeout(resolve, 0));
+    assert.deepEqual(calls, [[1, 12], [2, 12]]); assert.equal(page.pageStatus.textContent, 'Página 2 de 2'); assert.equal(page.nextPage.disabled, true);
   } finally { globalThis.document = originalDocument; }
 });
 

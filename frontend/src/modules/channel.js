@@ -68,10 +68,14 @@ export const createChannelController = ({ api, refreshDashboard }) => {
     const resetFilters = root.querySelector('[data-channel-video-reset]');
     const refreshContent = root.querySelector('[data-channel-video-refresh]');
     const comparison = root.querySelector('[data-channel-video-comparison]');
+    const previousPage = root.querySelector('[data-channel-page-previous]');
+    const nextPage = root.querySelector('[data-channel-page-next]');
+    const pageStatus = root.querySelector('[data-channel-page-status]');
     let loadedVideos = [];
     let selectedVideoId = null;
     const comparedVideoIds = new Set();
     let contentLoading = false;
+    let currentPage = 1; let totalPages = 1; const pageSize = 12;
     const renderDetail = (result) => {
       if (!detail || !current()) return;
       const item = result?.current;
@@ -170,15 +174,17 @@ export const createChannelController = ({ api, refreshDashboard }) => {
     const loadContent = async () => {
       if (contentLoading) return;
       contentLoading = true; if (refreshContent) { refreshContent.disabled = true; refreshContent.setAttribute('aria-busy', 'true'); }
-      const hasList = typeof api.listYouTubeChannelVideos === 'function'; const hasSummary = typeof api.getYouTubeChannelVideoSummary === 'function';
-      const [listResult, summaryResult] = await Promise.allSettled([hasList ? api.listYouTubeChannelVideos(50) : undefined, hasSummary ? api.getYouTubeChannelVideoSummary() : undefined]);
+      const hasPage = typeof api.pageYouTubeChannelVideos === 'function'; const hasList = hasPage || typeof api.listYouTubeChannelVideos === 'function'; const hasSummary = typeof api.getYouTubeChannelVideoSummary === 'function';
+      const [listResult, summaryResult] = await Promise.allSettled([hasPage ? api.pageYouTubeChannelVideos(currentPage, pageSize) : hasList ? api.listYouTubeChannelVideos(50) : undefined, hasSummary ? api.getYouTubeChannelVideoSummary() : undefined]);
       if (!current()) { contentLoading = false; return; }
-      if (hasList && listResult.status === 'fulfilled') { loadedVideos = Array.isArray(listResult.value) ? listResult.value : []; for (const id of comparedVideoIds) if (!loadedVideos.some((item) => item.videoId === id)) comparedVideoIds.delete(id); renderComparison(); applyFilters(); }
+      if (hasList && listResult.status === 'fulfilled') { const payload = listResult.value; loadedVideos = Array.isArray(payload) ? payload : Array.isArray(payload?.items) ? payload.items : []; if (!Array.isArray(payload)) { currentPage = payload.page ?? currentPage; totalPages = payload.totalPages ?? 1; } else { currentPage = 1; totalPages = 1; } if (pageStatus) pageStatus.textContent = `Página ${currentPage} de ${Math.max(totalPages, 1)}`; if (previousPage) previousPage.disabled = currentPage <= 1; if (nextPage) nextPage.disabled = currentPage >= totalPages; for (const id of comparedVideoIds) if (!loadedVideos.some((item) => item.videoId === id)) comparedVideoIds.delete(id); renderComparison(); applyFilters(); }
       else if (hasList && videos) { videos.replaceChildren(); const message = document.createElement('p'); message.className = 'empty-state'; message.textContent = 'Não foi possível carregar os vídeos sincronizados.'; videos.append(message); }
       if (hasSummary && summaryResult.status === 'fulfilled' && summary) renderSummary(summaryResult.value);
       else if (hasSummary && summary) summary.textContent = 'Cobertura indisponível.';
       contentLoading = false; if (refreshContent) { refreshContent.disabled = false; refreshContent.setAttribute('aria-busy', 'false'); }
     };
+    const goPrevious = () => { if (!contentLoading && currentPage > 1) { currentPage -= 1; loadContent(); } };
+    const goNext = () => { if (!contentLoading && currentPage < totalPages) { currentPage += 1; loadContent(); } };
     const sync = async () => {
       if (syncing || !button) return;
       syncing = true;
@@ -212,7 +218,8 @@ export const createChannelController = ({ api, refreshDashboard }) => {
     evidence?.addEventListener('change', onFilter);
     resetFilters?.addEventListener('click', reset);
     refreshContent?.addEventListener('click', loadContent);
-    cleanup = () => { button?.removeEventListener('click', sync); search?.removeEventListener('input', onFilter); format?.removeEventListener('change', onFilter); sort?.removeEventListener('change', onFilter); evidence?.removeEventListener('change', onFilter); resetFilters?.removeEventListener('click', reset); refreshContent?.removeEventListener('click', loadContent); };
+    previousPage?.addEventListener('click', goPrevious); nextPage?.addEventListener('click', goNext);
+    cleanup = () => { button?.removeEventListener('click', sync); search?.removeEventListener('input', onFilter); format?.removeEventListener('change', onFilter); sort?.removeEventListener('change', onFilter); evidence?.removeEventListener('change', onFilter); resetFilters?.removeEventListener('click', reset); refreshContent?.removeEventListener('click', loadContent); previousPage?.removeEventListener('click', goPrevious); nextPage?.removeEventListener('click', goNext); };
     const renderSummary = (value = {}) => {
       if (!summary || !current()) return;
       summary.replaceChildren();
@@ -319,7 +326,7 @@ export const channelModule = {
         eyebrow: 'Conteúdo sincronizado',
         title: 'Vídeos recentes',
         className: 'channel-videos-panel',
-        body: html`<div class="channel-video-summary" data-channel-video-summary aria-live="polite"><span>Calculando cobertura...</span></div><div class="channel-video-filters"><label>Buscar<input type="search" data-channel-video-search placeholder="Título do vídeo"></label><label>Formato<select data-channel-video-format><option value="ALL">Todos</option><option value="LONG_FORM">Long-form</option><option value="SHORTS">Shorts</option><option value="LIVE">Live</option></select></label><label>Evidência<select data-channel-video-evidence><option value="ALL">Todas</option><option value="HAS_RETENTION">Com retenção</option><option value="MISSING_CTR">Sem CTR</option></select></label><label>Ordenar<select data-channel-video-sort><option value="COLLECTED">Coleta recente</option><option value="VIEWS">Mais views</option><option value="RETENTION">Maior retenção</option><option value="CTR">Maior CTR</option><option value="TITLE">Título</option></select></label><button class="button secondary" type="button" data-channel-video-reset>Limpar filtros</button><button class="button secondary" type="button" data-channel-video-refresh>Atualizar lista local</button></div><p class="channel-video-result-count" data-channel-video-result-count aria-live="polite">Carregando resultados...</p><div class="channel-video-comparison" data-channel-video-comparison aria-live="polite" role="region" aria-label="Comparação de vídeos">Selecione até dois vídeos para comparar.</div><div class="channel-video-layout"><div class="channel-video-list" data-channel-videos aria-live="polite"><p class="empty-state">Carregando vídeos...</p></div><aside class="channel-video-detail" data-channel-video-detail aria-live="polite">Selecione um vídeo para ver métricas e histórico.</aside></div>`,
+        body: html`<div class="channel-video-summary" data-channel-video-summary aria-live="polite"><span>Calculando cobertura...</span></div><div class="channel-video-filters"><label>Buscar<input type="search" data-channel-video-search placeholder="Título do vídeo"></label><label>Formato<select data-channel-video-format><option value="ALL">Todos</option><option value="LONG_FORM">Long-form</option><option value="SHORTS">Shorts</option><option value="LIVE">Live</option></select></label><label>Evidência<select data-channel-video-evidence><option value="ALL">Todas</option><option value="HAS_RETENTION">Com retenção</option><option value="MISSING_CTR">Sem CTR</option></select></label><label>Ordenar<select data-channel-video-sort><option value="COLLECTED">Coleta recente</option><option value="VIEWS">Mais views</option><option value="RETENTION">Maior retenção</option><option value="CTR">Maior CTR</option><option value="TITLE">Título</option></select></label><button class="button secondary" type="button" data-channel-video-reset>Limpar filtros</button><button class="button secondary" type="button" data-channel-video-refresh>Atualizar lista local</button></div><p class="channel-video-result-count" data-channel-video-result-count aria-live="polite">Carregando resultados...</p><nav class="channel-pagination" aria-label="Páginas de vídeos"><button class="button secondary" type="button" data-channel-page-previous>Anterior</button><span data-channel-page-status aria-live="polite">Página 1 de 1</span><button class="button secondary" type="button" data-channel-page-next>Próxima</button></nav><div class="channel-video-comparison" data-channel-video-comparison aria-live="polite" role="region" aria-label="Comparação de vídeos">Selecione até dois vídeos para comparar.</div><div class="channel-video-layout"><div class="channel-video-list" data-channel-videos aria-live="polite"><p class="empty-state">Carregando vídeos...</p></div><aside class="channel-video-detail" data-channel-video-detail aria-live="polite">Selecione um vídeo para ver métricas e histórico.</aside></div>`,
       })}
       ${createPanel({
         eyebrow: 'Integrações oficiais',
