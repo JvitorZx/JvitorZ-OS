@@ -30,6 +30,12 @@ const view = (record: Awaited<ReturnType<VideoPerformanceSnapshotRepository['fin
   confidence: record.confidence,
 });
 
+const csvCell = (value: unknown): string => {
+  let text = value === null || value === undefined ? '' : value instanceof Date ? value.toISOString() : String(value);
+  if (/^[=+\-@]/.test(text)) text = `'${text}`;
+  return `"${text.replaceAll('"', '""')}"`;
+};
+
 export class ChannelContentService {
   constructor(
     private readonly snapshots = new VideoPerformanceSnapshotRepository(DatabaseService.client),
@@ -56,6 +62,13 @@ export class ChannelContentService {
     for (const record of records) if (!videos.has(record.videoId)) videos.set(record.videoId, record);
     const all = [...videos.values()]; const offset = (page - 1) * pageSize;
     return { items: all.slice(offset, offset + pageSize).map(view), page, pageSize, total: all.length, totalPages: Math.ceil(all.length / pageSize) };
+  }
+
+  async exportCsv() {
+    const records = await this.snapshots.findAll(); const videos = new Map<string, (typeof records)[number]>();
+    for (const record of records) if (!videos.has(record.videoId)) videos.set(record.videoId, record);
+    const fields = ['videoId', 'title', 'format', 'publishedAt', 'collectedAt', 'views', 'watchTimeMinutes', 'averageViewPercentage', 'impressions', 'ctr', 'subscribersGained', 'likes', 'comments'] as const;
+    return [fields.join(','), ...[...videos.values()].map((record) => fields.map((field) => csvCell(record[field])).join(','))].join('\r\n');
   }
 
   async getVideo(videoId: string) {

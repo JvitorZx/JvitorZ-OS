@@ -1766,7 +1766,11 @@ A workspace diferencia a quantidade exibida na página do total persistido retor
 
 O usuário pode escolher 12, 24 ou 50 vídeos por página. A mudança volta à primeira página e reutiliza validação e paginação centralizadas.
 
-**Proximo checkpoint: Sprint 96 - NAO INICIADA; escopo ainda nao definido.**
+## Sprint 96 - Safe Channel CSV Export - CONCLUIDA
+
+O backend exporta o snapshot mais recente de cada vídeo em CSV, sem rede externa. Campos são escapados e prefixos interpretáveis como fórmula por planilhas são neutralizados.
+
+**Proximo checkpoint: Sprint 97 - NAO INICIADA; escopo ainda nao definido.**
 
 ### Revisao de encerramento apos Sprint 53
 

@@ -13,7 +13,7 @@ type YouTubeRouteDependencies = {
   googleService: Pick<GoogleService, 'isAuthenticated'>;
   createChannelService: () => Pick<ChannelService, 'getChannelInfo'>;
   channelDataService: Pick<ChannelDataService, 'getChannel'>;
-  channelContentService: Pick<ChannelContentService, 'listRecent' | 'listPage' | 'getVideo' | 'getSummary'>;
+  channelContentService: Pick<ChannelContentService, 'listRecent' | 'listPage' | 'exportCsv' | 'getVideo' | 'getSummary'>;
 };
 
 export const createYouTubeRouter = (dependencies: Partial<YouTubeRouteDependencies> = {}): Router => {
@@ -118,6 +118,11 @@ export const createYouTubeRouter = (dependencies: Partial<YouTubeRouteDependenci
       const name = error instanceof Error ? error.name : 'UnknownError'; console.error(`Failed to page persisted channel videos (${name})`);
       return res.status(500).json({ code: 'INTERNAL_ERROR', error: 'Failed to page channel videos' });
     }
+  });
+  router.get('/videos-export.csv', async (_req, res) => {
+    res.set('Cache-Control', 'no-store'); res.type('text/csv'); res.set('Content-Disposition', 'attachment; filename="channel-videos.csv"');
+    try { return res.status(200).send(await channelContentService.exportCsv()); }
+    catch (error) { const name = error instanceof Error ? error.name : 'UnknownError'; console.error(`Failed to export persisted channel videos (${name})`); return res.status(500).json({ code: 'INTERNAL_ERROR', error: 'Failed to export channel videos' }); }
   });
   router.get('/videos/:videoId', async (req, res) => {
     res.set('Cache-Control', 'no-store');

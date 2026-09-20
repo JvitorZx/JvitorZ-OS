@@ -234,6 +234,12 @@ describe('YouTube route expected states', { concurrency: false }, () => {
     assert.deepEqual(await response.json(), { items: [{ videoId: 'video-2' }], page: 2, pageSize: 2, total: 3, totalPages: 2 });
   });
 
+  test('exports persisted videos as a safe downloadable CSV', async () => {
+    youtubeDependencies = { channelContentService: { exportCsv: async () => 'videoId,title\r\n"v1","Video"' } };
+    const response = await fetch(`${baseUrl}/api/youtube/videos-export.csv`);
+    assert.equal(response.status, 200); assert.match(response.headers.get('content-type'), /text\/csv/); assert.match(response.headers.get('content-disposition'), /channel-videos\.csv/); assert.match(await response.text(), /v1/);
+  });
+
   test('rejects an invalid recent-video limit safely', async () => {
     youtubeDependencies = {
       channelContentService: { listRecent: async () => { const { ChannelContentValidationError } = require('../dist/services/ChannelContentService'); throw new ChannelContentValidationError('limit must be an integer from 1 to 50'); } },

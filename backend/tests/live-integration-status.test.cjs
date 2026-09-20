@@ -222,6 +222,12 @@ test('channel content pagination deduplicates before slicing and reports totals'
   await assert.rejects(() => service.listPage(0, 2), /page must/); await assert.rejects(() => service.listPage(1, 51), /pageSize must/);
 });
 
+test('channel CSV export deduplicates snapshots and neutralizes spreadsheet formulas', async () => {
+  const records = [{ id: 'new', videoId: 'a', title: '=2+2', format: 'SHORTS', collectedAt: new Date('2026-09-10'), views: 20 }, { id: 'old', videoId: 'a', title: 'Old', collectedAt: new Date('2026-09-08'), views: 5 }];
+  const csv = await new ChannelContentService({ findAll: async () => records }).exportCsv();
+  assert.match(csv, /^videoId,title,format/); assert.match(csv, /"'=2\+2"/); assert.equal(csv.split('\r\n').length, 2); assert.doesNotMatch(csv, /Old/);
+});
+
 test('channel video detail preserves ordered collection history', async () => {
   const records = [
     { id: 'new', videoId: 'video-1', title: 'Novo', collectedAt: new Date('2026-09-10'), views: 20 },
