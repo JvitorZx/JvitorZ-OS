@@ -117,6 +117,11 @@ describe('Performance intelligence normalization and ingestion', { concurrency: 
     assert.equal(normalized.subscribersLost, null);
   });
 
+  test('accepts observed average view percentage above 100 for replayed content', () => {
+    const normalized = normalizePerformanceRecord(firstRecord({ averageViewPercentage: 137.5 }), 'youtube-analytics');
+    assert.equal(normalized.averageViewPercentage, 137.5);
+  });
+
   test('rejects invalid required, negative, percentage and period values', () => {
     assert.throws(() => normalizePerformanceRecord({ videoId: '', title: 'T' }, 'manual'), PerformanceValidationError);
     assert.throws(() => normalizePerformanceRecord(firstRecord({ views: -1 }), 'manual'), PerformanceValidationError);

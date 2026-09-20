@@ -108,7 +108,8 @@ export const normalizePerformanceRecord = (
     ctr: numberOrNull(record.ctr, 'ctr', { max: 100 }),
     durationSeconds: numberOrNull(record.durationSeconds, 'durationSeconds'),
     averageViewDurationSeconds: numberOrNull(record.averageViewDurationSeconds, 'averageViewDurationSeconds'),
-    averageViewPercentage: numberOrNull(record.averageViewPercentage, 'averageViewPercentage', { max: 100 }),
+    // Replays and loops can make YouTube average view percentage exceed 100%, especially for Shorts.
+    averageViewPercentage: numberOrNull(record.averageViewPercentage, 'averageViewPercentage'),
     watchTimeMinutes: numberOrNull(record.watchTimeMinutes, 'watchTimeMinutes'),
     subscribersGained: numberOrNull(record.subscribersGained, 'subscribersGained', { integer: true }),
     subscribersLost: numberOrNull(record.subscribersLost, 'subscribersLost', { integer: true }),
