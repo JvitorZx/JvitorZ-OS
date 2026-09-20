@@ -10,3 +10,4 @@ google-tokens.json
 client_secret_*.json
 /media/
 /rendered/
+/generated/postgres-client/

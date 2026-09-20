@@ -14,7 +14,7 @@ if (-not (Test-LocalPort 3000)) {
     Start-Process -FilePath 'powershell.exe' -WindowStyle Hidden -ArgumentList @(
         '-NoProfile',
         '-ExecutionPolicy', 'Bypass',
-        '-Command', "Set-Location -LiteralPath '$backendRoot'; npm run dev"
+        '-Command', "Set-Location -LiteralPath '$backendRoot'; `$env:DATABASE_MODE='postgres'; npm run dev"
     )
 }
 

@@ -1,0 +1,1937 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../generated/postgres-client"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id        String    @id @default(cuid())
+  email     String    @unique
+  name      String?
+  role      String?    @default("user")
+  projects  Project[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+}
+
+model Project {
+  id               String             @id @default(cuid())
+  name             String
+  description      String?
+  ownerId          String
+  owner            User               @relation(fields: [ownerId], references: [id])
+  conversations    Conversation[]
+  libraryItems     LibraryItem[]
+  automations      Automation[]
+  analyticsSnapshots AnalyticsSnapshot[]
+  videoIdeas         VideoIdea[]
+  channelInsights    ChannelInsight[]
+  performanceSignals PerformanceSignal[]
+  videoPerformanceSnapshots VideoPerformanceSnapshot[]
+  videoReachSnapshots VideoReachSnapshot[]
+  audienceSnapshots   AudienceSnapshot[]
+  trendSignals        TrendSignal[]
+  seriesDefinitions   SeriesDefinition[]
+  contentPatterns     ContentPattern[]
+  editorialDecisions EditorialDecision[]
+  orchestrationExecutions OrchestrationExecution[]
+  researchHistories ResearchHistory[]
+  contentPlans     ContentPlan[]
+  planningOutcomeLinks PlanningOutcomeLink[]
+  planningOutcomes PlanningOutcome[]
+  strategicLearnings StrategicLearning[]
+  strategicExperiments StrategicExperiment[]
+  strategicSignals StrategicSignal[]
+  monitoringSnapshots MonitoringSnapshot[]
+  channelContextEntries ChannelContextEntry[]
+  contentPackagings ContentPackaging[]
+  contentProductions ContentProduction[]
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+}
+
+model Conversation {
+  id               String                    @id @default(cuid())
+  projectId        String?
+  project          Project?                  @relation(fields: [projectId], references: [id])
+  title            String?
+  context          String?
+  messages         Message[]
+  libraryItemLinks ConversationLibraryItem[]
+  editorialDecisions EditorialDecision[]
+  createdAt        DateTime                  @default(now())
+  updatedAt        DateTime                  @updatedAt
+}
+
+model Message {
+  id             String    @id @default(cuid())
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id])
+  sender         String
+  text           String
+  libraryItem    LibraryItem?
+  editorialDecision EditorialDecision?
+  createdAt      DateTime  @default(now())
+}
+
+model Operator {
+  id          String    @id @default(cuid())
+  name        String
+  description String?
+  status      String?   @default("pending")
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model ChannelSnapshot {
+  id              String   @id @default(cuid())
+  channelId       String   @unique
+  title           String
+  subscriberCount String?
+  videoCount      String?
+  viewCount       String?
+  country         String?
+  publishedAt     DateTime?
+  collectedAt     DateTime
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([collectedAt])
+}
+
+model LibraryItem {
+  id                String                    @id @default(cuid())
+  projectId         String?
+  project           Project?                  @relation(fields: [projectId], references: [id])
+  sourceMessageId   String?                   @unique
+  sourceMessage     Message?                  @relation(fields: [sourceMessageId], references: [id], onDelete: SetNull)
+  conversationLinks ConversationLibraryItem[]
+  productionAssets ProductionAssetRelation[]
+  localMediaSource LocalMediaSource?
+  renderOutputs ClipRenderJob[]
+  transcripts      TimedTranscript[]
+  title             String
+  type              String?
+  content           String?
+  createdAt         DateTime                  @default(now())
+  updatedAt         DateTime                  @updatedAt
+}
+
+model LocalMediaSource {
+  id            String @id @default(cuid())
+  libraryItemId String @unique
+  libraryItem   LibraryItem @relation(fields: [libraryItemId], references: [id], onDelete: Cascade)
+  rootId        String
+  relativePath  String
+  identityKey   String @unique
+  fingerprint   String
+  sizeBytes     String
+  durationMs    Int?
+  formatName    String?
+  videoCodec    String?
+  audioCodec    String?
+  width         Int?
+  height        Int?
+  hasAudio      Boolean @default(false)
+  status        String @default("UNAVAILABLE")
+  errorCode     String?
+  probeAt       DateTime?
+  lastCheckedAt DateTime
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  renderJobs    ClipRenderJob[]
+
+  @@index([status, updatedAt])
+  @@index([rootId])
+}
+
+model ConversationLibraryItem {
+  conversationId String
+  libraryItemId  String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  libraryItem    LibraryItem  @relation(fields: [libraryItemId], references: [id], onDelete: Cascade)
+  createdAt      DateTime     @default(now())
+
+  @@id([conversationId, libraryItemId])
+  @@index([conversationId, createdAt, libraryItemId])
+  @@index([libraryItemId])
+}
+
+model Automation {
+  id                 String                 @id @default(cuid())
+  projectId          String?
+  project            Project?               @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  name               String
+  description        String?
+  trigger            String?
+  action             String?
+  triggerType        String                 @default("MANUAL_ONLY")
+  schedule           Json?
+  timezone           String                 @default("UTC")
+  intent             String?
+  orchestrationInput Json?
+  status             String                 @default("DISABLED")
+  riskLevel          String?
+  sideEffectLevel    String?
+  enabled            Boolean                @default(false)
+  nextRunAt          DateTime?
+  lastRunAt          DateTime?
+  runs               AutomationRun[]
+  auditEvents        AutomationAuditEvent[]
+  governancePolicy   AutomationGovernancePolicy?
+  createdAt          DateTime               @default(now())
+  updatedAt          DateTime               @updatedAt
+
+  @@index([enabled, status, nextRunAt])
+  @@index([projectId, createdAt])
+}
+
+model AutomationRun {
+  id                       String     @id @default(cuid())
+  automationId             String
+  automation               Automation @relation(fields: [automationId], references: [id], onDelete: Cascade)
+  occurrenceKey            String
+  triggerSource            String
+  status                   String     @default("PENDING")
+  scheduledFor             DateTime?
+  orchestrationExecutionId String?
+  resultSummary            String?
+  failureReason            String?
+  attempt                  Int        @default(1)
+  sourceRunId              String?
+  startedAt                DateTime?
+  completedAt              DateTime?
+  createdAt                DateTime   @default(now())
+  updatedAt                DateTime   @updatedAt
+
+  @@unique([automationId, occurrenceKey])
+  @@index([automationId, createdAt])
+  @@index([status, createdAt])
+  @@index([orchestrationExecutionId])
+  @@index([sourceRunId])
+}
+
+model AutomationGovernancePolicy {
+  automationId              String     @id
+  automation                Automation @relation(fields: [automationId], references: [id], onDelete: Cascade)
+  enabled                   Boolean    @default(true)
+  maxRunsPerDay             Int?
+  maxRunsPerWeek            Int?
+  cooldownMinutes           Int?
+  allowedExecutionWindows   Json?
+  maxConsecutiveFailures    Int?
+  pauseOnRepeatedFailure    Boolean    @default(true)
+  manualApprovalRequired    Boolean    @default(false)
+  retryPolicy               Json?
+  createdAt                 DateTime   @default(now())
+  updatedAt                 DateTime   @updatedAt
+
+  @@index([enabled, updatedAt])
+}
+
+model AutomationAuditEvent {
+  id           String     @id @default(cuid())
+  automationId String
+  automation   Automation @relation(fields: [automationId], references: [id], onDelete: Cascade)
+  runId        String?
+  eventType    String
+  reason       String?
+  details      Json?
+  createdAt    DateTime   @default(now())
+
+  @@index([automationId, createdAt])
+  @@index([runId, createdAt])
+  @@index([eventType, createdAt])
+}
+
+model AutomationRuntimeEvent {
+  id        String   @id @default(cuid())
+  eventType String
+  status    String?
+  details   Json?
+  createdAt DateTime @default(now())
+
+  @@index([eventType, createdAt])
+  @@index([createdAt])
+}
+
+model Setting {
+  id          String    @id @default(cuid())
+  key         String    @unique
+  value       String
+  description String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model AnalyticsSnapshot {
+  id          String    @id @default(cuid())
+  projectId   String?
+  project     Project?  @relation(fields: [projectId], references: [id])
+  metrics     Json
+  summary     String?
+  createdAt   DateTime  @default(now())
+}
+
+model VideoIdea {
+  id                 String               @id @default(cuid())
+  projectId          String?
+  project            Project?             @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  game               String?
+  theme              String
+  format             String
+  premise            String
+  estimatedEffort    Int?
+  novelty            Float?
+  identityFit        Float?
+  workingTitle       String?
+  series             String?
+  coreEvent          String?
+  viewerPromise      String?
+  whyNow             String?
+  status             String               @default("CANDIDATE")
+  effortLevel        String               @default("UNKNOWN")
+  risks              Json                 @default("[]")
+  assumptions        Json                 @default("[]")
+  hypothesis         String?
+  strategicFit       Float?
+  opportunityScore   Float?
+  scoreDetails       Json?
+  sourceResearchHistoryId String?
+  sourceResearchHistory ResearchHistory?  @relation(fields: [sourceResearchHistoryId], references: [id], onDelete: SetNull)
+  sourceOpportunityId String?
+  sourceOpportunity  ResearchOpportunity? @relation(fields: [sourceOpportunityId], references: [id], onDelete: SetNull)
+  ideaKey            String?              @unique
+  duplicateOfId      String?
+  duplicateOf        VideoIdea?           @relation("VideoIdeaDuplicate", fields: [duplicateOfId], references: [id], onDelete: SetNull)
+  duplicates         VideoIdea[]          @relation("VideoIdeaDuplicate")
+  isExperiment       Boolean              @default(false)
+  selectedAt         DateTime?
+  rejectedAt         DateTime?
+  archivedAt         DateTime?
+  rejectionReason    String?
+  opportunities      ContentOpportunity[]
+  decisions          ContentDecision[]
+  performanceSignals PerformanceSignal[]
+  productions        ContentProduction[]
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
+
+  @@index([projectId, createdAt])
+  @@index([projectId, status, updatedAt])
+  @@index([sourceResearchHistoryId])
+  @@index([sourceOpportunityId])
+}
+
+model ContentOpportunity {
+  id             String    @id @default(cuid())
+  videoIdeaId    String
+  videoIdea      VideoIdea @relation(fields: [videoIdeaId], references: [id], onDelete: Cascade)
+  source         String
+  classification String
+  summary        String
+  score          Float?
+  createdAt      DateTime  @default(now())
+
+  @@index([videoIdeaId, createdAt])
+}
+
+model ContentDecision {
+  id         String    @id @default(cuid())
+  videoIdeaId String
+  videoIdea  VideoIdea @relation(fields: [videoIdeaId], references: [id], onDelete: Cascade)
+  category   String
+  score      Float
+  rationale  String
+  evidence   Json
+  createdAt  DateTime  @default(now())
+
+  @@index([videoIdeaId, createdAt])
+}
+
+model ChannelInsight {
+  id             String   @id @default(cuid())
+  projectId      String?
+  project        Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  key            String   @unique
+  category       String
+  subject        String
+  statement      String
+  confidence     Float
+  classification String
+  evidence       Json?
+  decisionOutcomes EditorialDecisionOutcome[]
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([projectId, category])
+}
+
+model ChannelContextEntry {
+  id             String                   @id @default(cuid())
+  projectId      String?
+  project        Project?                 @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  stableKey      String                   @unique
+  channelId      String?
+  type           String
+  status         String                   @default("ACTIVE")
+  category       String
+  subject        String
+  statement      String
+  confidence     Float                    @default(1)
+  source         String
+  sourceReference String?
+  occurredAt     DateTime?
+  periodStart    DateTime?
+  periodEnd      DateTime?
+  entityType     String?
+  entityId       String?
+  game           String?
+  series         String?
+  format         String?
+  metadata       Json?
+  supersedesId   String?                  @unique
+  supersedes     ChannelContextEntry?     @relation("ChannelContextSupersession", fields: [supersedesId], references: [id], onDelete: SetNull)
+  supersededBy   ChannelContextEntry?     @relation("ChannelContextSupersession")
+  relations      ChannelContextRelation[]
+  createdAt      DateTime                 @default(now())
+  updatedAt      DateTime                 @updatedAt
+
+  @@index([projectId, type, status])
+  @@index([channelId, occurredAt])
+  @@index([category, subject])
+  @@index([entityType, entityId])
+  @@index([game, series, format])
+}
+
+model ChannelContextRelation {
+  id          String              @id @default(cuid())
+  contextId   String
+  context     ChannelContextEntry @relation(fields: [contextId], references: [id], onDelete: Cascade)
+  relation    String
+  entityType  String
+  entityId    String
+  createdAt   DateTime            @default(now())
+
+  @@unique([contextId, relation, entityType, entityId])
+  @@index([entityType, entityId])
+  @@index([contextId, createdAt])
+}
+
+model PerformanceSignal {
+  id             String     @id @default(cuid())
+  projectId      String?
+  project        Project?   @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  videoIdeaId    String?
+  videoIdea      VideoIdea? @relation(fields: [videoIdeaId], references: [id], onDelete: SetNull)
+  performanceSnapshotId String?
+  performanceSnapshot VideoPerformanceSnapshot? @relation(fields: [performanceSnapshotId], references: [id], onDelete: Cascade)
+  key            String?    @unique
+  game           String?
+  series         String?
+  format         String?
+  metric         String
+  value          Float
+  sampleSize     Int        @default(1)
+  source         String
+  classification String     @default("real")
+  confidence     Float      @default(1)
+  measuredAt     DateTime
+  createdAt      DateTime   @default(now())
+
+  @@index([projectId, game])
+  @@index([projectId, format])
+  @@index([projectId, series])
+  @@index([videoIdeaId])
+  @@index([performanceSnapshotId])
+}
+
+model VideoPerformanceSnapshot {
+  id                         String              @id @default(cuid())
+  projectId                  String?
+  project                    Project?            @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  ingestionKey               String              @unique
+  videoId                    String
+  title                      String
+  game                       String?
+  series                     String?
+  format                     String?
+  publishedAt                DateTime?
+  periodStart                DateTime?
+  periodEnd                  DateTime?
+  views                      Float?
+  engagedViews               Float?
+  impressions                Float?
+  ctr                        Float?
+  durationSeconds            Float?
+  averageViewDurationSeconds Float?
+  averageViewPercentage      Float?
+  watchTimeMinutes           Float?
+  subscribersGained          Int?
+  subscribersLost            Int?
+  likes                      Int?
+  comments                   Int?
+  source                     String
+  confidence                 Float              @default(1)
+  collectedAt                DateTime
+  performanceSignals         PerformanceSignal[]
+  editorialOutcomes          EditorialDecision[]
+  decisionVideoLinks         EditorialDecisionVideoLink[]
+  decisionOutcomeSnapshots   EditorialDecisionOutcome[]
+  outcomeReviewPreviousSnapshots EditorialDecisionOutcomeReview[] @relation("OutcomeReviewPreviousSnapshot")
+  outcomeReviewCurrentSnapshots  EditorialDecisionOutcomeReview[] @relation("OutcomeReviewCurrentSnapshot")
+  planningOutcomeLinks           PlanningOutcomeLink[]             @relation("PlanningOutcomeLinkSource")
+  planningOutcomes               PlanningOutcome[]                 @relation("PlanningOutcomeSnapshot")
+  seriesLinks                    VideoSeriesLink[]
+  packagingMetricSnapshots      PackagingMetricSnapshot[]
+  createdAt                  DateTime           @default(now())
+  updatedAt                  DateTime           @updatedAt
+
+  @@index([projectId, collectedAt])
+  @@index([videoId, source])
+  @@index([game])
+  @@index([series])
+  @@index([format])
+}
+
+model ContentPackaging {
+  id                 String                @id @default(cuid())
+  projectId          String?
+  project            Project?              @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  contentKey         String                @unique
+  videoId            String?
+  game               String?
+  series             String?
+  episode            Int?
+  format             String?
+  summary            String
+  keyEvents          Json                  @default("[]")
+  editorialObjective String?
+  constraints        Json                  @default("[]")
+  status             String                @default("DRAFT")
+  contextSnapshot    Json                  @default("[]")
+  variants           PackagingVariant[]
+  history            PackagingHistory[]
+  experiments        PackagingExperiment[]
+  productions        ContentProduction[]
+  createdAt          DateTime              @default(now())
+  updatedAt          DateTime              @updatedAt
+
+  @@index([projectId, updatedAt])
+  @@index([videoId])
+  @@index([game, series, format])
+}
+
+model PackagingVariant {
+  id                    String                    @id @default(cuid())
+  packagingId           String
+  packaging             ContentPackaging          @relation(fields: [packagingId], references: [id], onDelete: Cascade)
+  key                   String
+  title                 String
+  angle                 String
+  sourceEvent           String
+  thumbnailBrief        Json
+  description           String
+  tags                  Json                      @default("[]")
+  rationale             String
+  seriesFit             Float                     @default(0)
+  clickbaitRisk         String                    @default("LOW")
+  internalScore         Float
+  contextUsed           Json                      @default("[]")
+  status                String                    @default("DRAFT")
+  manualEdits           Json                      @default("{}")
+  selectedAt            DateTime?
+  publishedAt           DateTime?
+  publishedVideoId      String?
+  metricSnapshots       PackagingMetricSnapshot[]
+  createdAt             DateTime                  @default(now())
+  updatedAt             DateTime                  @updatedAt
+
+  @@unique([packagingId, key])
+  @@index([packagingId, status])
+  @@index([publishedVideoId])
+}
+
+model PackagingHistory {
+  id          String           @id @default(cuid())
+  packagingId String
+  packaging   ContentPackaging @relation(fields: [packagingId], references: [id], onDelete: Cascade)
+  variantId   String?
+  event       String
+  reason      String?
+  data        Json             @default("{}")
+  createdAt   DateTime         @default(now())
+
+  @@index([packagingId, createdAt])
+  @@index([variantId, createdAt])
+}
+
+model PackagingMetricSnapshot {
+  id                    String                    @id @default(cuid())
+  variantId             String
+  variant               PackagingVariant          @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  performanceSnapshotId String?
+  performanceSnapshot   VideoPerformanceSnapshot? @relation(fields: [performanceSnapshotId], references: [id], onDelete: SetNull)
+  ingestionKey          String                    @unique
+  videoId               String
+  periodStart           DateTime?
+  periodEnd             DateTime?
+  metrics               Json
+  source                String
+  confidence            Float                     @default(1)
+  createdAt             DateTime                  @default(now())
+
+  @@index([variantId, createdAt])
+  @@index([videoId, periodEnd])
+  @@index([performanceSnapshotId])
+}
+
+model PackagingExperiment {
+  id             String           @id @default(cuid())
+  packagingId    String
+  packaging      ContentPackaging @relation(fields: [packagingId], references: [id], onDelete: Cascade)
+  hypothesis     String
+  variantIds     Json             @default("[]")
+  status         String           @default("ACTIVE")
+  contextEntryId String?
+  outcome        String?
+  confidence     Float            @default(0)
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  @@index([packagingId, status])
+  @@index([contextEntryId])
+}
+
+model TrendSignal {
+  id             String   @id @default(cuid())
+  projectId      String?
+  project        Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  key            String   @unique
+  subject        String
+  subjectType    String
+  metric         String
+  classification String
+  currentWindow  Json
+  previousWindow Json
+  delta          Float?
+  sampleSize     Int
+  confidence     Float
+  evidence       Json
+  quality        Json
+  detectedAt     DateTime
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([projectId, subjectType, detectedAt])
+  @@index([classification, detectedAt])
+}
+
+model SeriesDefinition {
+  id            String            @id @default(cuid())
+  projectId     String?
+  project       Project?          @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  key           String            @unique
+  name          String
+  normalizedKey String
+  game          String?
+  topic         String?
+  status        String            @default("ACTIVE")
+  metadata      Json?
+  videoLinks    VideoSeriesLink[]
+  plannedItems  PlannedContentItem[]
+  productions   ContentProduction[]
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+
+  @@index([projectId, normalizedKey])
+  @@index([status, updatedAt])
+}
+
+model VideoSeriesLink {
+  id               String                   @id @default(cuid())
+  seriesId         String
+  series           SeriesDefinition         @relation(fields: [seriesId], references: [id], onDelete: Cascade)
+  sourceSnapshotId String
+  sourceSnapshot   VideoPerformanceSnapshot @relation(fields: [sourceSnapshotId], references: [id], onDelete: Restrict)
+  videoId          String
+  origin           String
+  confidence       Float
+  evidence         Json?
+  createdAt        DateTime                 @default(now())
+  updatedAt        DateTime                 @updatedAt
+
+  @@unique([seriesId, videoId])
+  @@index([videoId])
+  @@index([sourceSnapshotId])
+}
+
+model ContentPattern {
+  id             String   @id @default(cuid())
+  projectId      String?
+  project        Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  key            String   @unique
+  subject        String
+  patternType    String
+  classification String
+  game           String?
+  topic          String?
+  format         String?
+  series         String?
+  summary        String
+  sampleSize     Int
+  confidence     Float
+  evidence       Json
+  quality        Json
+  detectedAt     DateTime
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([projectId, patternType, detectedAt])
+  @@index([classification, detectedAt])
+}
+
+model ResearchHistory {
+  id              String                @id @default(cuid())
+  projectId       String?
+  project         Project?              @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  executionKey    String                @unique
+  cacheKey        String
+  query           String
+  normalizedQuery String
+  intent          String
+  subjectType     String?
+  subject         String?
+  sources         Json
+  results         Json
+  quality         String
+  freshness       String
+  limitations     Json
+  context         Json?
+  status          String                @default("COMPLETED")
+  objective       String?
+  format          String?
+  game            String?
+  constraints     Json                  @default("[]")
+  runVersion      Int                   @default(1)
+  startedAt       DateTime?
+  completedAt     DateTime?
+  archivedAt      DateTime?
+  researchedAt    DateTime
+  validUntil      DateTime
+  opportunities   ResearchOpportunity[]
+  evidenceItems   ResearchEvidenceItem[]
+  events          ResearchSessionEvent[]
+  contentGaps     ResearchContentGap[]
+  ideas           VideoIdea[]
+  requestedPlanningItems PlannedContentItem[] @relation("PlanningItemResearchExecution")
+  createdAt       DateTime              @default(now())
+  updatedAt       DateTime              @updatedAt
+
+  @@index([projectId, researchedAt])
+  @@index([cacheKey, researchedAt])
+  @@index([quality, freshness])
+  @@index([status, updatedAt])
+}
+
+model ResearchOpportunity {
+  id                String          @id @default(cuid())
+  researchHistoryId String
+  researchHistory   ResearchHistory @relation(fields: [researchHistoryId], references: [id], onDelete: Cascade)
+  key               String
+  rank              Int
+  subject           String
+  subjectType       String
+  state             String
+  summary           String
+  sources           Json
+  evidence          Json
+  freshness         String
+  compatibility     Float
+  confidence        Float
+  risks             Json
+  gaps              Json
+  nextInvestigation String
+  candidateStatus   String          @default("CANDIDATE")
+  effort            String          @default("UNKNOWN")
+  novelty           Float?
+  saturation        Float?
+  qualityGate       String          @default("INSUFFICIENT_EVIDENCE")
+  scoreDetails      Json?
+  plannedItems      PlannedContentItem[]
+  ideas             VideoIdea[]
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  @@unique([researchHistoryId, key])
+  @@index([researchHistoryId, rank])
+  @@index([state, confidence, createdAt])
+  @@index([subjectType, subject])
+}
+
+model ResearchEvidenceItem {
+  id                String          @id @default(cuid())
+  researchHistoryId String
+  researchHistory   ResearchHistory @relation(fields: [researchHistoryId], references: [id], onDelete: Cascade)
+  evidenceKey       String
+  sourceType        String
+  sourceId          String?
+  sourceName        String
+  classification    String
+  description       String
+  metricName        String?
+  metricValue       Float?
+  unit              String?
+  reference         String?
+  observedAt        DateTime?
+  retrievedAt       DateTime
+  freshness         String
+  confidence        Float?
+  provenance        Json?
+  context           Json?
+  createdAt         DateTime        @default(now())
+
+  @@unique([researchHistoryId, evidenceKey])
+  @@index([researchHistoryId, sourceType])
+  @@index([sourceType, sourceId])
+}
+
+model ResearchSessionEvent {
+  id                String          @id @default(cuid())
+  researchHistoryId String
+  researchHistory   ResearchHistory @relation(fields: [researchHistoryId], references: [id], onDelete: Cascade)
+  event             String
+  reason            String?
+  data              Json?
+  occurredAt        DateTime
+  createdAt         DateTime        @default(now())
+
+  @@index([researchHistoryId, occurredAt])
+  @@index([event, occurredAt])
+}
+
+model ResearchContentGap {
+  id                String          @id @default(cuid())
+  researchHistoryId String
+  researchHistory   ResearchHistory @relation(fields: [researchHistoryId], references: [id], onDelete: Cascade)
+  gapKey            String
+  description       String
+  relevance         Float
+  risk              String?
+  freshness         String
+  game              String?
+  series            String?
+  possibleAction    String
+  evidence          Json
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  @@unique([researchHistoryId, gapKey])
+  @@index([researchHistoryId, relevance])
+}
+
+model ContentPlan {
+  id          String               @id @default(cuid())
+  projectId   String?
+  project     Project?             @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  horizon     String
+  status      String
+  summary     String
+  balance     Json
+  constraints Json
+  risks       Json
+  source      Json
+  generatedAt DateTime
+  items       PlannedContentItem[]
+  history     PlanningHistory[]
+  executionHistory PlanningExecutionEvent[]
+  outcomeLinks PlanningOutcomeLink[]
+  outcomes PlanningOutcome[]
+  outcomeAuditEvents PlanningOutcomeAuditEvent[]
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+
+  @@index([projectId, generatedAt])
+  @@index([status, horizon, generatedAt])
+}
+
+model PlannedContentItem {
+  id                          String               @id @default(cuid())
+  planId                      String
+  plan                        ContentPlan          @relation(fields: [planId], references: [id], onDelete: Cascade)
+  sourceDecisionId            String?
+  sourceDecision              EditorialDecision?  @relation(fields: [sourceDecisionId], references: [id], onDelete: SetNull)
+  sourceResearchOpportunityId String?
+  sourceResearchOpportunity   ResearchOpportunity? @relation(fields: [sourceResearchOpportunityId], references: [id], onDelete: SetNull)
+  researchHistoryId           String?
+  researchHistory             ResearchHistory?    @relation("PlanningItemResearchExecution", fields: [researchHistoryId], references: [id], onDelete: SetNull)
+  seriesId                    String?
+  series                      SeriesDefinition?    @relation(fields: [seriesId], references: [id], onDelete: SetNull)
+  candidateKey                String
+  candidateType               String
+  title                       String
+  rationale                   String
+  status                      String
+  priority                    String
+  effort                      String
+  readiness                   String
+  queue                       String
+  position                    Int
+  executionScore              Float
+  manualPriority              Boolean              @default(false)
+  evidence                    Json
+  risks                       Json
+  constraints                 Json
+  missingData                 Json
+  dependencies                Json
+  executionState              String                   @default("pending")
+  executionAction             String                   @default("Revisar item e preparar a proxima acao.")
+  executionConfidence         Float?
+  executionContext            Json                     @default("{}")
+  executionStartedAt          DateTime?
+  executionEndedAt            DateTime?
+  completedAt                 DateTime?
+  history                     PlanningHistory[]
+  executionHistory            PlanningExecutionEvent[]
+  outcomeLinks                 PlanningOutcomeLink[]
+  outcomes                     PlanningOutcome[]
+  outcomeAuditEvents           PlanningOutcomeAuditEvent[]
+  experimentVariants           ExperimentVariant[]
+  productions                  ContentProduction[]
+  createdAt                   DateTime              @default(now())
+  updatedAt                   DateTime              @updatedAt
+
+  @@unique([planId, candidateKey])
+  @@index([planId, position])
+  @@index([status, priority, readiness])
+  @@index([sourceDecisionId])
+  @@index([sourceResearchOpportunityId])
+  @@index([planId, executionState, position])
+}
+
+model ContentProduction {
+  id                   String                    @id @default(cuid())
+  projectId            String?
+  project              Project?                  @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  productionKey        String                    @unique
+  title                String
+  format               String
+  game                 String?
+  series               String?
+  episode              Int?
+  origin               String
+  objective            String?
+  summary              String?
+  keyEvents            Json                      @default("[]")
+  owner                String?
+  priority             String                    @default("MEDIUM")
+  plannedAt            DateTime?
+  publishedAt          DateTime?
+  publishedVideoId     String?
+  publishedUrl         String?
+  status               String                    @default("PLANNED")
+  currentStage         String                    @default("PLANNED")
+  workflowTemplate     String
+  version              Int                       @default(1)
+  videoIdeaId          String?
+  videoIdea            VideoIdea?                @relation(fields: [videoIdeaId], references: [id], onDelete: SetNull)
+  plannedContentItemId String?                    @unique
+  plannedContentItem   PlannedContentItem?        @relation(fields: [plannedContentItemId], references: [id], onDelete: SetNull)
+  seriesId             String?
+  seriesDefinition     SeriesDefinition?          @relation(fields: [seriesId], references: [id], onDelete: SetNull)
+  packagingId          String?                    @unique
+  packaging            ContentPackaging?          @relation(fields: [packagingId], references: [id], onDelete: SetNull)
+  steps                ProductionStep[]
+  events               ProductionEvent[]
+  assets               ProductionAssetRelation[]
+  transcripts          TimedTranscript[]
+  chapterSets          ChapterSet[]
+  shortAnalyses        ShortAnalysis[]
+  createdAt            DateTime                   @default(now())
+  updatedAt            DateTime                   @updatedAt
+
+  @@index([projectId, status, updatedAt])
+  @@index([format, currentStage, updatedAt])
+  @@index([publishedVideoId])
+  @@index([videoIdeaId])
+  @@index([seriesId])
+}
+
+model TimedTranscript {
+  id            String            @id @default(cuid())
+  productionId  String?
+  production    ContentProduction? @relation(fields: [productionId], references: [id], onDelete: Cascade)
+  libraryItemId String?
+  libraryItem   LibraryItem?      @relation(fields: [libraryItemId], references: [id], onDelete: SetNull)
+  videoId       String?
+  source        String
+  format        String
+  language      String?
+  durationMs    Int?
+  fingerprint   String            @unique
+  version       Int               @default(1)
+  segments      TimedTranscriptSegment[]
+  chapterSets   ChapterSet[]
+  shortAnalyses ShortAnalysis[]
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+
+  @@index([productionId, createdAt])
+  @@index([videoId, createdAt])
+  @@index([libraryItemId])
+}
+
+model TimedTranscriptSegment {
+  id              String          @id @default(cuid())
+  transcriptId    String
+  transcript      TimedTranscript @relation(fields: [transcriptId], references: [id], onDelete: Cascade)
+  position        Int
+  startMs         Int
+  endMs           Int
+  text            String
+  sourceSegmentId String?
+  confidence      Float?
+  createdAt       DateTime        @default(now())
+
+  @@unique([transcriptId, position])
+  @@index([transcriptId, startMs])
+}
+
+model ChapterSet {
+  id           String            @id @default(cuid())
+  productionId String?
+  production   ContentProduction? @relation(fields: [productionId], references: [id], onDelete: Cascade)
+  transcriptId String
+  transcript   TimedTranscript   @relation(fields: [transcriptId], references: [id], onDelete: Restrict)
+  version      Int
+  status       String            @default("DRAFT")
+  generation   String            @default("DETERMINISTIC")
+  selectedAt   DateTime?
+  entries      ChapterEntry[]
+  revisions    ChapterRevision[]
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+
+  @@unique([productionId, version])
+  @@index([productionId, status, createdAt])
+  @@index([transcriptId, createdAt])
+}
+
+model ChapterEntry {
+  id                   String     @id @default(cuid())
+  chapterSetId         String
+  chapterSet           ChapterSet @relation(fields: [chapterSetId], references: [id], onDelete: Cascade)
+  position             Int
+  startMs              Int
+  endMs                Int?
+  title                String
+  rationale            String
+  segmentStartPosition Int
+  segmentEndPosition   Int
+  confidence           Float?
+  manuallyEdited       Boolean    @default(false)
+  createdAt            DateTime   @default(now())
+  updatedAt            DateTime   @updatedAt
+
+  @@unique([chapterSetId, position])
+  @@index([chapterSetId, startMs])
+}
+
+model ShortAnalysis {
+  id                String @id @default(cuid())
+  productionId      String
+  production        ContentProduction @relation(fields: [productionId], references: [id], onDelete: Cascade)
+  transcriptId      String
+  transcript        TimedTranscript @relation(fields: [transcriptId], references: [id], onDelete: Restrict)
+  version           Int
+  status            String @default("CURRENT")
+  sourceFingerprint String
+  configuration     Json
+  context           Json
+  limitations       Json
+  review            Json?
+  candidates        ClipCandidate[]
+  revisions         ClipRevision[]
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@unique([productionId, version])
+  @@index([productionId, status])
+  @@index([transcriptId])
+}
+
+model ClipCandidate {
+  id              String @id @default(cuid())
+  analysisId      String
+  analysis        ShortAnalysis @relation(fields: [analysisId], references: [id], onDelete: Cascade)
+  momentKey       String
+  variantOfId     String?
+  variantReason   String?
+  startMs         Int
+  endMs           Int
+  durationMs      Int
+  title           String
+  hook            String
+  summary         String
+  rationale       String
+  event           String
+  chapterEntryId  String?
+  game            String?
+  series          String?
+  format          String @default("SHORT")
+  score           Float
+  scoreFactors    Json
+  risks           Json
+  evidence        Json
+  review          Json?
+  status          String @default("CANDIDATE")
+  manuallyEdited  Boolean @default(false)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  renderJobs      ClipRenderJob[]
+
+  @@index([analysisId, status, score])
+  @@index([analysisId, momentKey])
+}
+
+model ClipRenderJob {
+  id                  String @id @default(cuid())
+  candidateId         String
+  candidate           ClipCandidate @relation(fields: [candidateId], references: [id], onDelete: Restrict)
+  productionId        String
+  analysisId          String
+  sourceId            String
+  source              LocalMediaSource @relation(fields: [sourceId], references: [id], onDelete: Restrict)
+  snapshotKey         String
+  snapshot            Json
+  layout              String
+  status              String @default("QUEUED")
+  attempt             Int @default(1)
+  progress            Int @default(0)
+  errorCode           String?
+  errorMessage        String?
+  outputLibraryItemId String?
+  outputLibraryItem   LibraryItem? @relation(fields: [outputLibraryItemId], references: [id], onDelete: SetNull)
+  outputMetadata      Json?
+  outputFingerprint   String?
+  createdAt           DateTime @default(now())
+  startedAt           DateTime?
+  completedAt         DateTime?
+  updatedAt           DateTime @updatedAt
+
+  @@unique([snapshotKey, attempt])
+  @@index([productionId, createdAt])
+  @@index([status, createdAt])
+}
+
+model ClipRevision {
+  id          String @id @default(cuid())
+  analysisId  String
+  analysis    ShortAnalysis @relation(fields: [analysisId], references: [id], onDelete: Cascade)
+  event       String
+  candidateId String?
+  snapshot    Json
+  createdAt   DateTime @default(now())
+
+  @@index([analysisId, createdAt])
+}
+
+model ChapterRevision {
+  id           String     @id @default(cuid())
+  chapterSetId String
+  chapterSet   ChapterSet @relation(fields: [chapterSetId], references: [id], onDelete: Cascade)
+  event        String
+  actor        String
+  reason       String?
+  snapshot     Json
+  createdAt    DateTime   @default(now())
+
+  @@index([chapterSetId, createdAt])
+}
+
+model ProductionStep {
+  id            String            @id @default(cuid())
+  productionId  String
+  production    ContentProduction @relation(fields: [productionId], references: [id], onDelete: Cascade)
+  key           String
+  label         String
+  position      Int
+  mode          String
+  capability    String?
+  required      Boolean           @default(true)
+  skippable     Boolean           @default(false)
+  dependencies  Json              @default("[]")
+  state         String            @default("NOT_STARTED")
+  attempts      Int               @default(0)
+  executionKey  String?
+  input         Json?
+  output        Json?
+  error         String?
+  skipReason    String?
+  startedAt     DateTime?
+  completedAt   DateTime?
+  invalidatedAt DateTime?
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+
+  @@unique([productionId, key])
+  @@unique([productionId, key, executionKey])
+  @@index([productionId, position])
+  @@index([state, updatedAt])
+}
+
+model ProductionEvent {
+  id           String            @id @default(cuid())
+  productionId String
+  production   ContentProduction @relation(fields: [productionId], references: [id], onDelete: Cascade)
+  stepKey      String?
+  event        String
+  actor        String
+  origin       String
+  fromState    String?
+  toState      String?
+  reason       String?
+  operationKey String?           @unique
+  data         Json              @default("{}")
+  createdAt    DateTime          @default(now())
+
+  @@index([productionId, createdAt])
+  @@index([productionId, stepKey, createdAt])
+  @@index([event, createdAt])
+}
+
+model ProductionAssetRelation {
+  id           String            @id @default(cuid())
+  productionId String
+  production   ContentProduction @relation(fields: [productionId], references: [id], onDelete: Cascade)
+  libraryItemId String
+  libraryItem  LibraryItem       @relation(fields: [libraryItemId], references: [id], onDelete: Restrict)
+  role         String
+  createdAt    DateTime          @default(now())
+
+  @@unique([productionId, libraryItemId, role])
+  @@index([productionId, createdAt])
+  @@index([libraryItemId])
+}
+
+model PlanningHistory {
+  id        String              @id @default(cuid())
+  planId    String
+  plan      ContentPlan         @relation(fields: [planId], references: [id], onDelete: Cascade)
+  itemId    String?
+  item      PlannedContentItem? @relation(fields: [itemId], references: [id], onDelete: SetNull)
+  event     String
+  reason    String
+  before    Json?
+  after     Json
+  createdAt DateTime            @default(now())
+
+  @@index([planId, createdAt])
+  @@index([itemId, createdAt])
+  @@index([event, createdAt])
+}
+
+model PlanningExecutionEvent {
+  id               String             @id @default(cuid())
+  planId           String
+  plan             ContentPlan        @relation(fields: [planId], references: [id], onDelete: Cascade)
+  itemId           String
+  item             PlannedContentItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  event            String
+  state            String
+  itemTitle        String
+  action           String
+  reason           String?
+  confidence       Float?
+  strategicContext Json
+  createdAt        DateTime           @default(now())
+  outcomeLinks     PlanningOutcomeLink[]
+  outcomes         PlanningOutcome[]
+  experimentVariants ExperimentVariant[]
+
+  @@index([planId, createdAt])
+  @@index([itemId, createdAt])
+  @@index([state, createdAt])
+}
+
+model PlanningOutcomeLink {
+  id               String                   @id @default(cuid())
+  projectId        String?
+  project          Project?                 @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  planId           String
+  plan             ContentPlan              @relation(fields: [planId], references: [id], onDelete: Cascade)
+  itemId           String
+  item             PlannedContentItem       @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  executionEventId String
+  executionEvent   PlanningExecutionEvent   @relation(fields: [executionEventId], references: [id], onDelete: Restrict)
+  sourceSnapshotId String
+  sourceSnapshot   VideoPerformanceSnapshot @relation("PlanningOutcomeLinkSource", fields: [sourceSnapshotId], references: [id], onDelete: Restrict)
+  videoId          String
+  videoTitle       String
+  publishedAt      DateTime?
+  activeItemKey    String?                  @unique
+  activeVideoKey   String?                  @unique
+  linkedAt         DateTime                 @default(now())
+  unlinkedAt       DateTime?
+  unlinkReason     String?
+  outcomes         PlanningOutcome[]
+  auditEvents      PlanningOutcomeAuditEvent[]
+
+  @@index([planId, linkedAt])
+  @@index([itemId, linkedAt])
+  @@index([videoId, linkedAt])
+  @@index([executionEventId])
+  @@index([sourceSnapshotId])
+}
+
+model PlanningOutcome {
+  id               String                   @id @default(cuid())
+  projectId        String?
+  project          Project?                 @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  planId           String
+  plan             ContentPlan              @relation(fields: [planId], references: [id], onDelete: Cascade)
+  itemId           String
+  item             PlannedContentItem       @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  executionEventId String
+  executionEvent   PlanningExecutionEvent   @relation(fields: [executionEventId], references: [id], onDelete: Restrict)
+  linkId           String
+  link             PlanningOutcomeLink      @relation(fields: [linkId], references: [id], onDelete: Cascade)
+  snapshotId       String
+  snapshot         VideoPerformanceSnapshot @relation("PlanningOutcomeSnapshot", fields: [snapshotId], references: [id], onDelete: Restrict)
+  videoId          String
+  observedAt       DateTime
+  windowStart      DateTime?
+  windowEnd        DateTime?
+  freshness        String
+  dataQuality      String
+  metrics          Json
+  benchmark        Json
+  comparison       Json
+  evidence         Json
+  classification   String
+  confidence       Float
+  limitations      Json
+  missingData      Json
+  evaluatedAt      DateTime                 @default(now())
+  updatedAt        DateTime                 @updatedAt
+  auditEvents      PlanningOutcomeAuditEvent[]
+  learningEvidence StrategicLearningEvidence[]
+  experimentObservations ExperimentObservation[]
+
+  @@unique([linkId, snapshotId])
+  @@index([planId, evaluatedAt])
+  @@index([itemId, evaluatedAt])
+  @@index([videoId, observedAt])
+  @@index([snapshotId])
+  @@index([classification, evaluatedAt])
+}
+
+model StrategicLearning {
+  id                   String                      @id @default(cuid())
+  projectId            String?
+  project              Project?                    @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  key                  String                      @unique
+  dimension            String
+  subject              String
+  comparisonContext    Json
+  description          String
+  direction            String
+  status               String
+  observationCount     Int
+  favorableCount       Int
+  neutralCount          Int
+  contraryCount        Int
+  confidence           Float
+  freshness            String
+  benchmark             Json
+  limitations           Json
+  analysisFingerprint  String
+  firstObservedAt      DateTime
+  lastObservedAt       DateTime
+  evidence             StrategicLearningEvidence[]
+  revisions            StrategicLearningRevision[]
+  sourceExperiments    StrategicExperiment[]
+  experimentEvidence  ExperimentEvidence[]
+  createdAt            DateTime                    @default(now())
+  updatedAt            DateTime                    @updatedAt
+
+  @@index([projectId, status, confidence])
+  @@index([dimension, subject])
+  @@index([freshness, updatedAt])
+}
+
+model StrategicExperiment {
+  id                 String                  @id @default(cuid())
+  projectId          String?
+  project            Project?                @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  sourceLearningId   String?
+  sourceLearning     StrategicLearning?      @relation(fields: [sourceLearningId], references: [id], onDelete: SetNull)
+  title              String
+  description        String?
+  context            Json                    @default("{}")
+  status             String                  @default("DRAFT")
+  primaryMetric      String
+  secondaryMetrics   Json                    @default("[]")
+  risk               String?
+  comparisonCriterion Json                   @default("{}")
+  confidence         Float                   @default(0)
+  limitations        Json                    @default("[]")
+  startedAt          DateTime?
+  endedAt            DateTime?
+  hypothesis         ExperimentHypothesis?
+  variants           ExperimentVariant[]
+  metrics            ExperimentMetric[]
+  constraints        ExperimentConstraint[]
+  observations       ExperimentObservation[]
+  result             ExperimentResult?
+  evidence           ExperimentEvidence[]
+  history            ExperimentEvent[]
+  createdAt          DateTime                @default(now())
+  updatedAt          DateTime                @updatedAt
+
+  @@index([projectId, status, updatedAt])
+  @@index([sourceLearningId])
+}
+
+model ExperimentHypothesis {
+  id                 String              @id @default(cuid())
+  experimentId       String              @unique
+  experiment         StrategicExperiment @relation(fields: [experimentId], references: [id], onDelete: Cascade)
+  description        String
+  priorEvidence      Json                @default("[]")
+  expectedVariantKey String
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+}
+
+model ExperimentVariant {
+  id               String                  @id @default(cuid())
+  experimentId     String
+  experiment       StrategicExperiment     @relation(fields: [experimentId], references: [id], onDelete: Cascade)
+  key              String
+  label            String
+  description      String?
+  plannedItemId    String?
+  plannedItem      PlannedContentItem?     @relation(fields: [plannedItemId], references: [id], onDelete: SetNull)
+  executionEventId String?
+  executionEvent   PlanningExecutionEvent? @relation(fields: [executionEventId], references: [id], onDelete: SetNull)
+  observations     ExperimentObservation[]
+  createdAt        DateTime                @default(now())
+  updatedAt        DateTime                @updatedAt
+
+  @@unique([experimentId, key])
+  @@index([plannedItemId])
+  @@index([executionEventId])
+}
+
+model ExperimentMetric {
+  id           String              @id @default(cuid())
+  experimentId String
+  experiment   StrategicExperiment @relation(fields: [experimentId], references: [id], onDelete: Cascade)
+  name         String
+  role         String
+  direction    String
+  createdAt    DateTime            @default(now())
+
+  @@unique([experimentId, name])
+}
+
+model ExperimentConstraint {
+  id           String              @id @default(cuid())
+  experimentId String
+  experiment   StrategicExperiment @relation(fields: [experimentId], references: [id], onDelete: Cascade)
+  code         String
+  summary      String
+  blocking     Boolean             @default(false)
+  createdAt    DateTime            @default(now())
+
+  @@unique([experimentId, code])
+}
+
+model ExperimentObservation {
+  id                String              @id @default(cuid())
+  experimentId      String
+  experiment        StrategicExperiment @relation(fields: [experimentId], references: [id], onDelete: Cascade)
+  variantId         String
+  variant           ExperimentVariant   @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  outcomeId         String
+  outcome           PlanningOutcome     @relation(fields: [outcomeId], references: [id], onDelete: Restrict)
+  observedAt        DateTime
+  freshness         String
+  dataQuality       String
+  comparisonContext Json
+  metrics           Json
+  evidence          ExperimentEvidence[]
+  createdAt         DateTime            @default(now())
+
+  @@unique([experimentId, outcomeId])
+  @@index([variantId, observedAt])
+  @@index([outcomeId])
+}
+
+model ExperimentResult {
+  id                  String              @id @default(cuid())
+  experimentId        String              @unique
+  experiment          StrategicExperiment @relation(fields: [experimentId], references: [id], onDelete: Cascade)
+  classification      String
+  summary             String
+  confidence          Float
+  benchmark           Json
+  limitations         Json
+  analysisFingerprint String
+  analyzedAt          DateTime            @default(now())
+  evidence            ExperimentEvidence[]
+  updatedAt           DateTime            @updatedAt
+}
+
+model ExperimentEvidence {
+  id            String                @id @default(cuid())
+  experimentId  String
+  experiment    StrategicExperiment   @relation(fields: [experimentId], references: [id], onDelete: Cascade)
+  resultId      String?
+  result        ExperimentResult?     @relation(fields: [resultId], references: [id], onDelete: SetNull)
+  observationId String?
+  observation   ExperimentObservation? @relation(fields: [observationId], references: [id], onDelete: SetNull)
+  learningId    String?
+  learning      StrategicLearning?    @relation(fields: [learningId], references: [id], onDelete: SetNull)
+  stance        String
+  summary       String
+  createdAt     DateTime              @default(now())
+
+  @@unique([experimentId, observationId])
+  @@index([resultId])
+  @@index([learningId])
+}
+
+model ExperimentEvent {
+  id           String              @id @default(cuid())
+  experimentId String
+  experiment   StrategicExperiment @relation(fields: [experimentId], references: [id], onDelete: Cascade)
+  event        String
+  reason       String?
+  data         Json                @default("{}")
+  createdAt    DateTime            @default(now())
+
+  @@index([experimentId, createdAt])
+  @@index([event, createdAt])
+}
+
+model MonitoringRule {
+  id            String   @id @default(cuid())
+  code          String   @unique
+  signalType    String
+  defaultSeverity String
+  cooldownHours Int
+  description   String
+  enabled       Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([enabled, signalType])
+}
+
+model MonitoringControl {
+  id                  String   @id @default("strategic-monitoring")
+  enabled             Boolean  @default(false)
+  intervalMs          Int      @default(21600000)
+  operationalState    String   @default("DISABLED")
+  lastRunAt           DateTime?
+  lastSuccessfulRunAt DateTime?
+  lastFailureAt       DateTime?
+  lastErrorType       String?
+  nextRunAt           DateTime?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@index([enabled, nextRunAt])
+}
+
+model StrategicSignal {
+  id             String           @id @default(cuid())
+  projectId      String?
+  project        Project?         @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  logicalKey     String           @unique
+  fingerprint    String
+  type           String
+  severity       String
+  state          String           @default("NEW")
+  source         String
+  sourceId       String
+  subject        String
+  summary        String
+  impact         String
+  confidence     Float
+  limitations    Json             @default("[]")
+  detectedAt     DateTime
+  lastObservedAt DateTime
+  cooldownUntil  DateTime
+  acknowledgedAt DateTime?
+  resolvedAt     DateTime?
+  dismissedAt    DateTime?
+  evidence       SignalEvidence[]
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  @@index([projectId, state, severity, detectedAt])
+  @@index([type, state, lastObservedAt])
+  @@index([source, sourceId])
+  @@index([fingerprint])
+}
+
+model MonitoringSnapshot {
+  id                    String           @id @default(cuid())
+  projectId             String?
+  project               Project?         @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  evaluationFingerprint String           @unique
+  evaluatedSources      Json
+  sourceState           Json
+  candidateCount        Int
+  createdCount          Int
+  updatedCount          Int
+  resolvedCount         Int
+  evaluatedAt           DateTime
+  evidence              SignalEvidence[]
+  createdAt             DateTime         @default(now())
+
+  @@index([projectId, evaluatedAt])
+}
+
+model SignalEvidence {
+  id         String             @id @default(cuid())
+  signalId   String
+  signal     StrategicSignal    @relation(fields: [signalId], references: [id], onDelete: Cascade)
+  snapshotId String?
+  snapshot   MonitoringSnapshot? @relation(fields: [snapshotId], references: [id], onDelete: SetNull)
+  source     String
+  sourceId   String
+  kind       String
+  summary    String
+  payload    Json               @default("{}")
+  observedAt DateTime
+  createdAt  DateTime           @default(now())
+
+  @@unique([signalId, snapshotId, kind])
+  @@index([signalId, observedAt])
+  @@index([snapshotId])
+  @@index([source, sourceId])
+}
+
+model StrategicLearningEvidence {
+  id          String            @id @default(cuid())
+  learningId  String
+  learning    StrategicLearning @relation(fields: [learningId], references: [id], onDelete: Cascade)
+  outcomeId   String
+  outcome     PlanningOutcome   @relation(fields: [outcomeId], references: [id], onDelete: Cascade)
+  stance      String
+  summary     String
+  createdAt   DateTime          @default(now())
+
+  @@unique([learningId, outcomeId])
+  @@index([outcomeId])
+  @@index([learningId, stance])
+}
+
+model StrategicLearningRevision {
+  id                 String            @id @default(cuid())
+  learningId         String
+  learning           StrategicLearning @relation(fields: [learningId], references: [id], onDelete: Cascade)
+  event              String
+  reason             String
+  previousStatus     String?
+  currentStatus      String
+  previousConfidence Float?
+  currentConfidence  Float
+  before             Json?
+  after              Json
+  createdAt          DateTime          @default(now())
+
+  @@index([learningId, createdAt])
+  @@index([event, createdAt])
+}
+
+model PlanningOutcomeAuditEvent {
+  id        String               @id @default(cuid())
+  planId    String
+  plan      ContentPlan          @relation(fields: [planId], references: [id], onDelete: Cascade)
+  itemId    String
+  item      PlannedContentItem   @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  linkId    String?
+  link      PlanningOutcomeLink? @relation(fields: [linkId], references: [id], onDelete: SetNull)
+  outcomeId String?
+  outcome   PlanningOutcome?     @relation(fields: [outcomeId], references: [id], onDelete: SetNull)
+  event     String
+  reason    String?
+  data      Json
+  createdAt DateTime             @default(now())
+
+  @@index([planId, createdAt])
+  @@index([itemId, createdAt])
+  @@index([linkId, createdAt])
+  @@index([outcomeId, createdAt])
+  @@index([event, createdAt])
+}
+
+model VideoReachSnapshot {
+  id                    String   @id @default(cuid())
+  projectId             String?
+  project               Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  ingestionKey          String   @unique
+  videoId               String
+  periodStart           DateTime
+  periodEnd             DateTime
+  impressions           Float
+  ctr                    Float
+  source                 String
+  reportId               String?
+  jobId                  String?
+  reportCreatedAt        DateTime?
+  collectedAt            DateTime
+  freshnessAtCollection  String
+  qualityAtCollection    String
+  qualityReasons         Json
+  providerMetadata       Json?
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  @@index([projectId, collectedAt])
+  @@index([videoId, periodStart, periodEnd, source])
+  @@index([source, collectedAt])
+}
+
+model ReachSyncState {
+  source        String   @id
+  reportTypeId  String
+  jobId         String?
+  state         String
+  lastReportAt  DateTime?
+  lastSyncAt    DateTime?
+  lastErrorType String?
+  updatedAt     DateTime @updatedAt
+}
+
+model AudienceSnapshot {
+  id                         String   @id @default(cuid())
+  projectId                  String?
+  project                    Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  ingestionKey               String   @unique
+  dimension                  String
+  segment                    String
+  format                     String?
+  periodStart                DateTime
+  periodEnd                  DateTime
+  views                      Float?
+  engagedViews               Float?
+  watchTimeMinutes           Float?
+  averageViewDurationSeconds Float?
+  averageViewPercentage      Float?
+  source                     String
+  collectedAt                DateTime
+  freshnessAtCollection      String
+  qualityAtCollection        String
+  qualityReasons             Json
+  providerMetadata           Json?
+  createdAt                  DateTime @default(now())
+  updatedAt                  DateTime @updatedAt
+
+  @@index([projectId, dimension, periodStart, periodEnd])
+  @@index([dimension, segment, format])
+  @@index([source, collectedAt])
+}
+
+model AudienceSyncState {
+  source        String   @id
+  state         String
+  lastSyncAt    DateTime?
+  lastErrorType String?
+  missingData   Json
+  updatedAt     DateTime @updatedAt
+}
+
+model EditorialDecision {
+  id                String                    @id @default(cuid())
+  projectId         String?
+  project           Project?                  @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  conversationId    String?
+  conversation      Conversation?             @relation(fields: [conversationId], references: [id], onDelete: SetNull)
+  operatorMessageId String?                   @unique
+  operatorMessage   Message?                  @relation(fields: [operatorMessageId], references: [id], onDelete: SetNull)
+  outcomeSnapshotId String?
+  outcomeSnapshot   VideoPerformanceSnapshot? @relation(fields: [outcomeSnapshotId], references: [id], onDelete: SetNull)
+  dedupeKey         String                    @unique
+  question          String
+  intent            String
+  recommendation    String
+  alternatives      Json
+  score             Float?
+  confidence        Float
+  classification    String                    @default("recommendation")
+  category          String                    @default("INSUFFICIENT_DATA")
+  candidateType     String?
+  candidateKey      String?
+  opportunityScore  Json?
+  favorableEvidence Json                      @default("[]")
+  contraryEvidence  Json                      @default("[]")
+  constraints       Json                      @default("[]")
+  evidence          Json
+  risks             Json
+  missingData       Json
+  nextAction        String
+  outcome           Json?
+  videoLinks        EditorialDecisionVideoLink[]
+  plannedItems      PlannedContentItem[]
+  createdAt         DateTime                  @default(now())
+  updatedAt         DateTime                  @updatedAt
+
+  @@index([projectId, createdAt])
+  @@index([conversationId, createdAt])
+  @@index([category, createdAt])
+  @@index([candidateType, candidateKey])
+  @@index([outcomeSnapshotId])
+}
+
+model EditorialDecisionVideoLink {
+  id               String                   @id @default(cuid())
+  decisionId       String
+  decision         EditorialDecision        @relation(fields: [decisionId], references: [id], onDelete: Cascade)
+  sourceSnapshotId String
+  sourceSnapshot   VideoPerformanceSnapshot @relation(fields: [sourceSnapshotId], references: [id], onDelete: Restrict)
+  videoId          String
+  origin           String                   @default("manual")
+  notes            String?
+  linkedAt         DateTime                 @default(now())
+  outcomes         EditorialDecisionOutcome[]
+
+  @@unique([decisionId, videoId])
+  @@index([decisionId, linkedAt])
+  @@index([videoId])
+  @@index([sourceSnapshotId])
+}
+
+model EditorialDecisionOutcome {
+  id                   String                    @id @default(cuid())
+  decisionVideoLinkId  String
+  decisionVideoLink    EditorialDecisionVideoLink @relation(fields: [decisionVideoLinkId], references: [id], onDelete: Cascade)
+  snapshotId           String
+  snapshot             VideoPerformanceSnapshot @relation(fields: [snapshotId], references: [id], onDelete: Restrict)
+  learningInsightId    String?
+  learningInsight      ChannelInsight?           @relation(fields: [learningInsightId], references: [id], onDelete: SetNull)
+  windowStart          DateTime?
+  windowEnd            DateTime?
+  baseline             Json
+  facts                Json
+  comparison           Json
+  interpretation       Json
+  confidence           Float
+  classification       String
+  supportingMetrics    Json
+  contradictingMetrics Json
+  missingData          Json
+  hypotheses           Json
+  sourceReviews        EditorialDecisionOutcomeReview[] @relation("OutcomeReviewSource")
+  resultReviews        EditorialDecisionOutcomeReview[] @relation("OutcomeReviewResult")
+  evaluatedAt          DateTime                  @default(now())
+  updatedAt            DateTime                  @updatedAt
+
+  @@unique([decisionVideoLinkId, snapshotId])
+  @@index([snapshotId])
+  @@index([classification, evaluatedAt])
+  @@index([learningInsightId])
+}
+
+model EditorialDecisionOutcomeReview {
+  id                        String                     @id @default(cuid())
+  sourceOutcomeId           String
+  sourceOutcome             EditorialDecisionOutcome @relation("OutcomeReviewSource", fields: [sourceOutcomeId], references: [id], onDelete: Cascade)
+  resultOutcomeId           String?
+  resultOutcome             EditorialDecisionOutcome? @relation("OutcomeReviewResult", fields: [resultOutcomeId], references: [id], onDelete: SetNull)
+  previousSnapshotId        String
+  previousSnapshot          VideoPerformanceSnapshot  @relation("OutcomeReviewPreviousSnapshot", fields: [previousSnapshotId], references: [id], onDelete: Restrict)
+  currentSnapshotId         String
+  currentSnapshot           VideoPerformanceSnapshot  @relation("OutcomeReviewCurrentSnapshot", fields: [currentSnapshotId], references: [id], onDelete: Restrict)
+  reviewKey                 String                     @unique
+  status                    String                     @default("pending")
+  reason                    String
+  previousClassification    String
+  currentClassification     String?
+  previousConfidence        Float
+  currentConfidence         Float?
+  changedMetrics            Json
+  previousState             Json
+  currentState              Json?
+  errorType                 String?
+  startedAt                 DateTime                   @default(now())
+  completedAt               DateTime?
+
+  @@index([sourceOutcomeId, startedAt])
+  @@index([status, startedAt])
+  @@index([currentSnapshotId])
+}
+
+model OrchestrationExecution {
+  id                String    @id @default(cuid())
+  projectId         String?
+  project           Project?  @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  conversationId    String?
+  idempotencyKey    String?   @unique
+  intent            String
+  objective         String
+  status            String    @default("pending")
+  capabilities      Json
+  request           Json
+  plan              Json
+  result             Json?
+  evidence          Json?
+  failures          Json
+  errorType         String?
+  startedAt         DateTime  @default(now())
+  completedAt       DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  review             PlanReview?
+  auditEvents        OrchestrationAuditEvent[]
+
+  @@index([projectId, createdAt])
+  @@index([conversationId, createdAt])
+  @@index([status, createdAt])
+}
+
+model PlanReview {
+  id                String   @id @default(cuid())
+  executionId       String   @unique
+  execution         OrchestrationExecution @relation(fields: [executionId], references: [id], onDelete: Cascade)
+  state             String
+  reviewer          String?
+  reviewedAt        DateTime?
+  decision          String?
+  reason            String?
+  riskLevel         String
+  sideEffectLevel   String
+  requiredApprovals Int      @default(0)
+  version           Int      @default(1)
+  planHash          String
+  approvedPlanHash  String?
+  approvedPlan      Json?
+  validUntil        DateTime
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([state, createdAt])
+  @@index([riskLevel, createdAt])
+}
+
+model OrchestrationAuditEvent {
+  id          String   @id @default(cuid())
+  executionId String
+  execution   OrchestrationExecution @relation(fields: [executionId], references: [id], onDelete: Cascade)
+  eventType   String
+  actor       String?
+  reason      String?
+  details     Json?
+  createdAt   DateTime @default(now())
+
+  @@index([executionId, createdAt])
+  @@index([eventType, createdAt])
+}
