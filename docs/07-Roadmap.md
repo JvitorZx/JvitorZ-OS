@@ -1718,7 +1718,11 @@ Dois vídeos selecionados recebem tabela factual de formato, views, retenção e
 
 Comparações entre formatos diferentes recebem aviso explícito de cautela. O sistema não bloqueia inspeção nem trata métricas incompatíveis como equivalentes.
 
-**Proximo checkpoint: Sprint 84 - NAO INICIADA; escopo ainda nao definido.**
+## Sprint 84 - Channel Format Cohorts - CONCLUIDA
+
+O resumo persistido do Canal agora separa contagem e cobertura factual por formato. As coortes usam o snapshot mais recente de cada vídeo e não fabricam médias ou comparações quando faltam evidências.
+
+**Proximo checkpoint: Sprint 85 - NAO INICIADA; escopo ainda nao definido.**
 
 ### Revisao de encerramento apos Sprint 53
 

@@ -66,6 +66,18 @@ export class ChannelContentService {
       return result;
     }, {});
     const covered = (field: keyof (typeof values)[number]) => values.filter((record) => record[field] !== null && record[field] !== undefined).length;
+    const coverageFor = (items: typeof values) => {
+      const count = (field: keyof (typeof values)[number]) => items.filter((record) => record[field] !== null && record[field] !== undefined).length;
+      return {
+        views: count('views'), watchTime: count('watchTimeMinutes'), retention: count('averageViewPercentage'),
+        impressions: count('impressions'), ctr: count('ctr'), subscribers: count('subscribersGained'),
+        interactions: items.filter((record) => record.likes !== null || record.comments !== null).length,
+      };
+    };
+    const formatCohorts = Object.fromEntries(Object.keys(formats).sort().map((format) => {
+      const items = values.filter((record) => (record.format?.trim() || 'UNKNOWN') === format);
+      return [format, { videos: items.length, coverage: coverageFor(items) }];
+    }));
     return {
       videos: values.length,
       observations: records.length,
@@ -77,6 +89,7 @@ export class ChannelContentService {
         impressions: covered('impressions'), ctr: covered('ctr'), subscribers: covered('subscribersGained'),
         interactions: values.filter((record) => record.likes !== null || record.comments !== null).length,
       },
+      formatCohorts,
     };
   }
 }

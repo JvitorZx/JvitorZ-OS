@@ -236,5 +236,9 @@ test('channel content summary reports deduplicated persisted coverage without es
     latestCollectedAt: new Date('2026-09-10'),
     earliestCollectedAt: new Date('2026-09-08'),
     coverage: { views: 1, watchTime: 1, retention: 1, impressions: 1, ctr: 1, subscribers: 1, interactions: 1 },
+    formatCohorts: {
+      LONG_FORM: { videos: 1, coverage: { views: 0, watchTime: 0, retention: 0, impressions: 1, ctr: 1, subscribers: 0, interactions: 0 } },
+      SHORTS: { videos: 1, coverage: { views: 1, watchTime: 1, retention: 1, impressions: 0, ctr: 0, subscribers: 1, interactions: 1 } },
+    },
   });
 });
