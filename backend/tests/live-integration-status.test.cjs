@@ -220,3 +220,20 @@ test('channel video detail preserves ordered collection history', async () => {
   assert.equal(result.current.id, 'new');
   assert.deepEqual(result.history.map(({ id }) => id), ['new', 'old']);
 });
+
+test('channel content summary reports deduplicated persisted coverage without estimates', async () => {
+  const records = [
+    { id: 'new-a', videoId: 'a', format: 'SHORTS', collectedAt: new Date('2026-09-10'), views: 20, watchTimeMinutes: 5, averageViewPercentage: 70, impressions: null, ctr: null, subscribersGained: 1, likes: 2, comments: null },
+    { id: 'b', videoId: 'b', format: 'LONG_FORM', collectedAt: new Date('2026-09-09'), views: null, watchTimeMinutes: null, averageViewPercentage: null, impressions: 100, ctr: 4, subscribersGained: null, likes: null, comments: null },
+    { id: 'old-a', videoId: 'a', format: 'SHORTS', collectedAt: new Date('2026-09-08'), views: 5, watchTimeMinutes: null, averageViewPercentage: null, impressions: null, ctr: null, subscribersGained: null, likes: null, comments: null },
+  ];
+  const service = new ChannelContentService({ findAll: async () => records });
+  const result = await service.getSummary();
+  assert.deepEqual(result, {
+    videos: 2,
+    observations: 3,
+    formats: { SHORTS: 1, LONG_FORM: 1 },
+    latestCollectedAt: new Date('2026-09-10'),
+    coverage: { views: 1, watchTime: 1, retention: 1, impressions: 1, ctr: 1, subscribers: 1, interactions: 1 },
+  });
+});

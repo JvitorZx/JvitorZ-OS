@@ -27,6 +27,7 @@ export const createChannelController = ({ api, refreshDashboard }) => {
     const feedback = panel.querySelector('[data-channel-feedback]');
     const videos = root.querySelector('[data-channel-videos]');
     const detail = root.querySelector('[data-channel-video-detail]');
+    const summary = root.querySelector('[data-channel-video-summary]');
     const search = root.querySelector('[data-channel-video-search]');
     const format = root.querySelector('[data-channel-video-format]');
     let loadedVideos = [];
@@ -110,6 +111,13 @@ export const createChannelController = ({ api, refreshDashboard }) => {
       if (!videos || !current()) return;
       videos.replaceChildren(); const message = document.createElement('p'); message.className = 'empty-state'; message.textContent = 'Não foi possível carregar os vídeos sincronizados.'; videos.append(message);
     });
+    api.getYouTubeChannelVideoSummary?.().then((value) => {
+      if (!summary || !current()) return;
+      summary.replaceChildren();
+      for (const [label, amount] of [['Vídeos', value.videos], ['Coletas', value.observations], ['Com views', value.coverage?.views], ['Com retenção', value.coverage?.retention], ['Com CTR', value.coverage?.ctr]]) {
+        const item = document.createElement('div'); const strong = document.createElement('strong'); strong.textContent = String(amount ?? 0); const small = document.createElement('small'); small.textContent = label; item.append(strong, small); summary.append(item);
+      }
+    }).catch(() => { if (summary && current()) summary.textContent = 'Cobertura indisponível.'; });
   };
 
   const unmount = () => {
@@ -195,7 +203,7 @@ export const channelModule = {
         eyebrow: 'Conteúdo sincronizado',
         title: 'Vídeos recentes',
         className: 'channel-videos-panel',
-        body: html`<div class="channel-video-filters"><label>Buscar<input type="search" data-channel-video-search placeholder="Título do vídeo"></label><label>Formato<select data-channel-video-format><option value="ALL">Todos</option><option value="LONG_FORM">Long-form</option><option value="SHORTS">Shorts</option><option value="LIVE">Live</option></select></label></div><div class="channel-video-layout"><div class="channel-video-list" data-channel-videos aria-live="polite"><p class="empty-state">Carregando vídeos...</p></div><aside class="channel-video-detail" data-channel-video-detail aria-live="polite">Selecione um vídeo para ver métricas e histórico.</aside></div>`,
+        body: html`<div class="channel-video-summary" data-channel-video-summary aria-live="polite"><span>Calculando cobertura...</span></div><div class="channel-video-filters"><label>Buscar<input type="search" data-channel-video-search placeholder="Título do vídeo"></label><label>Formato<select data-channel-video-format><option value="ALL">Todos</option><option value="LONG_FORM">Long-form</option><option value="SHORTS">Shorts</option><option value="LIVE">Live</option></select></label></div><div class="channel-video-layout"><div class="channel-video-list" data-channel-videos aria-live="polite"><p class="empty-state">Carregando vídeos...</p></div><aside class="channel-video-detail" data-channel-video-detail aria-live="polite">Selecione um vídeo para ver métricas e histórico.</aside></div>`,
       })}
       ${createPanel({
         eyebrow: 'Integrações oficiais',

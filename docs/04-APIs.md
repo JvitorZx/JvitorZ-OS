@@ -1490,3 +1490,7 @@ Importa e normaliza uma fonte. Para SBV/SRT/VTT, body: `{ "productionId": "...",
 - `GET /api/chapters/versions/:id/output`: retorna `{ "chapterSetId": "...", "text": "0:00 Introducao\\n2:00 Nova missao" }`.
 
 Nenhum endpoint publica ou modifica video no YouTube. O backend nao aceita caminho de arquivo, nao faz scraping e nao inventa transcript/timestamp.
+
+### `GET /api/youtube/videos-summary`
+
+Resume a cobertura local dos snapshots persistidos, sem consultar o Google. Retorna quantidade de vídeos únicos, observações, formatos, coleta mais recente e contagens de vídeos que realmente possuem cada grupo de métricas. Campos ausentes não são estimados.

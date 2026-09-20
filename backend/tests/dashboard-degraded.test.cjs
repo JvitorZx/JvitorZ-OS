@@ -214,6 +214,17 @@ describe('YouTube route expected states', { concurrency: false }, () => {
     assert.equal(calls, 1);
   });
 
+  test('summarizes persisted video coverage through the local service', async () => {
+    let calls = 0;
+    youtubeDependencies = {
+      channelContentService: { getSummary: async () => { calls += 1; return { videos: 2, observations: 3, formats: { SHORTS: 1, LONG_FORM: 1 }, latestCollectedAt: null, coverage: { views: 1 } }; } },
+    };
+    const response = await fetch(`${baseUrl}/api/youtube/videos-summary`);
+    assert.equal(response.status, 200);
+    assert.equal((await response.json()).videos, 2);
+    assert.equal(calls, 1);
+  });
+
   test('rejects an invalid recent-video limit safely', async () => {
     youtubeDependencies = {
       channelContentService: { listRecent: async () => { const { ChannelContentValidationError } = require('../dist/services/ChannelContentService'); throw new ChannelContentValidationError('limit must be an integer from 1 to 50'); } },

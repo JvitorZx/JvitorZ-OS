@@ -54,4 +54,28 @@ export class ChannelContentService {
     if (records.length === 0) throw new ChannelVideoNotFoundError('video not found');
     return { current: view(records[0]), history: records.slice(0, 20).map(view) };
   }
+
+  async getSummary() {
+    const records = await this.snapshots.findAll();
+    const latest = new Map<string, (typeof records)[number]>();
+    for (const record of records) if (!latest.has(record.videoId)) latest.set(record.videoId, record);
+    const values = [...latest.values()];
+    const formats = values.reduce<Record<string, number>>((result, record) => {
+      const key = record.format?.trim() || 'UNKNOWN';
+      result[key] = (result[key] ?? 0) + 1;
+      return result;
+    }, {});
+    const covered = (field: keyof (typeof values)[number]) => values.filter((record) => record[field] !== null && record[field] !== undefined).length;
+    return {
+      videos: values.length,
+      observations: records.length,
+      formats,
+      latestCollectedAt: records[0]?.collectedAt ?? null,
+      coverage: {
+        views: covered('views'), watchTime: covered('watchTimeMinutes'), retention: covered('averageViewPercentage'),
+        impressions: covered('impressions'), ctr: covered('ctr'), subscribers: covered('subscribersGained'),
+        interactions: values.filter((record) => record.likes !== null || record.comments !== null).length,
+      },
+    };
+  }
 }

@@ -178,6 +178,10 @@ export const createApiClient = (baseUrl) => ({
     return requestJson(`${baseUrl}/api/youtube/videos/${encodeURIComponent(id)}`, undefined, 'Erro ao abrir vídeo do canal');
   },
 
+  async getYouTubeChannelVideoSummary() {
+    return requestJson(`${baseUrl}/api/youtube/videos-summary`, undefined, 'Erro ao resumir cobertura do canal');
+  },
+
   async listChannelOperators(projectId) {
     const query = projectId === undefined
       ? ''

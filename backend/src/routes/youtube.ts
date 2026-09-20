@@ -13,7 +13,7 @@ type YouTubeRouteDependencies = {
   googleService: Pick<GoogleService, 'isAuthenticated'>;
   createChannelService: () => Pick<ChannelService, 'getChannelInfo'>;
   channelDataService: Pick<ChannelDataService, 'getChannel'>;
-  channelContentService: Pick<ChannelContentService, 'listRecent' | 'getVideo'>;
+  channelContentService: Pick<ChannelContentService, 'listRecent' | 'getVideo' | 'getSummary'>;
 };
 
 export const createYouTubeRouter = (dependencies: Partial<YouTubeRouteDependencies> = {}): Router => {
@@ -95,6 +95,14 @@ export const createYouTubeRouter = (dependencies: Partial<YouTubeRouteDependenci
       const name = error instanceof Error ? error.name : 'UnknownError';
       console.error(`Failed to list persisted channel videos (${name})`);
       return res.status(500).json({ code: 'INTERNAL_ERROR', error: 'Failed to list channel videos' });
+    }
+  });
+  router.get('/videos-summary', async (_req, res) => {
+    try { return res.status(200).json(await channelContentService.getSummary()); }
+    catch (error) {
+      const name = error instanceof Error ? error.name : 'UnknownError';
+      console.error(`Failed to summarize persisted channel videos (${name})`);
+      return res.status(500).json({ code: 'INTERNAL_ERROR', error: 'Failed to summarize channel videos' });
     }
   });
   router.get('/videos/:videoId', async (req, res) => {

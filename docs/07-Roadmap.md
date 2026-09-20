@@ -1587,7 +1587,19 @@ Entregas:
 
 Busca por título e filtro por formato sobre os vídeos persistidos da workspace Canal. A lista é carregada uma vez, filtrada localmente e mantém listeners/lifecycle idempotentes. Nenhuma tecla dispara consulta ao Google ou nova chamada ao backend.
 
-**Proximo checkpoint: Sprint 60 - NAO INICIADA; escopo ainda nao definido.**
+## Sprint 60 - Channel Data Coverage Summary - CONCLUIDA
+
+**Objetivo:** tornar visível quanto do conteúdo persistido possui evidência suficiente para análise, sem inventar métricas ausentes.
+
+Entregas:
+
+- resumo local deduplicado por vídeo, com total de observações e formatos;
+- cobertura explícita de views, watch time, retenção, impressões, CTR, inscritos e interações;
+- endpoint `GET /api/youtube/videos-summary`, sem acesso ao Google;
+- painel compacto na workspace Canal, protegido contra respostas após unmount;
+- contagens observadas, sem percentuais ou thresholds ocultos.
+
+**Proximo checkpoint: Sprint 61 - NAO INICIADA; escopo ainda nao definido.**
 
 ### Revisao de encerramento apos Sprint 53
 

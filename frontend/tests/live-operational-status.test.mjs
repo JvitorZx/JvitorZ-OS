@@ -39,9 +39,9 @@ class FakeElement {
 }
 
 const channelDom = () => {
-  const root = new FakeElement(); const panel = new FakeElement(); const button = new FakeElement(); const feedback = new FakeElement(); const videos = new FakeElement(); const detail = new FakeElement(); const search = new FakeElement(); const format = new FakeElement(); format.value = 'ALL';
-  root.map.set('.channel-panel', panel); root.map.set('[data-channel-videos]', videos); root.map.set('[data-channel-video-detail]', detail); root.map.set('[data-channel-video-search]', search); root.map.set('[data-channel-video-format]', format); panel.map.set('[data-channel-sync]', button); panel.map.set('[data-channel-feedback]', feedback);
-  return { root, button, feedback, videos, detail, search, format };
+  const root = new FakeElement(); const panel = new FakeElement(); const button = new FakeElement(); const feedback = new FakeElement(); const videos = new FakeElement(); const detail = new FakeElement(); const summary = new FakeElement(); const search = new FakeElement(); const format = new FakeElement(); format.value = 'ALL';
+  root.map.set('.channel-panel', panel); root.map.set('[data-channel-videos]', videos); root.map.set('[data-channel-video-detail]', detail); root.map.set('[data-channel-video-summary]', summary); root.map.set('[data-channel-video-search]', search); root.map.set('[data-channel-video-format]', format); panel.map.set('[data-channel-sync]', button); panel.map.set('[data-channel-feedback]', feedback);
+  return { root, button, feedback, videos, detail, summary, search, format };
 };
 
 const deferred = () => { let resolve; let reject; const promise = new Promise((ok, fail) => { resolve = ok; reject = fail; }); return { promise, resolve, reject }; };
@@ -93,7 +93,9 @@ test('channel client exposes explicit read and synchronization contracts', async
   const calls = [];
   globalThis.fetch = async (url, options) => {
     calls.push({ url, options });
-    return { ok: true, status: 200, json: async () => url.includes('/videos?')
+    return { ok: true, status: 200, json: async () => url.includes('/videos-summary')
+      ? { videos: 2, observations: 3, coverage: { views: 1 } }
+      : url.includes('/videos?')
       ? [{ id: 'snapshot-1' }]
       : url.includes('/videos/') ? { current: { videoId: 'video/1' }, history: [] } : ({ id: 'channel-1' }) };
   };
@@ -102,11 +104,13 @@ test('channel client exposes explicit read and synchronization contracts', async
     assert.equal((await api.getYouTubeChannel()).id, 'channel-1');
     assert.equal((await api.syncYouTubeChannel()).id, 'channel-1');
     assert.equal((await api.listYouTubeChannelVideos(8)).length, 1);
+    assert.equal((await api.getYouTubeChannelVideoSummary()).videos, 2);
     assert.equal((await api.getYouTubeChannelVideo('video/1')).current.videoId, 'video/1');
     assert.deepEqual(calls, [
       { url: 'http://localhost:3000/api/youtube/channel', options: undefined },
       { url: 'http://localhost:3000/api/youtube/channel/sync', options: { method: 'POST' } },
       { url: 'http://localhost:3000/api/youtube/videos?limit=8', options: undefined },
+      { url: 'http://localhost:3000/api/youtube/videos-summary', options: undefined },
       { url: 'http://localhost:3000/api/youtube/videos/video%2F1', options: undefined },
     ]);
   } finally {
@@ -151,6 +155,21 @@ test('Channel filters the loaded local list without another API request', async 
     page.search.value = 'forza'; await page.search.dispatch('input'); assert.equal(page.videos.children.length, 1);
     page.search.value = ''; page.format.value = 'LONG_FORM'; await page.format.dispatch('change'); assert.equal(page.videos.children.length, 1);
     assert.equal(calls, 1);
+  } finally { globalThis.document = originalDocument; }
+});
+
+test('Channel renders persisted coverage summary without inventing missing metrics', async () => {
+  const originalDocument = globalThis.document; globalThis.document = { createElement: () => new FakeElement() };
+  try {
+    const page = channelDom();
+    createChannelController({ api: {
+      listYouTubeChannelVideos: async () => [],
+      getYouTubeChannelVideoSummary: async () => ({ videos: 2, observations: 3, coverage: { views: 1, retention: 0, ctr: 0 } }),
+    } }).mount(page.root);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    assert.equal(page.summary.children.length, 5);
+    assert.equal(page.summary.children[0].children[0].textContent, '2');
+    assert.equal(page.summary.children[3].children[0].textContent, '0');
   } finally { globalThis.document = originalDocument; }
 });
 
