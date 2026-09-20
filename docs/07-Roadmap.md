@@ -1672,7 +1672,11 @@ Ordenação local por retenção e CTR observados, mantendo métricas ausentes n
 
 O resumo mostra a idade exata da última coleta em dias junto da data absoluta. Nenhum threshold escondido converte idade em qualidade ou disponibilidade.
 
-**Proximo checkpoint: Sprint 75 - NAO INICIADA; escopo ainda nao definido.**
+## Sprint 75 - Channel Observation Window - CONCLUIDA
+
+O resumo local passa a expor a primeira e a última coleta persistidas, permitindo interpretar a cobertura dentro de sua janela temporal real.
+
+**Proximo checkpoint: Sprint 76 - NAO INICIADA; escopo ainda nao definido.**
 
 ### Revisao de encerramento apos Sprint 53
 

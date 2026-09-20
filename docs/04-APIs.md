@@ -1493,4 +1493,4 @@ Nenhum endpoint publica ou modifica video no YouTube. O backend nao aceita camin
 
 ### `GET /api/youtube/videos-summary`
 
-Resume a cobertura local dos snapshots persistidos, sem consultar o Google. Retorna quantidade de vídeos únicos, observações, formatos, coleta mais recente e contagens de vídeos que realmente possuem cada grupo de métricas. Campos ausentes não são estimados.
+Resume a cobertura local dos snapshots persistidos, sem consultar o Google. Retorna quantidade de vídeos únicos, observações, formatos, início/fim da janela local e contagens de vídeos que realmente possuem cada grupo de métricas. Campos ausentes não são estimados.

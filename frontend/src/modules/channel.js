@@ -170,9 +170,10 @@ export const createChannelController = ({ api, refreshDashboard }) => {
       const formats = Object.entries(value.formats ?? {}).map(([name, count]) => `${name}: ${count}`).join(' · ') || 'formatos não informados';
       const age = value.latestCollectedAt ? collectionAgeDays(value.latestCollectedAt) : null;
       const collected = value.latestCollectedAt ? `${new Date(value.latestCollectedAt).toLocaleString('pt-BR')}${age === null ? '' : ` (há ${age} dia(s))`}` : 'sem coleta registrada';
+      const windowStart = value.earliestCollectedAt ? new Date(value.earliestCollectedAt).toLocaleDateString('pt-BR') : '--';
       const missing = [['watch time', value.coverage?.watchTime], ['impressões', value.coverage?.impressions], ['inscritos', value.coverage?.subscribers], ['interações', value.coverage?.interactions]]
         .filter(([, count]) => Number(count ?? 0) < Number(value.videos ?? 0)).map(([label, count]) => `${label} ${count ?? 0}/${value.videos ?? 0}`);
-      details.textContent = `Formatos: ${formats}. Última coleta: ${collected}. ${missing.length ? `Cobertura parcial: ${missing.join(', ')}.` : 'Cobertura completa para os grupos adicionais.'}`;
+      details.textContent = `Formatos: ${formats}. Janela local desde ${windowStart}. Última coleta: ${collected}. ${missing.length ? `Cobertura parcial: ${missing.join(', ')}.` : 'Cobertura completa para os grupos adicionais.'}`;
       summary.append(details);
     }).catch(() => { if (summary && current()) summary.textContent = 'Cobertura indisponível.'; });
   };

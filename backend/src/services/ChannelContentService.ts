@@ -71,6 +71,7 @@ export class ChannelContentService {
       observations: records.length,
       formats,
       latestCollectedAt: records[0]?.collectedAt ?? null,
+      earliestCollectedAt: records.at(-1)?.collectedAt ?? null,
       coverage: {
         views: covered('views'), watchTime: covered('watchTimeMinutes'), retention: covered('averageViewPercentage'),
         impressions: covered('impressions'), ctr: covered('ctr'), subscribers: covered('subscribersGained'),
