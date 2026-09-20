@@ -39,9 +39,9 @@ class FakeElement {
 }
 
 const channelDom = () => {
-  const root = new FakeElement(); const panel = new FakeElement(); const button = new FakeElement(); const feedback = new FakeElement(); const videos = new FakeElement(); const detail = new FakeElement(); const summary = new FakeElement(); const search = new FakeElement(); const format = new FakeElement(); format.value = 'ALL';
-  root.map.set('.channel-panel', panel); root.map.set('[data-channel-videos]', videos); root.map.set('[data-channel-video-detail]', detail); root.map.set('[data-channel-video-summary]', summary); root.map.set('[data-channel-video-search]', search); root.map.set('[data-channel-video-format]', format); panel.map.set('[data-channel-sync]', button); panel.map.set('[data-channel-feedback]', feedback);
-  return { root, button, feedback, videos, detail, summary, search, format };
+  const root = new FakeElement(); const panel = new FakeElement(); const button = new FakeElement(); const feedback = new FakeElement(); const videos = new FakeElement(); const detail = new FakeElement(); const summary = new FakeElement(); const search = new FakeElement(); const format = new FakeElement(); const sort = new FakeElement(); format.value = 'ALL'; sort.value = 'COLLECTED';
+  root.map.set('.channel-panel', panel); root.map.set('[data-channel-videos]', videos); root.map.set('[data-channel-video-detail]', detail); root.map.set('[data-channel-video-summary]', summary); root.map.set('[data-channel-video-search]', search); root.map.set('[data-channel-video-format]', format); root.map.set('[data-channel-video-sort]', sort); panel.map.set('[data-channel-sync]', button); panel.map.set('[data-channel-feedback]', feedback);
+  return { root, button, feedback, videos, detail, summary, search, format, sort };
 };
 
 const deferred = () => { let resolve; let reject; const promise = new Promise((ok, fail) => { resolve = ok; reject = fail; }); return { promise, resolve, reject }; };
@@ -154,6 +154,20 @@ test('Channel filters the loaded local list without another API request', async 
     await new Promise((resolve) => setTimeout(resolve, 0)); assert.equal(page.videos.children.length, 2);
     page.search.value = 'forza'; await page.search.dispatch('input'); assert.equal(page.videos.children.length, 1);
     page.search.value = ''; page.format.value = 'LONG_FORM'; await page.format.dispatch('change'); assert.equal(page.videos.children.length, 1);
+    assert.equal(calls, 1);
+  } finally { globalThis.document = originalDocument; }
+});
+
+test('Channel sorts loaded videos locally without another API request', async () => {
+  const originalDocument = globalThis.document; globalThis.document = { createElement: () => new FakeElement() };
+  try {
+    let calls = 0; const page = channelDom();
+    createChannelController({ api: { listYouTubeChannelVideos: async () => { calls += 1; return [
+      { videoId: 'a', title: 'Zulu', views: 2, collectedAt: '2026-09-01' }, { videoId: 'b', title: 'Alpha', views: 20, collectedAt: '2026-09-02' },
+    ]; } } }).mount(page.root);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    page.sort.value = 'TITLE'; await page.sort.dispatch('change'); assert.equal(page.videos.children[0].children[0].children[0].textContent, 'Alpha');
+    page.sort.value = 'VIEWS'; await page.sort.dispatch('change'); assert.equal(page.videos.children[0].children[0].children[0].textContent, 'Alpha');
     assert.equal(calls, 1);
   } finally { globalThis.document = originalDocument; }
 });

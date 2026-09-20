@@ -1611,7 +1611,13 @@ Entregas: distribuição por formato, horário da última coleta e lacunas exata
 
 Entregas: orientação determinística para abrir, sincronizar, revisar ou reconectar; fontes sem configuração ficam semanticamente indisponíveis em vez de oferecer link enganoso. O estado continua vindo exclusivamente do backend consolidado.
 
-**Proximo checkpoint: Sprint 63 - NAO INICIADA; escopo ainda nao definido.**
+## Sprint 63 - Channel Content Ordering - CONCLUIDA
+
+**Objetivo:** facilitar inspeção do acervo sincronizado sem novas consultas ou ordenação enganosa no backend.
+
+Entregas: ordenação local por coleta recente, views observadas ou título; filtros e busca continuam componíveis; nenhuma interação adicional consulta Google ou duplica listeners.
+
+**Proximo checkpoint: Sprint 64 - NAO INICIADA; escopo ainda nao definido.**
 
 ### Revisao de encerramento apos Sprint 53
 
