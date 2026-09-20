@@ -48,6 +48,16 @@ export class ChannelContentService {
     return [...videos.values()].map(view);
   }
 
+  async listPage(page = 1, pageSize = 12) {
+    if (!Number.isInteger(page) || page < 1) throw new ChannelContentValidationError('page must be a positive integer');
+    if (!Number.isInteger(pageSize) || pageSize < 1 || pageSize > 50) throw new ChannelContentValidationError('pageSize must be an integer from 1 to 50');
+    const records = await this.snapshots.findAll();
+    const videos = new Map<string, (typeof records)[number]>();
+    for (const record of records) if (!videos.has(record.videoId)) videos.set(record.videoId, record);
+    const all = [...videos.values()]; const offset = (page - 1) * pageSize;
+    return { items: all.slice(offset, offset + pageSize).map(view), page, pageSize, total: all.length, totalPages: Math.ceil(all.length / pageSize) };
+  }
+
   async getVideo(videoId: string) {
     const id = identifier(videoId);
     const records = await this.snapshots.findAll({ videoId: id });

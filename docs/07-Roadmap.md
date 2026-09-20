@@ -1742,7 +1742,11 @@ A seleção comparativa pode ser limpa em uma única ação local. O controle n�
 
 A região e a tabela de comparação possuem nomes acessíveis específicos. Em telas estreitas, a tabela permanece contida com rolagem horizontal sem deslocar o workspace.
 
-**Proximo checkpoint: Sprint 90 - NAO INICIADA; escopo ainda nao definido.**
+## Sprint 90 - Persisted Channel Pagination Contract - CONCLUIDA
+
+O backend oferece paginação explícita e compatível para vídeos persistidos, deduplicando snapshots antes do recorte e retornando total e número de páginas. O endpoint legado foi preservado.
+
+**Proximo checkpoint: Sprint 91 - NAO INICIADA; escopo ainda nao definido.**
 
 ### Revisao de encerramento apos Sprint 53
 

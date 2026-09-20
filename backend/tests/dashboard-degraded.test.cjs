@@ -227,6 +227,13 @@ describe('YouTube route expected states', { concurrency: false }, () => {
     assert.equal(calls, 1);
   });
 
+  test('pages persisted videos through a backward-compatible endpoint', async () => {
+    youtubeDependencies = { channelContentService: { listPage: async (page, pageSize) => ({ items: [{ videoId: 'video-2' }], page, pageSize, total: 3, totalPages: 2 }) } };
+    const response = await fetch(`${baseUrl}/api/youtube/videos-page?page=2&pageSize=2`);
+    assert.equal(response.status, 200); assert.equal(response.headers.get('cache-control'), 'no-store');
+    assert.deepEqual(await response.json(), { items: [{ videoId: 'video-2' }], page: 2, pageSize: 2, total: 3, totalPages: 2 });
+  });
+
   test('rejects an invalid recent-video limit safely', async () => {
     youtubeDependencies = {
       channelContentService: { listRecent: async () => { const { ChannelContentValidationError } = require('../dist/services/ChannelContentService'); throw new ChannelContentValidationError('limit must be an integer from 1 to 50'); } },

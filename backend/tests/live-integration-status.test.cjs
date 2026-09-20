@@ -210,6 +210,18 @@ test('recent channel content keeps the newest persisted snapshot per video', asy
   assert.equal('source' in result[0], false);
 });
 
+test('channel content pagination deduplicates before slicing and reports totals', async () => {
+  const records = [
+    { id: 'new-a', videoId: 'a', collectedAt: new Date('2026-09-10') }, { id: 'b', videoId: 'b', collectedAt: new Date('2026-09-09') },
+    { id: 'old-a', videoId: 'a', collectedAt: new Date('2026-09-08') }, { id: 'c', videoId: 'c', collectedAt: new Date('2026-09-07') },
+  ];
+  const service = new ChannelContentService({ findAll: async () => records });
+  const result = await service.listPage(2, 2);
+  assert.deepEqual(result.items.map(({ videoId }) => videoId), ['c']);
+  assert.deepEqual({ page: result.page, pageSize: result.pageSize, total: result.total, totalPages: result.totalPages }, { page: 2, pageSize: 2, total: 3, totalPages: 2 });
+  await assert.rejects(() => service.listPage(0, 2), /page must/); await assert.rejects(() => service.listPage(1, 51), /pageSize must/);
+});
+
 test('channel video detail preserves ordered collection history', async () => {
   const records = [
     { id: 'new', videoId: 'video-1', title: 'Novo', collectedAt: new Date('2026-09-10'), views: 20 },

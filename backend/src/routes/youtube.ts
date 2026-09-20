@@ -13,7 +13,7 @@ type YouTubeRouteDependencies = {
   googleService: Pick<GoogleService, 'isAuthenticated'>;
   createChannelService: () => Pick<ChannelService, 'getChannelInfo'>;
   channelDataService: Pick<ChannelDataService, 'getChannel'>;
-  channelContentService: Pick<ChannelContentService, 'listRecent' | 'getVideo' | 'getSummary'>;
+  channelContentService: Pick<ChannelContentService, 'listRecent' | 'listPage' | 'getVideo' | 'getSummary'>;
 };
 
 export const createYouTubeRouter = (dependencies: Partial<YouTubeRouteDependencies> = {}): Router => {
@@ -105,6 +105,18 @@ export const createYouTubeRouter = (dependencies: Partial<YouTubeRouteDependenci
       const name = error instanceof Error ? error.name : 'UnknownError';
       console.error(`Failed to summarize persisted channel videos (${name})`);
       return res.status(500).json({ code: 'INTERNAL_ERROR', error: 'Failed to summarize channel videos' });
+    }
+  });
+  router.get('/videos-page', async (req, res) => {
+    res.set('Cache-Control', 'no-store');
+    try {
+      const page = req.query.page === undefined ? 1 : Number(req.query.page);
+      const pageSize = req.query.pageSize === undefined ? 12 : Number(req.query.pageSize);
+      return res.status(200).json(await channelContentService.listPage(page, pageSize));
+    } catch (error) {
+      if (error instanceof ChannelContentValidationError) return res.status(400).json({ code: 'INVALID_REQUEST', error: error.message });
+      const name = error instanceof Error ? error.name : 'UnknownError'; console.error(`Failed to page persisted channel videos (${name})`);
+      return res.status(500).json({ code: 'INTERNAL_ERROR', error: 'Failed to page channel videos' });
     }
   });
   router.get('/videos/:videoId', async (req, res) => {
