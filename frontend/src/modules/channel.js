@@ -24,6 +24,22 @@ export const createChannelController = ({ api, refreshDashboard }) => {
     const current = () => mountedRoot === panel && generation === token;
     const button = panel.querySelector('[data-channel-sync]');
     const feedback = panel.querySelector('[data-channel-feedback]');
+    const videos = root.querySelector('[data-channel-videos]');
+    const renderVideos = (items) => {
+      if (!videos || !current()) return;
+      videos.replaceChildren();
+      if (!Array.isArray(items) || items.length === 0) {
+        const empty = document.createElement('p'); empty.className = 'empty-state'; empty.textContent = 'Nenhum vídeo sincronizado ainda.'; videos.append(empty); return;
+      }
+      for (const item of items) {
+        const row = document.createElement('article'); row.className = 'channel-video-row';
+        const copy = document.createElement('div');
+        const title = document.createElement('strong'); title.textContent = item.title ?? 'Vídeo sem título';
+        const meta = document.createElement('small'); meta.textContent = `${item.format ?? 'Formato desconhecido'} · ${item.videoId ?? 'ID indisponível'}`;
+        const facts = document.createElement('span'); facts.textContent = `${Number(item.views ?? 0).toLocaleString('pt-BR')} views · coletado em ${item.collectedAt ? new Date(item.collectedAt).toLocaleDateString('pt-BR') : '--'}`;
+        copy.append(title, meta); row.append(copy, facts); videos.append(row);
+      }
+    };
     const sync = async () => {
       if (syncing || !button) return;
       syncing = true;
@@ -52,6 +68,10 @@ export const createChannelController = ({ api, refreshDashboard }) => {
     };
     button?.addEventListener('click', sync);
     cleanup = () => button?.removeEventListener('click', sync);
+    api.listYouTubeChannelVideos?.(12).then(renderVideos).catch(() => {
+      if (!videos || !current()) return;
+      videos.replaceChildren(); const message = document.createElement('p'); message.className = 'empty-state'; message.textContent = 'Não foi possível carregar os vídeos sincronizados.'; videos.append(message);
+    });
   };
 
   const unmount = () => {
@@ -132,6 +152,12 @@ export const channelModule = {
           { label: 'Última atualização', value: formatDate(integration.lastSuccessAt) },
           { label: 'Estado', value: integration.summary ?? state.label },
         ])}<div class="performance-feedback" data-channel-feedback role="status" aria-live="polite" aria-atomic="true" hidden></div>`,
+      })}
+      ${createPanel({
+        eyebrow: 'Conteúdo sincronizado',
+        title: 'Vídeos recentes',
+        className: 'channel-videos-panel',
+        body: html`<div class="channel-video-list" data-channel-videos aria-live="polite"><p class="empty-state">Carregando vídeos...</p></div>`,
       })}
       ${createPanel({
         eyebrow: 'Integrações oficiais',

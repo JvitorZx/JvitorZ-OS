@@ -7,17 +7,20 @@ import {
   isGoogleTemporarilyUnavailable,
 } from '../services/GoogleService';
 import { ChannelDataService } from '../services/ChannelDataService';
+import { ChannelContentService, ChannelContentValidationError } from '../services/ChannelContentService';
 
 type YouTubeRouteDependencies = {
   googleService: Pick<GoogleService, 'isAuthenticated'>;
   createChannelService: () => Pick<ChannelService, 'getChannelInfo'>;
   channelDataService: Pick<ChannelDataService, 'getChannel'>;
+  channelContentService: Pick<ChannelContentService, 'listRecent'>;
 };
 
 export const createYouTubeRouter = (dependencies: Partial<YouTubeRouteDependencies> = {}): Router => {
   const googleService = dependencies.googleService ?? new GoogleService();
   const createChannelService = dependencies.createChannelService ?? (() => new ChannelService());
   const channelDataService = dependencies.channelDataService ?? new ChannelDataService();
+  const channelContentService = dependencies.channelContentService ?? new ChannelContentService();
   const legacyDependencies = Boolean(dependencies.googleService || dependencies.createChannelService);
   const router = Router();
   router.get('/channel', async (_req, res) => {
@@ -78,6 +81,20 @@ export const createYouTubeRouter = (dependencies: Partial<YouTubeRouteDependenci
       const name = error instanceof Error ? error.name : 'UnknownError';
       console.error(`Failed to synchronize channel data (${name})`);
       return res.status(500).json({ code: 'INTERNAL_ERROR', error: 'Failed to synchronize channel information' });
+    }
+  });
+  router.get('/videos', async (req, res) => {
+    const rawLimit = req.query.limit;
+    const limit = rawLimit === undefined ? 12 : Number(rawLimit);
+    try {
+      return res.status(200).json(await channelContentService.listRecent(limit));
+    } catch (error) {
+      if (error instanceof ChannelContentValidationError) {
+        return res.status(400).json({ code: 'INVALID_REQUEST', error: error.message });
+      }
+      const name = error instanceof Error ? error.name : 'UnknownError';
+      console.error(`Failed to list persisted channel videos (${name})`);
+      return res.status(500).json({ code: 'INTERNAL_ERROR', error: 'Failed to list channel videos' });
     }
   });
   return router;

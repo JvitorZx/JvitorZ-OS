@@ -1086,6 +1086,10 @@ Coleta o canal autenticado e persiste o último resultado válido. Retorna `200`
 
 Executa uma atualização explícita e única do canal. Não recebe body. Retorna `200` somente depois que o snapshot atualizado foi persistido. Autorização ausente ou expirada retorna `401` com `AUTH_REQUIRED`; configuração ausente e indisponibilidade temporária retornam `503` com `CONFIG_MISSING` ou `PROVIDER_UNAVAILABLE`; falha inesperada retorna `500` sanitizado. Dados anteriores nunca são apagados por falha externa.
 
+### `GET /api/youtube/videos?limit=12`
+
+Lista o snapshot persistido mais recente de cada vídeo, em ordem de coleta, sem acessar a rede externa. `limit` é opcional, inteiro entre 1 e 50. Retorna somente identidade, formato, datas e métricas realmente armazenadas; campos ausentes permanecem `null`. Payload inválido retorna `400` e falha inesperada retorna `500` sanitizado.
+
 ## Audience e fontes de tráfego
 
 Base: `/api/operators/creator-intelligence/audience`.

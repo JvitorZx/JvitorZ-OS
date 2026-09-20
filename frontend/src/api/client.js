@@ -168,6 +168,11 @@ export const createApiClient = (baseUrl) => ({
     );
   },
 
+  async listYouTubeChannelVideos(limit = 12) {
+    if (!Number.isInteger(limit) || limit < 1 || limit > 50) throw new TypeError('limit must be an integer from 1 to 50');
+    return requestJson(`${baseUrl}/api/youtube/videos?limit=${limit}`, undefined, 'Erro ao carregar vídeos do canal');
+  },
+
   async listChannelOperators(projectId) {
     const query = projectId === undefined
       ? ''

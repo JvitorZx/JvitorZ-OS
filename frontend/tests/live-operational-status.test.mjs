@@ -28,18 +28,20 @@ const dashboard = {
 };
 
 class FakeElement {
-  constructor() { this.map = new Map(); this.listeners = new Map(); this.attributes = new Map(); this.textContent = ''; this.className = ''; this.hidden = false; this.disabled = false; }
+  constructor() { this.map = new Map(); this.listeners = new Map(); this.attributes = new Map(); this.children = []; this.textContent = ''; this.className = ''; this.hidden = false; this.disabled = false; }
   querySelector(selector) { return this.map.get(selector) ?? null; }
   addEventListener(type, handler) { if (!this.listeners.has(type)) this.listeners.set(type, new Set()); this.listeners.get(type).add(handler); }
   removeEventListener(type, handler) { this.listeners.get(type)?.delete(handler); }
   setAttribute(name, value) { this.attributes.set(name, String(value)); }
+  append(...children) { this.children.push(...children); }
+  replaceChildren(...children) { this.children = [...children]; }
   async dispatch(type) { for (const handler of this.listeners.get(type) ?? []) await handler({ currentTarget: this, preventDefault() {} }); }
 }
 
 const channelDom = () => {
-  const root = new FakeElement(); const panel = new FakeElement(); const button = new FakeElement(); const feedback = new FakeElement();
-  root.map.set('.channel-panel', panel); panel.map.set('[data-channel-sync]', button); panel.map.set('[data-channel-feedback]', feedback);
-  return { root, button, feedback };
+  const root = new FakeElement(); const panel = new FakeElement(); const button = new FakeElement(); const feedback = new FakeElement(); const videos = new FakeElement();
+  root.map.set('.channel-panel', panel); root.map.set('[data-channel-videos]', videos); panel.map.set('[data-channel-sync]', button); panel.map.set('[data-channel-feedback]', feedback);
+  return { root, button, feedback, videos };
 };
 
 const deferred = () => { let resolve; let reject; const promise = new Promise((ok, fail) => { resolve = ok; reject = fail; }); return { promise, resolve, reject }; };
@@ -91,19 +93,32 @@ test('channel client exposes explicit read and synchronization contracts', async
   const calls = [];
   globalThis.fetch = async (url, options) => {
     calls.push({ url, options });
-    return { ok: true, status: 200, json: async () => ({ id: 'channel-1' }) };
+    return { ok: true, status: 200, json: async () => url.includes('/videos?') ? [{ id: 'snapshot-1' }] : ({ id: 'channel-1' }) };
   };
   try {
     const api = createApiClient('http://localhost:3000');
     assert.equal((await api.getYouTubeChannel()).id, 'channel-1');
     assert.equal((await api.syncYouTubeChannel()).id, 'channel-1');
+    assert.equal((await api.listYouTubeChannelVideos(8)).length, 1);
     assert.deepEqual(calls, [
       { url: 'http://localhost:3000/api/youtube/channel', options: undefined },
       { url: 'http://localhost:3000/api/youtube/channel/sync', options: { method: 'POST' } },
+      { url: 'http://localhost:3000/api/youtube/videos?limit=8', options: undefined },
     ]);
   } finally {
     globalThis.fetch = originalFetch;
   }
+});
+
+test('Channel renders recent persisted videos as text and ignores duplicates from remount', async () => {
+  const originalDocument = globalThis.document; globalThis.document = { createElement: () => new FakeElement() };
+  try {
+    let calls = 0; const page = channelDom();
+    const controller = createChannelController({ api: { listYouTubeChannelVideos: async () => { calls += 1; return [{ videoId: 'v1', title: '<img src=x onerror=alert(1)>', format: 'SHORTS', views: 12, collectedAt: '2026-09-10T00:00:00Z' }]; } } });
+    controller.mount(page.root); controller.mount(page.root); await new Promise((resolve) => setTimeout(resolve, 0));
+    assert.equal(calls, 1); assert.equal(page.videos.children.length, 1);
+    assert.equal(page.videos.children[0].children[0].children[0].textContent, '<img src=x onerror=alert(1)>');
+  } finally { globalThis.document = originalDocument; }
 });
 
 test('Channel exposes safe local controls according to the operational state', () => {

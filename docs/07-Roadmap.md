@@ -1559,7 +1559,19 @@ Entregas:
 - tokens existentes não são apagados automaticamente e nenhum valor sensível entra em logs;
 - dados last-known-good continuam disponíveis durante a reconexão.
 
-**Proximo checkpoint: Sprint 57 - NAO INICIADA; escopo ainda nao definido.**
+## Sprint 57 - Persisted Channel Content View - CONCLUIDA
+
+**Objetivo:** mostrar conteúdo real já sincronizado na workspace Canal mesmo quando o Google está offline ou exige reconexão.
+
+Entregas:
+
+- leitura deduplicada do snapshot mais recente por vídeo;
+- endpoint local `GET /api/youtube/videos` com limite estrito de 1 a 50;
+- lista de vídeos recentes com formato, views e data de coleta;
+- campos ausentes permanecem explícitos e a abertura da página não consulta Google;
+- conteúdo renderizado com DOM textual, lifecycle idempotente e resposta tardia ignorada.
+
+**Proximo checkpoint: Sprint 58 - NAO INICIADA; escopo ainda nao definido.**
 
 ### Revisao de encerramento apos Sprint 53
 

@@ -202,4 +202,24 @@ describe('YouTube route expected states', { concurrency: false }, () => {
     assert.equal(response.status, 401);
     assert.deepEqual(await response.json(), { code: 'AUTH_REQUIRED', error: 'Google authorization is required' });
   });
+
+  test('lists recent persisted videos without calling Google', async () => {
+    let calls = 0;
+    youtubeDependencies = {
+      channelContentService: { listRecent: async (limit) => { calls += 1; assert.equal(limit, 7); return [{ videoId: 'video-1', title: 'Persistido' }]; } },
+    };
+    const response = await fetch(`${baseUrl}/api/youtube/videos?limit=7`);
+    assert.equal(response.status, 200);
+    assert.deepEqual(await response.json(), [{ videoId: 'video-1', title: 'Persistido' }]);
+    assert.equal(calls, 1);
+  });
+
+  test('rejects an invalid recent-video limit safely', async () => {
+    youtubeDependencies = {
+      channelContentService: { listRecent: async () => { const { ChannelContentValidationError } = require('../dist/services/ChannelContentService'); throw new ChannelContentValidationError('limit must be an integer from 1 to 50'); } },
+    };
+    const response = await fetch(`${baseUrl}/api/youtube/videos?limit=999`);
+    assert.equal(response.status, 400);
+    assert.equal((await response.json()).code, 'INVALID_REQUEST');
+  });
 });

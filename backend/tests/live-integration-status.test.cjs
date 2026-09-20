@@ -11,6 +11,7 @@ const { DatabaseService } = require('../dist/database/DatabaseService');
 const { ChannelSnapshotRepository } = require('../dist/database/repositories/ChannelSnapshotRepository');
 const { ChannelDataService } = require('../dist/services/ChannelDataService');
 const { IntegrationStatusService } = require('../dist/services/IntegrationStatusService');
+const { ChannelContentService } = require('../dist/services/ChannelContentService');
 const { createIntegrationsRouter } = require('../dist/routes/integrations');
 
 let client;
@@ -194,4 +195,17 @@ test('live channel migration is additive and compatible with SQLite', () => {
   } finally {
     db.close();
   }
+});
+
+test('recent channel content keeps the newest persisted snapshot per video', async () => {
+  const records = [
+    { id: 'new-a', videoId: 'a', title: 'A novo', format: 'SHORTS', collectedAt: new Date('2026-09-10'), views: 20 },
+    { id: 'b', videoId: 'b', title: 'B', format: 'LONG_FORM', collectedAt: new Date('2026-09-09'), views: 10 },
+    { id: 'old-a', videoId: 'a', title: 'A antigo', format: 'SHORTS', collectedAt: new Date('2026-09-08'), views: 5 },
+  ];
+  const service = new ChannelContentService({ findAll: async () => records });
+  const result = await service.listRecent(2);
+  assert.deepEqual(result.map(({ id }) => id), ['new-a', 'b']);
+  assert.equal(result[0].title, 'A novo');
+  assert.equal('source' in result[0], false);
 });
