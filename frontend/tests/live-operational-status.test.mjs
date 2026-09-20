@@ -290,6 +290,16 @@ test('Channel navigates persisted pages and respects their boundaries', async ()
   } finally { globalThis.document = originalDocument; }
 });
 
+test('Channel ignores a paginated response after unmount', async () => {
+  const originalDocument = globalThis.document; globalThis.document = { createElement: () => new FakeElement() };
+  try {
+    const pending = deferred(); const page = channelDom(); const controller = createChannelController({ api: { pageYouTubeChannelVideos: async () => pending.promise } });
+    controller.mount(page.root); controller.unmount(); pending.resolve({ items: [{ videoId: 'late', title: 'Tardia' }], page: 1, pageSize: 12, total: 1, totalPages: 1 });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    assert.equal(page.videos.children.length, 0); assert.equal(page.pageStatus.textContent, '');
+  } finally { globalThis.document = originalDocument; }
+});
+
 test('Channel renders persisted coverage summary without inventing missing metrics', async () => {
   const originalDocument = globalThis.document; globalThis.document = { createElement: () => new FakeElement() };
   try {

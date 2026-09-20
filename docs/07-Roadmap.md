@@ -1754,7 +1754,11 @@ O client central expõe o contrato paginado com validação local de página e t
 
 A tela Canal usa o contrato paginado quando disponível, apresenta página atual e controles de navegação com limites desativados. O fallback legado permanece compatível para integrações existentes.
 
-**Proximo checkpoint: Sprint 93 - NAO INICIADA; escopo ainda nao definido.**
+## Sprint 93 - Channel Pagination Lifecycle - CONCLUIDA
+
+Requisições paginadas possuem identidade própria de montagem. Respostas tardias após `unmount` são ignoradas e não alteram lista, página ou seleção de uma workspace posterior.
+
+**Proximo checkpoint: Sprint 94 - NAO INICIADA; escopo ainda nao definido.**
 
 ### Revisao de encerramento apos Sprint 53
 

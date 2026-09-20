@@ -45,6 +45,7 @@ export const createChannelController = ({ api, refreshDashboard }) => {
   let mountedRoot = null;
   let generation = 0;
   let detailRequest = 0;
+  let contentRequest = 0;
   let syncing = false;
   let cleanup = () => {};
 
@@ -173,10 +174,11 @@ export const createChannelController = ({ api, refreshDashboard }) => {
     const reset = () => { if (search) search.value = ''; if (format) format.value = 'ALL'; if (evidence) evidence.value = 'ALL'; if (sort) sort.value = 'COLLECTED'; applyFilters(); };
     const loadContent = async () => {
       if (contentLoading) return;
+      const request = ++contentRequest;
       contentLoading = true; if (refreshContent) { refreshContent.disabled = true; refreshContent.setAttribute('aria-busy', 'true'); }
       const hasPage = typeof api.pageYouTubeChannelVideos === 'function'; const hasList = hasPage || typeof api.listYouTubeChannelVideos === 'function'; const hasSummary = typeof api.getYouTubeChannelVideoSummary === 'function';
       const [listResult, summaryResult] = await Promise.allSettled([hasPage ? api.pageYouTubeChannelVideos(currentPage, pageSize) : hasList ? api.listYouTubeChannelVideos(50) : undefined, hasSummary ? api.getYouTubeChannelVideoSummary() : undefined]);
-      if (!current()) { contentLoading = false; return; }
+      if (!current() || request !== contentRequest) { contentLoading = false; return; }
       if (hasList && listResult.status === 'fulfilled') { const payload = listResult.value; loadedVideos = Array.isArray(payload) ? payload : Array.isArray(payload?.items) ? payload.items : []; if (!Array.isArray(payload)) { currentPage = payload.page ?? currentPage; totalPages = payload.totalPages ?? 1; } else { currentPage = 1; totalPages = 1; } if (pageStatus) pageStatus.textContent = `Página ${currentPage} de ${Math.max(totalPages, 1)}`; if (previousPage) previousPage.disabled = currentPage <= 1; if (nextPage) nextPage.disabled = currentPage >= totalPages; for (const id of comparedVideoIds) if (!loadedVideos.some((item) => item.videoId === id)) comparedVideoIds.delete(id); renderComparison(); applyFilters(); }
       else if (hasList && videos) { videos.replaceChildren(); const message = document.createElement('p'); message.className = 'empty-state'; message.textContent = 'Não foi possível carregar os vídeos sincronizados.'; videos.append(message); }
       if (hasSummary && summaryResult.status === 'fulfilled' && summary) renderSummary(summaryResult.value);
@@ -247,7 +249,7 @@ export const createChannelController = ({ api, refreshDashboard }) => {
 
   const unmount = () => {
     cleanup(); cleanup = () => {};
-    mountedRoot = null; generation += 1; detailRequest += 1; syncing = false;
+    mountedRoot = null; generation += 1; detailRequest += 1; contentRequest += 1; syncing = false;
   };
 
   return { mount, unmount };
