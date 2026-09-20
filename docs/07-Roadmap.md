@@ -1640,7 +1640,11 @@ Entregas:
 
 O detalhe de vídeo passa a apresentar a linha do tempo das coletas persistidas, com views, retenção e CTR observados em cada instante. Ausências permanecem explícitas e nenhum dado é interpolado.
 
-**Proximo checkpoint: Sprint 67 - NAO INICIADA; escopo ainda nao definido.**
+## Sprint 67 - Observed Snapshot Deltas - CONCLUIDA
+
+O detalhe calcula variação de views e retenção apenas quando duas coletas possuem valores numéricos. O texto identifica a comparação temporal, usa pontos percentuais para retenção e exibe ausência quando não há base comparável.
+
+**Proximo checkpoint: Sprint 68 - NAO INICIADA; escopo ainda nao definido.**
 
 ### Revisao de encerramento apos Sprint 53
 

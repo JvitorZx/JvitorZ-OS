@@ -17,6 +17,11 @@ export const channelSourceAction = (source = {}) => {
   return { label: 'Abrir', available: true };
 };
 
+export const observedSnapshotDelta = (current, previous, field) => {
+  const left = current?.[field]; const right = previous?.[field];
+  return Number.isFinite(left) && Number.isFinite(right) ? left - right : null;
+};
+
 export const createChannelController = ({ api, refreshDashboard }) => {
   let mountedRoot = null;
   let generation = 0;
@@ -52,13 +57,16 @@ export const createChannelController = ({ api, refreshDashboard }) => {
         const term = document.createElement('dt'); term.textContent = label; const description = document.createElement('dd'); description.textContent = value === null || value === undefined ? '--' : String(value); metrics.append(term, description);
       }
       const history = document.createElement('small'); history.textContent = `${result.history?.length ?? 0} coleta(s) preservada(s). Última coleta: ${item.collectedAt ? new Date(item.collectedAt).toLocaleString('pt-BR') : '--'}`;
+      const change = document.createElement('p'); change.className = 'channel-video-change';
+      const previous = result.history?.[1]; const viewsDelta = observedSnapshotDelta(item, previous, 'views'); const retentionDelta = observedSnapshotDelta(item, previous, 'averageViewPercentage');
+      change.textContent = previous ? `Variação desde a coleta anterior: views ${viewsDelta === null ? '--' : `${viewsDelta >= 0 ? '+' : ''}${viewsDelta}`}; retenção ${retentionDelta === null ? '--' : `${retentionDelta >= 0 ? '+' : ''}${retentionDelta} p.p.`}.` : 'Ainda não há uma coleta anterior comparável.';
       const timeline = document.createElement('ol'); timeline.className = 'channel-video-history';
       for (const snapshot of result.history ?? []) {
         const entry = document.createElement('li');
         entry.textContent = `${snapshot.collectedAt ? new Date(snapshot.collectedAt).toLocaleString('pt-BR') : 'Data ausente'} · ${snapshot.views ?? '--'} views · retenção ${snapshot.averageViewPercentage ?? '--'}% · CTR ${snapshot.ctr ?? '--'}%`;
         timeline.append(entry);
       }
-      detail.append(heading, identity, metrics, history, timeline);
+      detail.append(heading, identity, metrics, history, change, timeline);
     };
     const openVideo = async (videoId) => {
       const request = ++detailRequest;

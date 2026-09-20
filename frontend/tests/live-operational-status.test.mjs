@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import { createApiClient, ApiRequestError } from '../src/api/client.js';
-import { channelModule, channelSourceAction, createChannelController } from '../src/modules/channel.js';
+import { channelModule, channelSourceAction, createChannelController, observedSnapshotDelta } from '../src/modules/channel.js';
 import { homeModule } from '../src/modules/home.js';
 import { plannerModule } from '../src/modules/planner.js';
 import { settingsModule } from '../src/modules/settings.js';
@@ -135,15 +135,22 @@ test('Channel opens persisted video detail and keeps missing metrics explicit', 
     const page = channelDom();
     const controller = createChannelController({ api: {
       listYouTubeChannelVideos: async () => [{ videoId: 'v1', title: 'Vídeo', format: 'LONG_FORM', views: 10 }],
-      getYouTubeChannelVideo: async () => ({ current: { videoId: 'v1', title: '<b>Vídeo</b>', format: 'LONG_FORM', views: 10, ctr: null }, history: [{ id: 'one', collectedAt: '2026-09-10T00:00:00Z', views: 10, averageViewPercentage: 50, ctr: null }] }),
+      getYouTubeChannelVideo: async () => ({ current: { videoId: 'v1', title: '<b>Vídeo</b>', format: 'LONG_FORM', views: 10, averageViewPercentage: 50, ctr: null }, history: [{ id: 'one', collectedAt: '2026-09-10T00:00:00Z', views: 10, averageViewPercentage: 50, ctr: null }] }),
     } });
     controller.mount(page.root); await new Promise((resolve) => setTimeout(resolve, 0));
     const open = page.videos.children[0].children[2]; await open.dispatch('click');
     assert.equal(page.detail.children[0].textContent, '<b>Vídeo</b>');
     assert.match(page.detail.children[3].textContent, /1 coleta/);
-    assert.match(page.detail.children[4].children[0].textContent, /10 views/);
-    assert.match(page.detail.children[4].children[0].textContent, /CTR --%/);
+    assert.match(page.detail.children[4].textContent, /não há uma coleta anterior/);
+    assert.match(page.detail.children[5].children[0].textContent, /10 views/);
+    assert.match(page.detail.children[5].children[0].textContent, /CTR --%/);
   } finally { globalThis.document = originalDocument; }
+});
+
+test('Channel snapshot deltas require two observed numeric values', () => {
+  assert.equal(observedSnapshotDelta({ views: 15 }, { views: 10 }, 'views'), 5);
+  assert.equal(observedSnapshotDelta({ views: null }, { views: 10 }, 'views'), null);
+  assert.equal(observedSnapshotDelta({ views: 15 }, undefined, 'views'), null);
 });
 
 test('Channel filters the loaded local list without another API request', async () => {
