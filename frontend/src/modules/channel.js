@@ -76,7 +76,7 @@ export const createChannelController = ({ api, refreshDashboard }) => {
     let selectedVideoId = null;
     const comparedVideoIds = new Set();
     let contentLoading = false;
-    let currentPage = 1; let totalPages = 1; const pageSize = 12;
+    let currentPage = 1; let totalPages = 1; let totalVideos = 0; const pageSize = 12;
     const renderDetail = (result) => {
       if (!detail || !current()) return;
       const item = result?.current;
@@ -167,7 +167,7 @@ export const createChannelController = ({ api, refreshDashboard }) => {
         if (selectedSort === 'CTR') return Number(right.ctr ?? -1) - Number(left.ctr ?? -1);
         return new Date(right.collectedAt ?? 0).getTime() - new Date(left.collectedAt ?? 0).getTime();
       });
-      if (resultCount) resultCount.textContent = `${sorted.length} vídeo(s) exibido(s)`;
+      if (resultCount) resultCount.textContent = `${sorted.length} vídeo(s) nesta página${totalVideos > loadedVideos.length ? ` · ${totalVideos} no total` : ''}`;
       renderVideos(sorted);
     };
     const onFilter = () => applyFilters();
@@ -179,7 +179,7 @@ export const createChannelController = ({ api, refreshDashboard }) => {
       const hasPage = typeof api.pageYouTubeChannelVideos === 'function'; const hasList = hasPage || typeof api.listYouTubeChannelVideos === 'function'; const hasSummary = typeof api.getYouTubeChannelVideoSummary === 'function';
       const [listResult, summaryResult] = await Promise.allSettled([hasPage ? api.pageYouTubeChannelVideos(currentPage, pageSize) : hasList ? api.listYouTubeChannelVideos(50) : undefined, hasSummary ? api.getYouTubeChannelVideoSummary() : undefined]);
       if (!current() || request !== contentRequest) { contentLoading = false; return; }
-      if (hasList && listResult.status === 'fulfilled') { const payload = listResult.value; loadedVideos = Array.isArray(payload) ? payload : Array.isArray(payload?.items) ? payload.items : []; if (!Array.isArray(payload)) { currentPage = payload.page ?? currentPage; totalPages = payload.totalPages ?? 1; } else { currentPage = 1; totalPages = 1; } if (pageStatus) pageStatus.textContent = `Página ${currentPage} de ${Math.max(totalPages, 1)}`; if (previousPage) previousPage.disabled = currentPage <= 1; if (nextPage) nextPage.disabled = currentPage >= totalPages; for (const id of comparedVideoIds) if (!loadedVideos.some((item) => item.videoId === id)) comparedVideoIds.delete(id); renderComparison(); applyFilters(); }
+      if (hasList && listResult.status === 'fulfilled') { const payload = listResult.value; loadedVideos = Array.isArray(payload) ? payload : Array.isArray(payload?.items) ? payload.items : []; if (!Array.isArray(payload)) { currentPage = payload.page ?? currentPage; totalPages = payload.totalPages ?? 1; totalVideos = payload.total ?? loadedVideos.length; } else { currentPage = 1; totalPages = 1; totalVideos = loadedVideos.length; } if (pageStatus) pageStatus.textContent = `Página ${currentPage} de ${Math.max(totalPages, 1)}`; if (previousPage) previousPage.disabled = currentPage <= 1; if (nextPage) nextPage.disabled = currentPage >= totalPages; for (const id of comparedVideoIds) if (!loadedVideos.some((item) => item.videoId === id)) comparedVideoIds.delete(id); renderComparison(); applyFilters(); }
       else if (hasList && videos) { videos.replaceChildren(); const message = document.createElement('p'); message.className = 'empty-state'; message.textContent = 'Não foi possível carregar os vídeos sincronizados.'; videos.append(message); }
       if (hasSummary && summaryResult.status === 'fulfilled' && summary) renderSummary(summaryResult.value);
       else if (hasSummary && summary) summary.textContent = 'Cobertura indisponível.';

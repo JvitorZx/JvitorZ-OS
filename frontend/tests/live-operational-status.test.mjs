@@ -285,6 +285,7 @@ test('Channel navigates persisted pages and respects their boundaries', async ()
     createChannelController({ api: { pageYouTubeChannelVideos: async (number, size) => { calls.push([number, size]); return { items: [{ videoId: `v${number}`, title: `Página ${number}` }], page: number, pageSize: size, total: 13, totalPages: 2 }; } } }).mount(page.root);
     await new Promise((resolve) => setTimeout(resolve, 0));
     assert.equal(page.pageStatus.textContent, 'Página 1 de 2'); assert.equal(page.previousPage.disabled, true); assert.equal(page.nextPage.disabled, false);
+    assert.equal(page.resultCount.textContent, '1 vídeo(s) nesta página · 13 no total');
     await page.nextPage.dispatch('click'); await new Promise((resolve) => setTimeout(resolve, 0));
     assert.deepEqual(calls, [[1, 12], [2, 12]]); assert.equal(page.pageStatus.textContent, 'Página 2 de 2'); assert.equal(page.nextPage.disabled, true);
   } finally { globalThis.document = originalDocument; }

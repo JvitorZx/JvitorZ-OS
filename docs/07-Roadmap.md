@@ -1758,7 +1758,11 @@ A tela Canal usa o contrato paginado quando disponível, apresenta página atual
 
 Requisições paginadas possuem identidade própria de montagem. Respostas tardias após `unmount` são ignoradas e não alteram lista, página ou seleção de uma workspace posterior.
 
-**Proximo checkpoint: Sprint 94 - NAO INICIADA; escopo ainda nao definido.**
+## Sprint 94 - Channel Result Totals - CONCLUIDA
+
+A workspace diferencia a quantidade exibida na página do total persistido retornado pelo backend. Filtros locais continuam descrevendo apenas o recorte carregado.
+
+**Proximo checkpoint: Sprint 95 - NAO INICIADA; escopo ainda nao definido.**
 
 ### Revisao de encerramento apos Sprint 53
 
