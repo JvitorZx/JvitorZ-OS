@@ -174,6 +174,7 @@ export const createChannelController = ({ api, refreshDashboard }) => {
     const renderSummary = (value = {}) => {
       if (!summary || !current()) return;
       summary.replaceChildren();
+      if (Number(value.videos ?? 0) === 0) { const empty = document.createElement('p'); empty.className = 'channel-video-summary-detail'; empty.textContent = 'Ainda não existem snapshots de vídeo persistidos.'; summary.append(empty); return; }
       for (const [label, amount] of [['Vídeos', value.videos], ['Coletas', value.observations], ['Com views', value.coverage?.views], ['Com retenção', value.coverage?.retention], ['Com CTR', value.coverage?.ctr]]) {
         const item = document.createElement('div'); const strong = document.createElement('strong'); strong.textContent = String(amount ?? 0); const small = document.createElement('small'); small.textContent = label; item.append(strong, small); summary.append(item);
       }

@@ -259,6 +259,15 @@ test('Channel renders persisted coverage summary without inventing missing metri
   } finally { globalThis.document = originalDocument; }
 });
 
+test('Channel does not describe an empty database as complete coverage', async () => {
+  const originalDocument = globalThis.document; globalThis.document = { createElement: () => new FakeElement() };
+  try {
+    const page = channelDom(); createChannelController({ api: { listYouTubeChannelVideos: async () => [], getYouTubeChannelVideoSummary: async () => ({ videos: 0, observations: 0, coverage: {} }) } }).mount(page.root);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    assert.equal(page.summary.children.length, 1); assert.match(page.summary.children[0].textContent, /Ainda não existem snapshots/); assert.doesNotMatch(page.summary.children[0].textContent, /completa/);
+  } finally { globalThis.document = originalDocument; }
+});
+
 test('Channel exposes safe local controls according to the operational state', () => {
   const output = channelModule.render({ ...dashboard, authUrl: 'http://localhost:3000/api/auth/google' }, { apiBaseUrl: 'http://localhost:3000' });
   assert.match(output, /Sincronizar canal/);

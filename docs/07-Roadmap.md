@@ -1684,7 +1684,11 @@ A workspace pode reler lista e cobertura persistidas sem sincronizar Google. A a
 
 Lista, resumo e detalhe locais declaram `Cache-Control: no-store`, evitando que atualização explícita reutilize uma resposta HTTP obsoleta.
 
-**Proximo checkpoint: Sprint 78 - NAO INICIADA; escopo ainda nao definido.**
+## Sprint 78 - Honest Empty Coverage State - CONCLUIDA
+
+Banco sem snapshots recebe estado vazio explícito e nunca é descrito como cobertura completa.
+
+**Proximo checkpoint: Sprint 79 - NAO INICIADA; escopo ainda nao definido.**
 
 ### Revisao de encerramento apos Sprint 53
 
