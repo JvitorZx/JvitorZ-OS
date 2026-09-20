@@ -101,6 +101,7 @@ export class ChannelDataService {
       return fromSnapshot(saved, 'CONNECTED', false, 'Canal conectado e atualizado.');
     } catch (error) {
       const authRequired = isGoogleReauthenticationRequired(error);
+      if (authRequired) this.google.markReauthenticationRequired();
       const temporary = isGoogleTemporarilyUnavailable(error);
       const state: OperationalState = authRequired ? 'AUTH_REQUIRED' : temporary ? 'DEGRADED' : 'ERROR';
       const summary = authRequired

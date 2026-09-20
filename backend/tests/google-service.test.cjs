@@ -123,3 +123,19 @@ test('persists refreshed credentials while preserving the existing refresh token
     });
   });
 });
+
+test('shares observed invalid-grant health until fresh credentials are saved', async (t) => {
+  await withConfiguredGoogle(async () => {
+    const tokenFile = temporaryTokenFile(t);
+    const first = new GoogleService(tokenFile);
+    const second = new GoogleService(tokenFile);
+    first.saveTokens({ refresh_token: 'test-refresh' });
+    assert.equal(second.getAuthenticationState(), 'CONNECTED');
+
+    first.markReauthenticationRequired();
+    assert.equal(second.getAuthenticationState(), 'AUTH_REQUIRED');
+
+    second.saveTokens({ refresh_token: 'new-refresh', access_token: 'new-access' });
+    assert.equal(first.getAuthenticationState(), 'CONNECTED');
+  });
+});

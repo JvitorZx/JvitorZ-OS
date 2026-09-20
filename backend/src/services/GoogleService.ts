@@ -14,6 +14,8 @@ type GoogleRequestError = {
   };
 };
 
+let observedReauthenticationRequired = false;
+
 const safeIdentifier = (value: unknown): string | undefined =>
   typeof value === 'string' && /^[A-Za-z][A-Za-z0-9_.-]{0,63}$/.test(value)
     ? value
@@ -86,10 +88,16 @@ export class GoogleService {
     const temporaryPath = `${tokenFilePath}.tmp`;
     fs.writeFileSync(temporaryPath, JSON.stringify(merged, null, 2), { encoding: 'utf-8' });
     fs.renameSync(temporaryPath, tokenFilePath);
+    observedReauthenticationRequired = false;
+  }
+
+  markReauthenticationRequired(): void {
+    observedReauthenticationRequired = true;
   }
 
   getAuthenticationState(): 'NOT_CONFIGURED' | 'AUTH_REQUIRED' | 'CONNECTED' {
     if (!this.isConfigured()) return 'NOT_CONFIGURED';
+    if (observedReauthenticationRequired) return 'AUTH_REQUIRED';
     const tokens = this.loadTokens();
     if (!tokens) return 'AUTH_REQUIRED';
     if (typeof tokens.refresh_token === 'string' && tokens.refresh_token.length > 0) return 'CONNECTED';

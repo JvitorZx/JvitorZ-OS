@@ -72,6 +72,21 @@ describe('live channel persistence', { concurrency: false }, () => {
     assert.doesNotMatch(result.integration.summary, /private/);
   });
 
+  test('invalid grant marks shared OAuth health and preserves cached channel data', async () => {
+    const cached = { id: 'cached', createdAt: new Date(), updatedAt: new Date(), ...snapshot() };
+    let marked = 0;
+    const service = new ChannelDataService(
+      { isConfigured: () => true, isAuthenticated: () => true, markReauthenticationRequired: () => { marked += 1; } },
+      { findLatest: async () => cached, upsert: async () => { throw new Error('must not save'); } },
+      { getChannelInfo: async () => { throw { response: { status: 400, data: { error: 'invalid_grant' } } }; } },
+    );
+    const result = await service.getChannel();
+    assert.equal(result.integration.state, 'AUTH_REQUIRED');
+    assert.equal(result.integration.stale, true);
+    assert.equal(result.title, 'Canal real');
+    assert.equal(marked, 1);
+  });
+
   test('missing authorization without cache is explicit and does not call provider', async () => {
     let calls = 0;
     const service = new ChannelDataService(

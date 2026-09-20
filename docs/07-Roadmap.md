@@ -1547,7 +1547,19 @@ Entregas:
 - layout responsivo e semântica acessível, preservando o visual operacional atual;
 - nenhuma fonte ausente é apresentada artificialmente como disponível.
 
-**Proximo checkpoint: Sprint 56 - NAO INICIADA; escopo ainda nao definido.**
+## Sprint 56 - Google OAuth Health Reconciliation - CONCLUIDA
+
+**Objetivo:** impedir estado contraditório quando credenciais persistidas existem, mas o Google já rejeitou o refresh token.
+
+Entregas:
+
+- observação compartilhada e efêmera de `invalid_grant` entre instâncias de `GoogleService`;
+- estado consolidado muda para `AUTH_REQUIRED` depois da primeira falha real;
+- novo callback OAuth limpa o marcador somente ao salvar credenciais novas;
+- tokens existentes não são apagados automaticamente e nenhum valor sensível entra em logs;
+- dados last-known-good continuam disponíveis durante a reconexão.
+
+**Proximo checkpoint: Sprint 57 - NAO INICIADA; escopo ainda nao definido.**
 
 ### Revisao de encerramento apos Sprint 53
 

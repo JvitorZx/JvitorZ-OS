@@ -448,6 +448,8 @@ A Sprint 54 acrescenta um controle operacional local à workspace Canal sem dupl
 
 A Sprint 55 apresenta o mesmo contrato consolidado na workspace Canal como control plane de leitura. O frontend não recalcula disponibilidade: cada fonte usa `IntegrationStatusService` e encaminha o usuário ao fluxo operacional já existente. Abrir a página não chama Google nem inicia sincronizações.
 
+A Sprint 56 reconcilia presença de token com saúde observada. Um `invalid_grant` confirmado por chamada real marca o OAuth como `AUTH_REQUIRED` em todas as instâncias do processo. O marcador é efêmero, não contém credenciais e só é limpo quando o callback persiste novos tokens. O arquivo anterior não é removido automaticamente.
+
 ## Reach Reporting e Data Quality
 
 A Sprint 32 adiciona `GoogleYouTubeReachProvider`, uma integração separada com a YouTube Reporting API. O report type oficial `channel_reach_basic_a1` entrega `date`, `channel_id`, `video_id`, `video_thumbnail_impressions` e `video_thumbnail_impressions_ctr`. O provider reutiliza jobs remotos, trata conflito concorrente de criação, limita a leitura a 31 relatórios e usa parser CSV estruturado.
