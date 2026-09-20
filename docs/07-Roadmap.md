@@ -1778,7 +1778,11 @@ A workspace oferece download do CSV persistido por uma URL construída no client
 
 O contrato CSV foi submetido a casos de fórmula, vírgula e aspas e documentado junto à paginação. O download continua local, factual e sem acesso adicional ao provider.
 
-**Proximo checkpoint: Sprint 99 - NAO INICIADA; escopo ainda nao definido.**
+## Sprint 99 - Channel Workbench Regression - CONCLUIDA
+
+Arquitetura e fluxo de dados foram alinhados ao workbench real. A regressão integral cobre compatibilidade dos contratos, segurança do CSV, lifecycle, persistência e integrações existentes.
+
+**Proximo checkpoint: Sprint 100 - NAO INICIADA; escopo ainda nao definido.**
 
 ### Revisao de encerramento apos Sprint 53
 

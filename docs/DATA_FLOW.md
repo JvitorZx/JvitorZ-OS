@@ -964,3 +964,30 @@ atualizar lista local
 ```
 
 Busca, filtros por formato/evidência e ordenação são transformações locais sobre a leitura atual. Banco vazio, métrica ausente e falta de comparação possuem estados distintos.
+
+## Channel Intelligence Workbench - Sprints 81-98
+
+```text
+workspace Canal
+  -> GET /api/youtube/videos-page?page=&pageSize=
+  -> ChannelContentService
+     -> snapshots ordenados do repository
+     -> deduplicacao por videoId
+     -> pagina + total
+  -> busca/filtro/ordenacao sobre a pagina carregada
+
+selecionar ate dois videos
+  -> comparacao factual local
+  -> aviso de formato ou momento de coleta incompatível
+  -> nenhuma recomendacao ou causalidade
+
+GET /api/youtube/videos-summary
+  -> cobertura global + cobertura por formato
+
+GET /api/youtube/videos-export.csv
+  -> snapshot mais recente de cada video
+  -> escape CSV + neutralizacao de formulas
+  -> download local sem nova chamada ao Google
+```
+
+Tokens de montagem e requisição descartam paginações tardias. O total persistido é separado da quantidade visível na página; filtros não fingem representar itens ainda não carregados.
