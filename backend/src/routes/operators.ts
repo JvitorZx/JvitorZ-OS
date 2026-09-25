@@ -36,6 +36,7 @@ import { StrategicLearningService } from '../services/strategic-learning';
 import { ExperimentationService } from '../services/strategic-experimentation';
 import { StrategicMonitoringService } from '../services/strategic-monitoring';
 import { ChannelContextResolver } from '../services/channel-context';
+import { ChannelProfileService } from '../services/ChannelProfileService';
 
 const createDefaultPlannerService = (
   creatorIntelligenceService: CreatorIntelligenceService,
@@ -76,6 +77,7 @@ export const createOperatorsRouter = (
   editorialDecisionService?: EditorialDecisionService,
   decisionOutcomeService?: DecisionOutcomeService,
   outcomeRefreshService?: OutcomeRefreshService,
+  channelProfiles: Pick<ChannelProfileService, 'getActive'> = new ChannelProfileService(),
 ): Router => {
   const router = Router();
   const planner = new PlannerModule();
@@ -91,6 +93,34 @@ export const createOperatorsRouter = (
       resolvedEditorialDecisionService,
       resolvedOrchestratorService,
     );
+
+  const activeScope = async (): Promise<{ active: boolean; projectId: string | null }> => {
+    try {
+      const profile = await channelProfiles.getActive();
+      return profile ? { active: true, projectId: profile.projectId ?? null } : { active: false, projectId: null };
+    } catch {
+      // Lightweight route tests and pre-profile installations retain their existing behavior.
+      return { active: false, projectId: null };
+    }
+  };
+
+  // Conversations are the root of Planner and Library state. Check the active channel
+  // before nested handlers can read or mutate a conversation from another workspace.
+  router.use('/planner/conversations/:conversationId', async (req, res, next) => {
+    const scope = await activeScope();
+    if (!scope.active) return next();
+    const conversationId = req.params.conversationId?.trim();
+    if (!conversationId) return next();
+    try {
+      const conversation = await resolvedPlannerService.getConversationById(conversationId);
+      if (!conversation || conversation.projectId !== scope.projectId) {
+        return res.status(404).json({ error: 'Conversation not found' });
+      }
+      return next();
+    } catch {
+      return res.status(404).json({ error: 'Conversation not found' });
+    }
+  });
 
 router.use('/creator-intelligence', createCreatorIntelligenceRouter(
   creatorIntelligenceService,
@@ -113,7 +143,8 @@ router.get('/planner', async (_req, res) => {
 
 router.get('/planner/conversations', async (_req, res) => {
   try {
-    const conversations = await resolvedPlannerService.listConversations();
+    const scope = await activeScope();
+    const conversations = await resolvedPlannerService.listConversations(scope.active ? scope.projectId : undefined);
     return res.status(200).json(conversations);
   } catch (error) {
     const errorName = error instanceof Error ? error.name : 'UnknownError';
@@ -355,7 +386,8 @@ router.post(
 
 router.get('/planner/library', async (_req, res) => {
   try {
-    const items = await libraryService.listItems();
+    const scope = await activeScope();
+    const items = await libraryService.listItems(scope.active ? scope.projectId : undefined);
     return res.status(200).json(items.map(toLibraryItemResponse));
   } catch (error) {
     const errorName = error instanceof Error ? error.name : 'UnknownError';
@@ -373,8 +405,9 @@ router.get('/planner/library/:id', async (req, res) => {
 
   try {
     const item = await libraryService.getItemById(id);
+    const scope = await activeScope();
 
-    if (!item) {
+    if (!item || (scope.active && item.projectId !== scope.projectId)) {
       return res.status(404).json({ error: 'Library item not found' });
     }
 
@@ -514,7 +547,11 @@ router.post('/planner/conversations', async (req, res) => {
   }
 
   try {
-    const conversation = await resolvedPlannerService.createConversation({ title, projectId });
+    const scope = await activeScope();
+    if (scope.active && projectId !== undefined && projectId !== scope.projectId) {
+      return res.status(409).json({ error: 'Conversation project must match the active channel' });
+    }
+    const conversation = await resolvedPlannerService.createConversation({ title, projectId: scope.active ? scope.projectId ?? undefined : projectId });
     return res.status(201).json(conversation);
   } catch (error) {
     const errorName = error instanceof Error ? error.name : 'UnknownError';

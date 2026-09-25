@@ -13,8 +13,9 @@ export class LibraryItemRepository extends PrismaRepository<LibraryItem> {
     return this.delegate.create({ data });
   }
 
-  async findAll(): Promise<LibraryItem[]> {
+  async findAll(projectId?: string | null): Promise<LibraryItem[]> {
     return this.delegate.findMany({
+      ...(projectId !== undefined ? { where: { projectId } } : {}),
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
     });
   }

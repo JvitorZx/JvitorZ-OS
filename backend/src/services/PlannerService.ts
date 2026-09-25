@@ -175,8 +175,8 @@ export class PlannerService {
     });
   }
 
-  async listConversations(): Promise<PlannerConversationSummary[]> {
-    const conversations = await this.repository.findAll();
+  async listConversations(projectId?: string | null): Promise<PlannerConversationSummary[]> {
+    const conversations = await this.repository.findAll(projectId);
 
     return conversations.map(({ id, projectId, title, createdAt, updatedAt }) => ({
       id,

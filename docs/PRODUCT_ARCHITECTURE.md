@@ -692,6 +692,12 @@ O gerador conserva a ordem temporal, exige intervalos minimos entre mudancas e l
 
 Importacoes de arquivo criam um `LibraryItem` e `ProductionAssetRelation` na mesma transacao. Nao existe download, scraping, speech-to-text ou acesso de escrita ao YouTube. Creator Context nao e forcado nos titulos: fidelidade ao transcript prevalece.
 
+## Multi-Channel Workspace Boundary
+
+`ChannelProfile` identifica o canal selecionado; `Project` é a fronteira persistida do workspace daquele canal. `ChannelWorkspaceService` cria um `Project` exclusivo para todo perfil novo e para um perfil existente quando ele é conectado pela conta correta. Serviços que usam o perfil ativo aplicam esse `projectId` antes de listar ou criar estado do Planner e Biblioteca.
+
+O único escopo anterior sem projeto é tratado como legado deliberadamente adotado por um perfil específico. Esse escopo nunca é fallback para outro perfil. Tokens OAuth, snapshots públicos do canal e a miniatura visual também são associados ao perfil ativo, portanto uma indisponibilidade do YouTube não pode trocar a identidade exibida pelo perfil de outro canal.
+
 ## Channel Operations - Sprints 54-65
 
 `ChannelDataService` controla sincronizacao explicita e preserva o ultimo snapshot valido. `ChannelContentService` oferece somente leituras locais sobre `VideoPerformanceSnapshot`: lista deduplicada, detalhe com historico e resumo de cobertura. As rotas nao exigem autenticacao para ler o que ja esta persistido e nunca estimam campos ausentes.

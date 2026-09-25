@@ -2,6 +2,7 @@ import type { ChannelProfile, PrismaClient } from '@prisma/client';
 import { DatabaseService } from '../database/DatabaseService';
 import { ChannelProfileRepository } from '../database/repositories/ChannelProfileRepository';
 import { ChannelProfileSession } from './ChannelProfileSession';
+import { ChannelWorkspaceService } from './ChannelWorkspaceService';
 
 export class ChannelProfileValidationError extends Error {}
 export class ChannelProfileNotFoundError extends Error {}
@@ -21,6 +22,7 @@ export class ChannelProfileService {
     private readonly client: PrismaClient = DatabaseService.client,
     profiles?: ChannelProfileRepository,
     private readonly session?: ChannelProfileSession,
+    private readonly workspaces = new ChannelWorkspaceService(client),
   ) {
     this.profiles = profiles ?? new ChannelProfileRepository(client);
   }
@@ -34,7 +36,8 @@ export class ChannelProfileService {
     if (projectId && !await this.client.project.findUnique({ where: { id: projectId }, select: { id: true } })) {
       throw new ChannelProfileValidationError('projectId does not reference an existing project');
     }
-    return this.profiles.create({ displayName, projectId });
+    const profile = await this.profiles.create({ displayName, projectId });
+    return projectId ? profile : this.workspaces.ensure(profile);
   }
 
   async activate(id: unknown): Promise<ChannelProfile> {
@@ -59,7 +62,7 @@ export class ChannelProfileService {
         ? channel.thumbnailUrl.trim()
         : null;
       const connected = await this.profiles.updateConnection(id, channelId, title, thumbnailUrl);
-      return connected;
+      return this.workspaces.ensure(connected);
     }
     catch (error) {
       if (typeof error === 'object' && error && 'code' in error && error.code === 'P2002') {

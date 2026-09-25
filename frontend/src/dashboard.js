@@ -121,7 +121,7 @@ export const createDashboard = ({ root, apiBaseUrl, api = createApiClient(apiBas
     if (elements.channelProfileTitle) elements.channelProfileTitle.textContent = title;
     if (elements.channelProfileSubtitle) {
       elements.channelProfileSubtitle.textContent = profile?.connectionState === 'CONNECTED'
-        ? 'Canal conectado'
+        ? profile?.projectId || profile?.usesLegacyWorkspaceData ? 'Canal conectado' : 'Canal conectado - preparando workspace'
         : 'Conecte este canal';
     }
     if (elements.channelProfileInitials) elements.channelProfileInitials.textContent = initials;
@@ -227,7 +227,7 @@ export const createDashboard = ({ root, apiBaseUrl, api = createApiClient(apiBas
       if (elements.channelProfileName) elements.channelProfileName.value = '';
       await api.activateChannelProfile?.(profile.id);
       await Promise.all([loadProfiles(), loadDashboard()]);
-      setProfileFeedback('Perfil criado. Autorize e vincule a conta Google deste canal.');
+      setProfileFeedback('Perfil criado com uma workspace exclusiva. Autorize e vincule a conta Google deste canal.');
     } catch { setProfileFeedback('Nao foi possivel criar o perfil de canal.'); }
     finally { setProfileLoading(false); }
   };

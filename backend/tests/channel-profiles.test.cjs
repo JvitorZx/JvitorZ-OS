@@ -12,6 +12,10 @@ const {
   ChannelProfileConflictError,
 } = require('../dist/services/ChannelProfileService');
 const { createChannelProfilesRouter } = require('../dist/routes/channelProfiles');
+const { createOperatorsRouter } = require('../dist/routes/operators');
+const { PlannerService } = require('../dist/services/PlannerService');
+const { ConversationRepository } = require('../dist/database/repositories/ConversationRepository');
+const { MessageRepository } = require('../dist/database/repositories/MessageRepository');
 
 let client;
 let repository;
@@ -34,11 +38,22 @@ before(async () => {
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, "updatedAt" DATETIME NOT NULL,
     FOREIGN KEY ("projectId") REFERENCES "Project"("id") ON DELETE SET NULL ON UPDATE CASCADE
   )`);
+  await client.$executeRawUnsafe(`CREATE TABLE "Conversation" (
+    "id" TEXT NOT NULL PRIMARY KEY, "projectId" TEXT, "title" TEXT, "context" TEXT,
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, "updatedAt" DATETIME NOT NULL
+  )`);
+  await client.$executeRawUnsafe(`CREATE TABLE "Message" (
+    "id" TEXT NOT NULL PRIMARY KEY, "conversationId" TEXT NOT NULL, "sender" TEXT NOT NULL, "text" TEXT NOT NULL,
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY ("conversationId") REFERENCES "Conversation" ("id") ON DELETE CASCADE
+  )`);
   repository = new ChannelProfileRepository(client);
   service = new ChannelProfileService(client, repository);
 });
 
 beforeEach(async () => {
+  await client.message.deleteMany();
+  await client.conversation.deleteMany();
   await client.channelProfile.deleteMany();
   await client.project.deleteMany();
   await client.user.deleteMany();
@@ -53,6 +68,15 @@ describe('channel profile persistence', { concurrency: false }, () => {
     const profiles = await repository.findAll();
     assert.deepEqual(profiles.map((profile) => profile.displayName), ['Alpha', 'Zeta']);
     assert.equal(await repository.findActive(), null);
+  });
+
+  test('creates a separate workspace boundary for every new channel profile', async () => {
+    const games = await service.create({ displayName: 'JvitorZx' });
+    const music = await service.create({ displayName: 'JVTR' });
+    assert.ok(games.projectId);
+    assert.ok(music.projectId);
+    assert.notEqual(games.projectId, music.projectId);
+    assert.equal(await client.project.count(), 2);
   });
 
   test('activation leaves exactly one profile active', async () => {
@@ -70,7 +94,7 @@ describe('channel profile persistence', { concurrency: false }, () => {
   });
 
   test('observed YouTube channel cannot be silently reassigned to a different profile', async () => {
-    const games = await service.create({ displayName: 'JvitorZx' });
+    const games = await repository.create({ displayName: 'JvitorZx' });
     const music = await service.create({ displayName: 'JVTR' });
     const connected = await service.connectObservedChannel(games.id, {
       id: 'games-channel', title: 'JvitorZx', thumbnailUrl: 'https://yt.example/games.jpg',
@@ -93,6 +117,27 @@ describe('channel profile persistence', { concurrency: false }, () => {
     assert.equal(adopted.usesLegacyWorkspaceData, true);
     assert.ok(adopted.legacyDataAdoptedAt instanceof Date);
     assert.equal((await repository.findById(games.id)).usesLegacyWorkspaceData, true);
+  });
+
+  test('active channel scope hides Planner conversations from other channel workspaces', async () => {
+    const planner = new PlannerService(new ConversationRepository(client), new MessageRepository(client));
+    const games = await client.project.create({ data: { name: 'Games', owner: { create: { email: 'games-owner@local.test' } } } });
+    const music = await client.project.create({ data: { name: 'Music', owner: { create: { email: 'music-owner@local.test' } } } });
+    const gamesConversation = await planner.createConversation({ title: 'Games plan', projectId: games.id });
+    const musicConversation = await planner.createConversation({ title: 'Music plan', projectId: music.id });
+    const app = express(); app.use(express.json());
+    app.use('/operators', createOperatorsRouter(planner, undefined, undefined, undefined, undefined, undefined, undefined, {
+      getActive: async () => ({ id: 'games-profile', projectId: games.id }),
+    }));
+    const server = await new Promise((resolve) => { const instance = app.listen(0, '127.0.0.1', () => resolve(instance)); });
+    try {
+      const base = `http://127.0.0.1:${server.address().port}/operators/planner/conversations`;
+      const listed = await fetch(base); const listedBody = await listed.json();
+      assert.equal(listed.status, 200);
+      assert.deepEqual(listedBody.map((conversation) => conversation.id), [gamesConversation.id]);
+      const hidden = await fetch(`${base}/${musicConversation.id}`);
+      assert.equal(hidden.status, 404);
+    } finally { await new Promise((resolve) => server.close(resolve)); }
   });
 });
 

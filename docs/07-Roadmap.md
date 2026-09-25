@@ -1804,7 +1804,25 @@ Limites: a Sprint não migra automaticamente todos os domínios estratégicos an
 
 **Validação externa pendente, não bloqueadora:** conectar cada conta adicional pelo seletor de perfil e concluir o consentimento Google correspondente.
 
-**Próximo checkpoint:** Sprint 102 - NÃO INICIADA; escopo deve ser definido a partir da operação real dos perfis conectados.
+**Próximo checkpoint:** Sprint 102 - Multi-Channel Workspace Isolation - CONCLUÍDA.
+
+## Sprint 102 - Multi-Channel Workspace Isolation - CONCLUÍDA
+
+**Objetivo:** transformar o perfil de canal em uma fronteira de dados efetiva, para que cada canal opere seu próprio workspace sem misturar conversas, Biblioteca, credenciais ou leituras do acervo.
+
+Entregas:
+
+- perfis novos recebem um `Project` exclusivo como workspace de dados;
+- um perfil existente sem workspace recebe-o somente ao conectar a conta correta, preservando o histórico legado sem migração silenciosa;
+- o histórico de games anteriormente adotado continua visível apenas para o perfil que o adotou;
+- listagem, abertura e criação de conversas do Planner respeitam o canal ativo no backend;
+- a Biblioteca do Planner é listada e aberta somente no workspace do canal ativo;
+- a foto persistida do perfil acompanha respostas em cache ou degradadas, sem reutilizar a identidade de outro canal;
+- teste de regressão cobre duas workspaces no mesmo banco e confirma que a API esconde a conversa do outro canal.
+
+Limites: a foto e os dados reais de um canal adicional só podem ser carregados após a autorização OAuth da conta correta. O sistema não reutiliza a foto, token ou dados do canal de games como fallback.
+
+**Próximo checkpoint:** sincronizar cada canal adicional pelo seletor, autorizando a conta Google correspondente. Nenhuma migração automática de dados legados entre canais será feita.
 
 ### Revisao de encerramento apos Sprint 53
 

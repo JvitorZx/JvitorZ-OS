@@ -48,6 +48,7 @@ const fromSnapshot = (
   state: OperationalState,
   stale: boolean,
   summary: string,
+  thumbnailUrl: string | null = null,
 ): ChannelDataResult => ({
   title: snapshot.title,
   id: snapshot.channelId,
@@ -56,7 +57,7 @@ const fromSnapshot = (
   viewCount: snapshot.viewCount,
   country: snapshot.country,
   publishedAt: snapshot.publishedAt?.toISOString() ?? null,
-  thumbnailUrl: null,
+  thumbnailUrl,
   integration: { state, stale, lastSuccessAt: snapshot.collectedAt, summary },
 });
 
@@ -88,17 +89,17 @@ export class ChannelDataService {
 
     if (!runtime.google.isConfigured()) {
       return latest
-        ? fromSnapshot(latest, 'DEGRADED', true, 'Configuração do Google ausente; exibindo o último dado válido.')
+        ? fromSnapshot(latest, 'DEGRADED', true, 'Configuração do Google ausente; exibindo o último dado válido.', activeProfile?.thumbnailUrl ?? null)
         : empty('NOT_CONFIGURED', 'A integração Google ainda não foi configurada.');
     }
     if (!runtime.google.isAuthenticated()) {
       return latest
-        ? fromSnapshot(latest, 'AUTH_REQUIRED', true, 'Reconexão Google necessária; exibindo o último dado válido.')
+        ? fromSnapshot(latest, 'AUTH_REQUIRED', true, 'Reconexão Google necessária; exibindo o último dado válido.', activeProfile?.thumbnailUrl ?? null)
         : empty('AUTH_REQUIRED', 'Conecte novamente a conta Google.');
     }
     if (!refresh) {
       return latest
-        ? fromSnapshot(latest, 'CONNECTED', false, 'Último dado persistido do canal.')
+        ? fromSnapshot(latest, 'CONNECTED', false, 'Último dado persistido do canal.', activeProfile?.thumbnailUrl ?? null)
         : empty('CONNECTED', 'Google conectado; dados do canal ainda não foram coletados.');
     }
 
@@ -143,7 +144,7 @@ export class ChannelDataService {
           ? 'YouTube temporariamente indisponível.'
           : 'Não foi possível atualizar os dados do canal.';
       const cachedState: OperationalState = authRequired ? 'AUTH_REQUIRED' : 'DEGRADED';
-      return latest ? fromSnapshot(latest, cachedState, true, `${summary} Exibindo o último dado válido.`) : empty(state, summary);
+      return latest ? fromSnapshot(latest, cachedState, true, `${summary} Exibindo o último dado válido.`, activeProfile?.thumbnailUrl ?? null) : empty(state, summary);
     }
   }
 

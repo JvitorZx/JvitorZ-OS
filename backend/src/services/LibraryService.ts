@@ -143,8 +143,8 @@ export class LibraryService {
     }
   }
 
-  async listItems(): Promise<LibraryItem[]> {
-    return this.libraryItems.findAll();
+  async listItems(projectId?: string | null): Promise<LibraryItem[]> {
+    return this.libraryItems.findAll(projectId);
   }
 
   async getItemById(id: string): Promise<LibraryItem | null> {

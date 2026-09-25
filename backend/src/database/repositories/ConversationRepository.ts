@@ -14,8 +14,9 @@ export class ConversationRepository extends PrismaRepository<Conversation> {
     return this.delegate.create({ data });
   }
 
-  async findAll(): Promise<Conversation[]> {
+  async findAll(projectId?: string | null): Promise<Conversation[]> {
     return this.delegate.findMany({
+      ...(projectId !== undefined ? { where: { projectId } } : {}),
       orderBy: { updatedAt: 'desc' },
     });
   }

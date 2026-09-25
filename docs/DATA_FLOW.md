@@ -1005,3 +1005,21 @@ GET /api/youtube/videos-export.csv
 ```
 
 Tokens de montagem e requisição descartam paginações tardias. O total persistido é separado da quantidade visível na página; filtros não fingem representar itens ainda não carregados.
+
+## Multi-Channel Workspace Isolation
+
+```text
+criar perfil de canal
+  -> ChannelProfileService
+  -> ChannelWorkspaceService
+  -> User local de sistema + Project exclusivo
+  -> ChannelProfile.projectId
+
+trocar perfil ativo
+  -> ChannelProfileSession
+  -> token OAuth local daquele perfil
+  -> ChannelData / Canal / Analytics
+  -> Planner conversations + Library filtrados pelo Project ativo
+```
+
+O perfil que adotou explicitamente o acervo anterior usa somente o escopo legado `projectId = null`; perfis sem essa adoção não podem ler esse escopo. Para um perfil conectado novo, os dados novos pertencem ao `Project` exclusivo dele. A API trata uma conversa ou item da Biblioteca de outro projeto como inexistente. Identidade visual em cache usa apenas a miniatura persistida do perfil ativo; ausência de miniatura não autoriza reutilizar a foto de outro canal.
