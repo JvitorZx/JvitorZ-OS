@@ -110,7 +110,7 @@ export class SupervisorModule {
     return { outcome: findings.length || (input.risks?.length ?? 0) > 0 ? 'READY_WITH_WARNINGS' as const : 'READY' as const, findings };
   }
 
-  async getSupervisorOverview() {
+  async getSupervisorOverview(projectId?: string | null) {
     let youtubeAnalytics: YouTubeAnalyticsProviderStatus;
     try {
       youtubeAnalytics = await this.youtubeSyncService.getStatus();
@@ -123,14 +123,14 @@ export class SupervisorModule {
     }
     let recentDecisions: EditorialDecision[] = [];
     let audience: Awaited<ReturnType<AudienceIntelligenceService['summary']>> | null = null;
-    try { audience = await this.audienceIntelligence.summary(); } catch { audience = null; }
+    try { audience = await this.audienceIntelligence.summary(projectId); } catch { audience = null; }
     let youtubeReach: YouTubeReachStatus;
     try { youtubeReach = await this.youtubeReachService.getStatus(); }
     catch {
       youtubeReach = { state: 'temporary_error', reportTypeId: 'channel_reach_basic_a1', jobId: null, lastReportAt: null, lastSyncAt: null, lastErrorType: 'temporary', quality: { state: 'ERROR', availability: 0, freshness: 'MISSING', completeness: 0, consistency: 0, sampleSize: 0, sourceReliability: 1, latestCollectedAt: null, latestPeriodEnd: null, reasons: [{ code: 'STATUS_ERROR', message: 'Qualidade de alcance indisponível.', severity: 'error' }] } };
     }
     try {
-      recentDecisions = await this.editorialDecisionService.list({ limit: 5 });
+      recentDecisions = await this.editorialDecisionService.list({ ...(projectId !== undefined ? { projectId } : {}), limit: 5 });
     } catch {
       recentDecisions = [];
     }
@@ -222,7 +222,7 @@ export class SupervisorModule {
     try { governance = await this.automationDiagnosticsService.getSummary(); } catch { /* Local diagnostics must not break Dashboard. */ }
     let channelOperators: Array<{ id: string; status: string; confidence: number; sampleSize: number; missingData: string[]; summary: string; signals: string[] }> = [];
     try {
-      channelOperators = (await this.channelOperatorService.list()).map((operator) => ({
+      channelOperators = (await this.channelOperatorService.list(projectId)).map((operator) => ({
         id: operator.id,
         status: operator.status,
         confidence: operator.confidence,
@@ -236,30 +236,30 @@ export class SupervisorModule {
       totalResearches: 0, opportunities: 0, lowConfidence: 0, stale: 0, conflicts: 0,
       quality: 'MISSING', freshness: 'MISSING', latestAt: null as Date | null, sources: [] as Array<{ id: string; kind: string; freshness: string; quality: string }>,
     };
-    try { research = await this.researchService.getOperationalSummary(); }
+    try { research = await this.researchService.getOperationalSummary(projectId); }
     catch { /* Research is local and cannot break the Supervisor or Dashboard. */ }
     let planning = {
       planId: null as string | null, status: 'MISSING', horizon: null as string | null,
       total: 0, ready: 0, needsResearch: 0, blocked: 0, lowConfidence: 0,
       experiments: 0, stale: 0, conflicts: 0, alerts: [] as string[],
     };
-    try { planning = await this.strategicPlanningService.getOperationalSummary(); }
+    try { planning = await this.strategicPlanningService.getOperationalSummary(projectId); }
     catch { /* Strategic planning is local and cannot break the Supervisor or Dashboard. */ }
     let experimentation = { total: 0, active: 0, waitingForData: 0, stale: 0, lowConfidence: 0, inconclusive: 0, contradicted: 0 };
-    try { experimentation = await this.experimentationService.getOperationalSummary(); }
+    try { experimentation = await this.experimentationService.getOperationalSummary(projectId); }
     catch { /* Experimentation is local and cannot break the Supervisor or Dashboard. */ }
     let strategicMonitoring = { total: 0, active: 0, high: 0, critical: 0, stale: 0,
       signals: [] as Array<{ id: string; type: string; severity: string; subject: string; summary: string; confidence: number; detectedAt: Date }> };
-    try { strategicMonitoring = await this.strategicMonitoringService.getOperationalSummary(); }
+    try { strategicMonitoring = await this.strategicMonitoringService.getOperationalSummary(projectId); }
     catch { /* Monitoring is local and cannot break the Supervisor or Dashboard. */ }
     let channelContext = { totalCandidates: 0, truncated: false, entries: [] as Array<{ id: string; type: string; status: string; subject: string; statement: string; confidence: number }> };
-    try { channelContext = await this.channelContextResolver.resolve({ text: 'estrategia riscos decisoes experimentos plataforma producao', limit: 8, maxCharacters: 4_000 }); }
+    try { channelContext = await this.channelContextResolver.resolve({ ...(projectId !== undefined ? { projectId } : {}), text: 'estrategia riscos decisoes experimentos plataforma producao', limit: 8, maxCharacters: 4_000 }); }
     catch { /* Creator context is local read-only guidance and cannot break the Supervisor. */ }
     let packaging = { total: 0, selected: 0, published: 0, experiments: 0, needingReview: 0 };
-    try { packaging = await this.packagingService.getOperationalSummary(); }
+    try { packaging = await this.packagingService.getOperationalSummary(projectId); }
     catch { /* Packaging is local and cannot break the Supervisor or Dashboard. */ }
     let productions: Awaited<ReturnType<ProductionRepository['findAll']>> = [];
-    try { productions = await this.productionRepository.findAll({ limit: 100 }); }
+    try { productions = await this.productionRepository.findAll({ ...(projectId !== undefined ? { projectId } : {}), limit: 100 }); }
     catch { /* Production state is local and cannot break the Supervisor. */ }
     const byId = new Map(channelOperators.map((operator) => [operator.id, operator]));
     const analyticsQuality = youtubeAnalytics.state === 'synchronized' || youtubeAnalytics.state === 'connected' ? 'GOOD'

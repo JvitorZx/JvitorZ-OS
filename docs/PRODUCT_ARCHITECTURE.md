@@ -698,6 +698,8 @@ Importacoes de arquivo criam um `LibraryItem` e `ProductionAssetRelation` na mes
 
 O único escopo anterior sem projeto é tratado como legado deliberadamente adotado por um perfil específico. Esse escopo nunca é fallback para outro perfil. Tokens OAuth, snapshots públicos do canal e a miniatura visual também são associados ao perfil ativo, portanto uma indisponibilidade do YouTube não pode trocar a identidade exibida pelo perfil de outro canal.
 
+`DashboardService` resolve esse limite antes de chamar Operadores e Supervisor. O mesmo `projectId` é encaminhado para seus resumos de dados, decisões, Planning, experimentos, monitoramento, contexto, Packaging e Produção. Um perfil sem workspace e sem adoção de histórico recebe um identificador de leitura vazio, evitando que qualquer módulo operacional faça fallback para registros antigos sem projeto.
+
 ## Channel Operations - Sprints 54-65
 
 `ChannelDataService` controla sincronizacao explicita e preserva o ultimo snapshot valido. `ChannelContentService` oferece somente leituras locais sobre `VideoPerformanceSnapshot`: lista deduplicada, detalhe com historico e resumo de cobertura. As rotas nao exigem autenticacao para ler o que ja esta persistido e nunca estimam campos ausentes.

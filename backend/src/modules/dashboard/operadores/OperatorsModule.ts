@@ -3,8 +3,8 @@ import { ChannelOperatorService } from '../../../services/channel-operators';
 export class OperatorsModule {
   constructor(private readonly channelOperators = new ChannelOperatorService()) {}
 
-  async getOperatorsStatus() {
-    const operators = await this.channelOperators.list();
+  async getOperatorsStatus(projectId?: string | null) {
+    const operators = await this.channelOperators.list(projectId);
     return {
       availableOperators: operators.filter(({ status }) => status === 'AVAILABLE').map(({ id }) => id),
       limitedOperators: operators.filter(({ status }) => status === 'LIMITED').map(({ id }) => id),

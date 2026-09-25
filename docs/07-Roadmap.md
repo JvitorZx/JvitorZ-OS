@@ -1824,6 +1824,20 @@ Limites: a foto e os dados reais de um canal adicional só podem ser carregados 
 
 **Próximo checkpoint:** sincronizar cada canal adicional pelo seletor, autorizando a conta Google correspondente. Nenhuma migração automática de dados legados entre canais será feita.
 
+## Sprint 103 - Active Channel Operational Scope - CONCLUÍDA
+
+**Objetivo:** impedir que o Dashboard, Supervisor e Operadores exibam resumos estratégicos de outro canal após a troca de perfil.
+
+Entregas:
+
+- `DashboardService` resolve o perfil ativo antes de compor os módulos operacionais;
+- Operadores e Supervisor recebem o `projectId` do perfil ativo para ler Analytics, decisões, pesquisa, Planning, experimentos, monitoramento, contexto, Packaging e Produção no mesmo escopo;
+- perfil ainda sem workspace e sem adoção de histórico recebe um escopo vazio, nunca o acervo global legado;
+- perfil que adotou o histórico legado continua limitado ao escopo legado explicitamente confirmado;
+- regressão cobre workspace próprio, histórico legado e perfil pendente.
+
+Limite atual: canais adicionais precisam concluir OAuth e sincronização para ganhar foto e dados próprios. Não há transferência automática de conteúdo entre canais.
+
 ### Revisao de encerramento apos Sprint 53
 
 Renderer compartilhado entre rotas e servidor; shutdown bloqueia novos pedidos, preserva trabalhos interrompidos e aguarda o processo de video antes de desconectar o banco. Tres testes de regressao adicionados: total final 1.223 aprovados. Smoke adicional com servidor real em banco isolado confirmou enqueue HTTP seguido de shutdown, estado INTERRUPTED e worker ocioso antes do fechamento do banco. Sem migration adicional.

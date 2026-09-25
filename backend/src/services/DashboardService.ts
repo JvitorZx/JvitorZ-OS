@@ -6,6 +6,9 @@ import { SettingsModule } from '../modules/dashboard/configuracoes/SettingsModul
 import { DatabaseService } from '../database/DatabaseService';
 import { AutomationRepository } from '../database/repositories/AutomationRepository';
 import { IntegrationStatusService } from './IntegrationStatusService';
+import { ChannelProfileService } from './ChannelProfileService';
+
+const EMPTY_CHANNEL_SCOPE = '__no-active-channel-workspace__';
 
 export class DashboardService {
   constructor(
@@ -16,14 +19,19 @@ export class DashboardService {
     private readonly settingsModule = new SettingsModule(),
     private readonly automationRepository = new AutomationRepository(DatabaseService.client),
     private readonly integrationStatusService = new IntegrationStatusService(),
+    private readonly channelProfiles: Pick<ChannelProfileService, 'getActive'> = new ChannelProfileService(),
   ) {}
 
   async getDashboard({ youtubeConnected = true }: { youtubeConnected?: boolean } = {}): Promise<Record<string, unknown>> {
+    const activeProfile = await this.channelProfiles.getActive().catch(() => null);
+    const projectId = !activeProfile
+      ? undefined
+      : activeProfile.projectId ?? (activeProfile.usesLegacyWorkspaceData ? null : EMPTY_CHANNEL_SCOPE);
     const [channel, analytics, operators, supervisor, settings, automationSummary] = await Promise.all([
       this.channelModule.getChannelSummary({ refresh: youtubeConnected }),
       this.analyticsModule.getDashboardAnalytics(),
-      this.operatorsModule.getOperatorsStatus(),
-      this.supervisorModule.getSupervisorOverview(),
+      this.operatorsModule.getOperatorsStatus(projectId),
+      this.supervisorModule.getSupervisorOverview(projectId),
       this.settingsModule.getSettings(),
       this.automationRepository.getOperationalSummary(),
     ]);

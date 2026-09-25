@@ -1023,3 +1023,5 @@ trocar perfil ativo
 ```
 
 O perfil que adotou explicitamente o acervo anterior usa somente o escopo legado `projectId = null`; perfis sem essa adoção não podem ler esse escopo. Para um perfil conectado novo, os dados novos pertencem ao `Project` exclusivo dele. A API trata uma conversa ou item da Biblioteca de outro projeto como inexistente. Identidade visual em cache usa apenas a miniatura persistida do perfil ativo; ausência de miniatura não autoriza reutilizar a foto de outro canal.
+
+O Dashboard resolve o escopo uma vez antes de montar os resumos: workspace próprio usa seu `projectId`, o perfil legado autorizado usa `null` e perfil pendente usa um escopo vazio. Operadores e Supervisor propagam a mesma escolha às leituras estratégicas. Assim, uma troca de canal não pode preencher cards operacionais com dados do canal anterior.
