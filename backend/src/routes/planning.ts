@@ -27,6 +27,7 @@ import {
   ExperimentConflictError,
   ExperimentNotReadyError,
 } from '../services/strategic-experimentation';
+import { ChannelProfileService } from '../services/ChannelProfileService';
 
 const isObject = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -69,8 +70,35 @@ export const createPlanningRouter = (
   outcomeService: StrategicOutcomeService = new StrategicOutcomeService(),
   learningService: StrategicLearningService = new StrategicLearningService(),
   experimentationService: ExperimentationService = new ExperimentationService(),
+  channelProfiles: Pick<ChannelProfileService, 'getActive'> = new ChannelProfileService(),
 ): Router => {
   const router = Router();
+
+  // A selected channel owns its planning workspace. Route-level scoping prevents a
+  // new profile from falling back to the legacy, unassigned planning records.
+  const activeProject = async (res: Parameters<Parameters<Router['get']>[1]>[1]) => {
+    try {
+      const profile = await channelProfiles.getActive();
+      if (!profile) return { scoped: false as const, projectId: null };
+      if (!profile.projectId && !profile.usesLegacyWorkspaceData) {
+        res.status(409).json({ error: 'Active channel workspace is not ready' });
+        return null;
+      }
+      return {
+        scoped: true as const,
+        projectId: profile.usesLegacyWorkspaceData ? null : profile.projectId,
+      };
+    } catch {
+      // Existing installations and isolated route tests without profile storage
+      // retain their pre-profile behavior.
+      return { scoped: false as const, projectId: null };
+    }
+  };
+
+  const resolvedProjectId = (
+    scope: { scoped: boolean; projectId: string | null },
+    requested: unknown,
+  ): string | null | undefined => scope.scoped ? scope.projectId : (typeof requested === 'string' ? requested || null : undefined);
 
   router.get('/current/guidance', async (req, res) => {
     if (!hasOnly(req.query as Record<string, unknown>, ['projectId', 'horizon'])
@@ -78,8 +106,10 @@ export const createPlanningRouter = (
       return res.status(400).json({ error: 'invalid planning query' });
     }
     try {
+      const scope = await activeProject(res);
+      if (!scope) return;
       const guidance = await service.getCurrentGuidance({
-        ...('projectId' in req.query ? { projectId: req.query.projectId || null } : {}),
+        ...(resolvedProjectId(scope, req.query.projectId) !== undefined ? { projectId: resolvedProjectId(scope, req.query.projectId) } : {}),
         ...(req.query.horizon ? { horizon: req.query.horizon as never } : {}),
       });
       return guidance ? res.status(200).json(guidance) : res.status(404).json({ error: 'Content plan not found' });
@@ -92,8 +122,10 @@ export const createPlanningRouter = (
       return res.status(400).json({ error: 'invalid planning query' });
     }
     try {
+      const scope = await activeProject(res);
+      if (!scope) return;
       const plan = await service.getCurrent({
-        ...('projectId' in req.query ? { projectId: req.query.projectId || null } : {}),
+        ...(resolvedProjectId(scope, req.query.projectId) !== undefined ? { projectId: resolvedProjectId(scope, req.query.projectId) } : {}),
         ...(req.query.horizon ? { horizon: req.query.horizon as never } : {}),
       });
       return plan ? res.status(200).json(plan) : res.status(404).json({ error: 'Content plan not found' });
@@ -107,8 +139,11 @@ export const createPlanningRouter = (
       return res.status(400).json({ error: 'invalid planning payload' });
     }
     try {
+      const scope = await activeProject(res);
+      if (!scope) return;
+      const projectId = resolvedProjectId(scope, req.body.projectId);
       const plan = await service.generate({
-        projectId: req.body.projectId || null,
+        ...(projectId !== undefined ? { projectId } : {}),
         ...(req.body.horizon ? { horizon: req.body.horizon as never } : {}),
         ...(req.body.constraints ? { constraints: req.body.constraints } : {}),
       });
@@ -286,8 +321,12 @@ export const createPlanningRouter = (
       || (req.query.limit !== undefined && (typeof req.query.limit !== 'string' || !/^\d+$/.test(req.query.limit)))) {
       return res.status(400).json({ error: 'invalid strategic learning query' });
     }
-    try { return res.status(200).json(await learningService.list({
-      ...('projectId' in req.query ? { projectId: req.query.projectId || null } : {}),
+    try {
+      const scope = await activeProject(res);
+      if (!scope) return;
+      const projectId = resolvedProjectId(scope, req.query.projectId);
+      return res.status(200).json(await learningService.list({
+      ...(projectId !== undefined ? { projectId } : {}),
       ...(req.query.status ? { status: req.query.status } : {}),
       ...(req.query.dimension ? { dimension: req.query.dimension } : {}),
       ...(req.query.limit ? { limit: Number(req.query.limit) } : {}),
@@ -298,7 +337,11 @@ export const createPlanningRouter = (
     if (!isObject(req.body) || !hasOnly(req.body, ['projectId']) || !optionalText(req.body.projectId)) {
       return res.status(400).json({ error: 'invalid strategic learning refresh payload' });
     }
-    try { return res.status(200).json(await learningService.refresh('projectId' in req.body ? req.body.projectId || null : undefined)); }
+    try {
+      const scope = await activeProject(res);
+      if (!scope) return;
+      return res.status(200).json(await learningService.refresh(resolvedProjectId(scope, req.body.projectId)));
+    }
     catch (error) { return sendError(res, error); }
   });
 
@@ -336,8 +379,12 @@ export const createPlanningRouter = (
       || (req.query.limit !== undefined && (typeof req.query.limit !== 'string' || !/^\d+$/.test(req.query.limit)))) {
       return res.status(400).json({ error: 'invalid experiment query' });
     }
-    try { return res.status(200).json(await experimentationService.list({
-      ...('projectId' in req.query ? { projectId: req.query.projectId || null } : {}),
+    try {
+      const scope = await activeProject(res);
+      if (!scope) return;
+      const projectId = resolvedProjectId(scope, req.query.projectId);
+      return res.status(200).json(await experimentationService.list({
+      ...(projectId !== undefined ? { projectId } : {}),
       ...(req.query.status ? { status: req.query.status } : {}), ...(req.query.limit ? { limit: Number(req.query.limit) } : {}),
     })); } catch (error) { return sendError(res, error); }
   });
@@ -348,7 +395,15 @@ export const createPlanningRouter = (
     if (!isObject(req.body) || !hasOnly(req.body, fields) || !Array.isArray(req.body.variants)) {
       return res.status(400).json({ error: 'invalid experiment payload' });
     }
-    try { return res.status(201).json(await experimentationService.create(req.body as never)); }
+    try {
+      const scope = await activeProject(res);
+      if (!scope) return;
+      const projectId = resolvedProjectId(scope, req.body.projectId);
+      return res.status(201).json(await experimentationService.create({
+        ...req.body,
+        ...(projectId !== undefined ? { projectId } : {}),
+      } as never));
+    }
     catch (error) { return sendError(res, error); }
   });
 

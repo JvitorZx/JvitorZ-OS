@@ -137,6 +137,22 @@ describe('strategic planning persistence, API and integrations', { concurrency: 
     const current = await request('/current'); const detail = await request(`/${currentPlan.id}`);
     assert.equal(current.status, 200); assert.equal(detail.status, 200); assert.equal(detail.body.items[0].queue, 'NEXT');
   });
+  test('an active channel without a workspace cannot fall back to legacy planning data', async () => {
+    const isolatedApp = express(); isolatedApp.use(express.json());
+    isolatedApp.use(createPlanningRouter(service, undefined, undefined, undefined, {
+      getActive: async () => ({ id: 'music', projectId: null, usesLegacyWorkspaceData: false }),
+    }));
+    const isolatedServer = await new Promise((resolve) => {
+      const instance = isolatedApp.listen(0, '127.0.0.1', () => resolve(instance));
+    });
+    try {
+      const response = await fetch(`http://127.0.0.1:${isolatedServer.address().port}/current`);
+      assert.equal(response.status, 409);
+      assert.deepEqual(await response.json(), { error: 'Active channel workspace is not ready' });
+    } finally {
+      await new Promise((resolve) => isolatedServer.close(resolve));
+    }
+  });
   test('combines persisted Research and EditorialDecision origins without duplicating ranking logic', async () => {
     await client.$executeRawUnsafe("INSERT INTO ResearchHistory(id) VALUES ('research-source')");
     await client.$executeRawUnsafe("INSERT INTO ResearchOpportunity(id) VALUES ('opportunity-source')");

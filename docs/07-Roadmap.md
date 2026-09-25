@@ -1838,6 +1838,20 @@ Entregas:
 
 Limite atual: canais adicionais precisam concluir OAuth e sincronização para ganhar foto e dados próprios. Não há transferência automática de conteúdo entre canais.
 
+## Sprint 104 - Planning Channel Boundary - CONCLUÍDA
+
+**Objetivo:** impedir que a área de Planejamento volte a consultar ou criar dados no acervo legado depois que o usuário troca para outro canal.
+
+Entregas:
+
+- consultas de plano atual, orientação, aprendizados e experimentos resolvem o perfil de canal ativo no backend;
+- geração de plano e criação de experimento usam o `Project` do canal ativo, ignorando escopo fornecido pela interface;
+- perfil legado adotado continua limitado ao seu histórico `projectId = null`;
+- perfil ainda sem workspace recebe um estado explícito de preparação, sem qualquer fallback para dados de outro canal;
+- regressão HTTP cobre o bloqueio de fallback do Planejamento.
+
+Limite atual: operações direcionadas a um item ou plano específico serão migradas gradualmente para a mesma verificação de propriedade. A interface já não pode usar a consulta de plano atual para atravessar a fronteira entre canais.
+
 ### Revisao de encerramento apos Sprint 53
 
 Renderer compartilhado entre rotas e servidor; shutdown bloqueia novos pedidos, preserva trabalhos interrompidos e aguarda o processo de video antes de desconectar o banco. Tres testes de regressao adicionados: total final 1.223 aprovados. Smoke adicional com servidor real em banco isolado confirmou enqueue HTTP seguido de shutdown, estado INTERRUPTED e worker ocioso antes do fechamento do banco. Sem migration adicional.
