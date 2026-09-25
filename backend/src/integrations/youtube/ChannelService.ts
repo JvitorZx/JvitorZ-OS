@@ -2,9 +2,10 @@ import { google, youtube_v3 } from 'googleapis';
 import { GoogleService } from '../../services/GoogleService';
 
 export default class ChannelService {
+  constructor(private readonly googleService = new GoogleService()) {}
+
   private getYouTubeClient(): youtube_v3.Youtube {
-    const googleService = new GoogleService();
-    const client = googleService.getClient();
+    const client = this.googleService.getClient();
 
     return google.youtube({
       version: 'v3',
@@ -30,6 +31,9 @@ export default class ChannelService {
       viewCount: channel?.statistics?.viewCount ?? null,
       country: channel?.snippet?.country ?? null,
       publishedAt: channel?.snippet?.publishedAt ?? null,
+      thumbnailUrl: channel?.snippet?.thumbnails?.medium?.url
+        ?? channel?.snippet?.thumbnails?.default?.url
+        ?? null,
     };
   }
 }

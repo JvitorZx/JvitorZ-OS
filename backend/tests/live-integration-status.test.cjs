@@ -14,6 +14,8 @@ const { IntegrationStatusService } = require('../dist/services/IntegrationStatus
 const { ChannelContentService } = require('../dist/services/ChannelContentService');
 const { createIntegrationsRouter } = require('../dist/routes/integrations');
 
+const noActiveProfile = { getActive: async () => null, connectObservedChannel: async () => { throw new Error('must not connect'); } };
+
 let client;
 let repository;
 
@@ -26,7 +28,7 @@ const snapshot = (overrides = {}) => ({
 before(async () => {
   client = await DatabaseService.connect();
   await client.$executeRawUnsafe(`CREATE TABLE "ChannelSnapshot" (
-    "id" TEXT NOT NULL PRIMARY KEY, "channelId" TEXT NOT NULL UNIQUE, "title" TEXT NOT NULL,
+    "id" TEXT NOT NULL PRIMARY KEY, "channelProfileId" TEXT, "channelId" TEXT NOT NULL UNIQUE, "title" TEXT NOT NULL,
     "subscriberCount" TEXT, "videoCount" TEXT, "viewCount" TEXT, "country" TEXT,
     "publishedAt" DATETIME, "collectedAt" DATETIME NOT NULL,
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, "updatedAt" DATETIME NOT NULL
@@ -52,11 +54,43 @@ describe('live channel persistence', { concurrency: false }, () => {
       { isConfigured: () => true, isAuthenticated: () => true },
       { findLatest: async () => null, upsert: async (data) => { saved = data; return { id: 'snapshot', createdAt: new Date(), updatedAt: new Date(), ...data }; } },
       { getChannelInfo: async () => ({ id: 'channel-1', title: 'Canal', subscribers: '10', videoCount: '2', viewCount: '50', country: 'BR', publishedAt: '2020-01-01T00:00:00.000Z' }) },
+      noActiveProfile,
     );
     const result = await service.getChannel();
     assert.equal(result.integration.state, 'CONNECTED');
     assert.equal(result.subscribers, '10');
     assert.equal(saved.channelId, 'channel-1');
+  });
+
+  test('an active connected profile scopes the cached channel', async () => {
+    let saved;
+    const service = new ChannelDataService(
+      { isConfigured: () => true, isAuthenticated: () => true },
+      { findLatest: async (profileId) => { assert.equal(profileId, 'music'); return null; }, upsert: async (data) => { saved = data; return { id: 'snapshot', createdAt: new Date(), updatedAt: new Date(), ...data }; } },
+      { getChannelInfo: async () => ({ id: 'music-channel', title: 'JVTR', subscribers: '4', videoCount: '2', viewCount: '9' }) },
+      { getActive: async () => ({ id: 'music', youtubeChannelId: 'music-channel' }), connectObservedChannel: async () => { throw new Error('must not connect'); } },
+    );
+    const result = await service.getChannel();
+    assert.equal(result.title, 'JVTR');
+    assert.equal(saved.channelProfileId, 'music');
+  });
+
+  test('an unconnected active profile is only bound after an explicit connection action', async () => {
+    let connected = 0;
+    const service = new ChannelDataService(
+      { isConfigured: () => true, isAuthenticated: () => true },
+      { findLatest: async () => null, upsert: async (data) => ({ id: 'snapshot', createdAt: new Date(), updatedAt: new Date(), ...data }) },
+      { getChannelInfo: async () => ({ id: 'music-channel', title: 'JVTR' }) },
+      { getActive: async () => ({ id: 'music', youtubeChannelId: null }), connectObservedChannel: async () => { connected += 1; } },
+      () => ({
+        google: { isConfigured: () => true, isAuthenticated: () => true },
+        provider: { getChannelInfo: async () => ({ id: 'music-channel', title: 'JVTR' }) },
+      }),
+    );
+    assert.equal((await service.getChannel()).id, null);
+    assert.equal(connected, 0);
+    assert.equal((await service.connectActiveProfile()).id, 'music-channel');
+    assert.equal(connected, 1);
   });
 
   test('temporary provider failure preserves last-known-good data as DEGRADED', async () => {
@@ -65,6 +99,7 @@ describe('live channel persistence', { concurrency: false }, () => {
       { isConfigured: () => true, isAuthenticated: () => true },
       { findLatest: async () => cached, upsert: async () => { throw new Error('must not save'); } },
       { getChannelInfo: async () => { throw Object.assign(new Error('private'), { code: 'ETIMEDOUT' }); } },
+      noActiveProfile,
     );
     const result = await service.getChannel();
     assert.equal(result.integration.state, 'DEGRADED');
@@ -80,6 +115,7 @@ describe('live channel persistence', { concurrency: false }, () => {
       { isConfigured: () => true, isAuthenticated: () => true, markReauthenticationRequired: () => { marked += 1; } },
       { findLatest: async () => cached, upsert: async () => { throw new Error('must not save'); } },
       { getChannelInfo: async () => { throw { response: { status: 400, data: { error: 'invalid_grant' } } }; } },
+      noActiveProfile,
     );
     const result = await service.getChannel();
     assert.equal(result.integration.state, 'AUTH_REQUIRED');
@@ -94,6 +130,7 @@ describe('live channel persistence', { concurrency: false }, () => {
       { isConfigured: () => true, isAuthenticated: () => false },
       { findLatest: async () => null },
       { getChannelInfo: async () => { calls += 1; } },
+      noActiveProfile,
     );
     const result = await service.getChannel();
     assert.equal(result.integration.state, 'AUTH_REQUIRED');
@@ -107,6 +144,7 @@ describe('live channel persistence', { concurrency: false }, () => {
       { isConfigured: () => true, isAuthenticated: () => false },
       { findLatest: async () => cached },
       { getChannelInfo: async () => { throw new Error('must not call provider'); } },
+      noActiveProfile,
     );
     const result = await service.getChannel();
     assert.equal(result.integration.state, 'AUTH_REQUIRED');
@@ -208,6 +246,18 @@ test('recent channel content keeps the newest persisted snapshot per video', asy
   assert.deepEqual(result.map(({ id }) => id), ['new-a', 'b']);
   assert.equal(result[0].title, 'A novo');
   assert.equal('source' in result[0], false);
+});
+
+test('selected channel profiles never fall back to unassigned legacy content', async () => {
+  let calls = 0;
+  const unassigned = new ChannelContentService({ findAll: async () => { calls += 1; return [{ id: 'legacy', videoId: 'games' }]; } }, { getActive: async () => ({ id: 'music', projectId: null }) });
+  assert.deepEqual(await unassigned.listRecent(), []);
+  assert.equal(calls, 0);
+
+  let filters;
+  const scoped = new ChannelContentService({ findAll: async (value) => { filters = value; return [{ id: 'music', videoId: 'music-video', collectedAt: new Date() }]; } }, { getActive: async () => ({ id: 'music', projectId: 'project-music' }) });
+  assert.deepEqual((await scoped.listRecent()).map((item) => item.videoId), ['music-video']);
+  assert.deepEqual(filters, { projectId: 'project-music' });
 });
 
 test('channel content pagination deduplicates before slicing and reports totals', async () => {

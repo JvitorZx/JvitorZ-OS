@@ -1,5 +1,6 @@
 import { DatabaseService } from '../database/DatabaseService';
 import { VideoPerformanceSnapshotRepository } from '../database/repositories/VideoPerformanceSnapshotRepository';
+import { ChannelProfileService } from './ChannelProfileService';
 
 export class ChannelContentValidationError extends Error {}
 export class ChannelVideoNotFoundError extends Error {}
@@ -39,13 +40,25 @@ const csvCell = (value: unknown): string => {
 export class ChannelContentService {
   constructor(
     private readonly snapshots = new VideoPerformanceSnapshotRepository(DatabaseService.client),
+    private readonly profiles?: Pick<ChannelProfileService, 'getActive'>,
   ) {}
+
+  private async records(filters: { videoId?: string } = {}) {
+    const activeProfile = await this.profiles?.getActive();
+    if (activeProfile) {
+      // Legacy records are visible only after an explicit user-confirmed adoption.
+      // A profile without its own workspace otherwise sees no unrelated global data.
+      if (!activeProfile.projectId && !activeProfile.usesLegacyWorkspaceData) return [];
+      return this.snapshots.findAll({ projectId: activeProfile.projectId ?? null, ...filters });
+    }
+    return this.snapshots.findAll(filters);
+  }
 
   async listRecent(limit = 12) {
     if (!Number.isInteger(limit) || limit < 1 || limit > 50) {
       throw new ChannelContentValidationError('limit must be an integer from 1 to 50');
     }
-    const records = await this.snapshots.findAll();
+    const records = await this.records();
     const videos = new Map<string, (typeof records)[number]>();
     for (const record of records) {
       if (!videos.has(record.videoId)) videos.set(record.videoId, record);
@@ -57,7 +70,7 @@ export class ChannelContentService {
   async listPage(page = 1, pageSize = 12) {
     if (!Number.isInteger(page) || page < 1) throw new ChannelContentValidationError('page must be a positive integer');
     if (!Number.isInteger(pageSize) || pageSize < 1 || pageSize > 50) throw new ChannelContentValidationError('pageSize must be an integer from 1 to 50');
-    const records = await this.snapshots.findAll();
+    const records = await this.records();
     const videos = new Map<string, (typeof records)[number]>();
     for (const record of records) if (!videos.has(record.videoId)) videos.set(record.videoId, record);
     const all = [...videos.values()]; const offset = (page - 1) * pageSize;
@@ -65,7 +78,7 @@ export class ChannelContentService {
   }
 
   async exportCsv() {
-    const records = await this.snapshots.findAll(); const videos = new Map<string, (typeof records)[number]>();
+    const records = await this.records(); const videos = new Map<string, (typeof records)[number]>();
     for (const record of records) if (!videos.has(record.videoId)) videos.set(record.videoId, record);
     const fields = ['videoId', 'title', 'format', 'publishedAt', 'collectedAt', 'views', 'watchTimeMinutes', 'averageViewPercentage', 'impressions', 'ctr', 'subscribersGained', 'likes', 'comments'] as const;
     return [fields.join(','), ...[...videos.values()].map((record) => fields.map((field) => csvCell(record[field])).join(','))].join('\r\n');
@@ -73,13 +86,13 @@ export class ChannelContentService {
 
   async getVideo(videoId: string) {
     const id = identifier(videoId);
-    const records = await this.snapshots.findAll({ videoId: id });
+    const records = await this.records({ videoId: id });
     if (records.length === 0) throw new ChannelVideoNotFoundError('video not found');
     return { current: view(records[0]), history: records.slice(0, 20).map(view) };
   }
 
   async getSummary() {
-    const records = await this.snapshots.findAll();
+    const records = await this.records();
     const latest = new Map<string, (typeof records)[number]>();
     for (const record of records) if (!latest.has(record.videoId)) latest.set(record.videoId, record);
     const values = [...latest.values()];

@@ -27,3 +27,4 @@ export * from './TrendSignalRepository';
 export * from './SeriesDefinitionRepository';
 export * from './ContentPatternRepository';
 export * from './ChapterRepository';
+export * from './ChannelProfileRepository';

@@ -8,6 +8,7 @@ type ChannelSummary = {
   viewCount: string | null;
   country: string | null;
   publishedAt: string | null;
+  thumbnailUrl: string | null;
   integration: Awaited<ReturnType<ChannelDataService['getChannel']>>['integration'];
 };
 

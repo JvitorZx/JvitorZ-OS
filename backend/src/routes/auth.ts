@@ -2,6 +2,7 @@ import { Router } from 'express';
 import GoogleAuth from '../integrations/google/GoogleAuth';
 import { OAuthStateStore } from '../integrations/google/OAuthStateStore';
 import { GoogleService } from '../services/GoogleService';
+import { ChannelProfileSession } from '../services/ChannelProfileSession';
 
 const router = Router();
 const oauthStateStore = new OAuthStateStore();
@@ -15,7 +16,9 @@ const getSafeErrorName = (error: unknown): string => {
 
 router.get('/google', (_req, res) => {
   const googleAuth = getGoogleAuth();
-  const state = oauthStateStore.create();
+  const profileId = new ChannelProfileSession().getActiveProfileId();
+  if (!profileId) return res.status(409).json({ error: 'Select a channel profile before connecting Google.' });
+  const state = oauthStateStore.create({ profileId });
   const authUrl = googleAuth.getAuthUrl(state);
   console.log('Google OAuth authorization redirect started', { stage: 'authorization_redirect' });
   return res.redirect(authUrl);
@@ -32,12 +35,12 @@ router.get('/google/callback', async (req, res) => {
     return res.status(400).json({ error: 'Invalid or expired OAuth state' });
   }
 
-  const stateValidation = oauthStateStore.consume(state);
+  const stateContext = oauthStateStore.consumeWithContext(state);
 
-  if (stateValidation !== 'valid') {
+  if (stateContext.validation !== 'valid' || !stateContext.profileId) {
     console.warn('Google OAuth state validation failed', {
       stage: 'state_validation',
-      reason: stateValidation,
+      reason: stateContext.validation,
     });
     return res.status(400).json({ error: 'Invalid or expired OAuth state' });
   }
@@ -51,7 +54,11 @@ router.get('/google/callback', async (req, res) => {
   try {
     const googleAuth = getGoogleAuth();
     const tokens = await googleAuth.getToken(code);
-    new GoogleService().saveTokens(tokens);
+    const session = new ChannelProfileSession();
+    const tokenFilePath = session.getTokenFilePath(stateContext.profileId);
+    if (!tokenFilePath) throw new Error('Missing selected channel profile');
+    // The OAuth state retains the profile chosen before Google redirected the browser.
+    new GoogleService(tokenFilePath).saveTokens(tokens);
     console.log('Google OAuth callback completed', { stage: 'callback' });
     return res.json({ message: 'Google authentication completed successfully.' });
   } catch (error) {

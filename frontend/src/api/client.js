@@ -160,6 +160,38 @@ export const createApiClient = (baseUrl) => ({
     return requestJson(`${baseUrl}/api/youtube/channel`, undefined, 'Erro ao carregar o canal do YouTube');
   },
 
+  async listChannelProfiles() {
+    return requestJson(`${baseUrl}/api/channel-profiles`, undefined, 'Erro ao carregar perfis de canal');
+  },
+
+  async createChannelProfile(input) {
+    if (!input || typeof input !== 'object' || Array.isArray(input)) throw new TypeError('channel profile input must be an object');
+    const displayName = requireIdentifier(input.displayName, 'displayName');
+    const body = { displayName };
+    if (input.projectId !== undefined) body.projectId = requireIdentifier(input.projectId, 'projectId');
+    return requestJson(`${baseUrl}/api/channel-profiles`, {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body),
+    }, 'Erro ao criar perfil de canal');
+  },
+
+  async activateChannelProfile(profileId) {
+    return requestJson(`${baseUrl}/api/channel-profiles/${encodeURIComponent(requireIdentifier(profileId, 'profileId'))}/activate`, {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}',
+    }, 'Erro ao trocar perfil de canal');
+  },
+
+  async connectChannelProfile(profileId) {
+    return requestJson(`${baseUrl}/api/channel-profiles/${encodeURIComponent(requireIdentifier(profileId, 'profileId'))}/connect`, {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}',
+    }, 'Erro ao vincular conta ao perfil de canal');
+  },
+
+  async adoptLegacyChannelData(profileId) {
+    return requestJson(`${baseUrl}/api/channel-profiles/${encodeURIComponent(requireIdentifier(profileId, 'profileId'))}/adopt-legacy-data`, {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}',
+    }, 'Erro ao associar o histórico existente ao perfil de canal');
+  },
+
   async syncYouTubeChannel() {
     return requestJson(
       `${baseUrl}/api/youtube/channel/sync`,

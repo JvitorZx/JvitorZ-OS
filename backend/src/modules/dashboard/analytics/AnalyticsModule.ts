@@ -3,6 +3,7 @@ import { VideoPerformanceSnapshotRepository } from '../../../database/repositori
 import { VideoReachSnapshotRepository } from '../../../database/repositories/VideoReachSnapshotRepository';
 import { DataQualityService } from '../../../domains/data-quality/DataQualityService';
 import { AudienceIntelligenceService } from '../../../services/audience/AudienceIntelligenceService';
+import { ChannelProfileService } from '../../../services/ChannelProfileService';
 
 const average = (values: Array<number | null>): number | null => {
   const known = values.filter((value): value is number => typeof value === 'number' && Number.isFinite(value));
@@ -22,12 +23,16 @@ export class AnalyticsModule {
     private readonly reachSnapshots = new VideoReachSnapshotRepository(DatabaseService.client),
     private readonly qualityService = new DataQualityService(),
     private readonly audienceIntelligence = new AudienceIntelligenceService(),
+    private readonly channelProfiles: Pick<ChannelProfileService, 'getActive'> = new ChannelProfileService(),
   ) {}
 
   async getDashboardAnalytics() {
-    const persisted = await this.snapshots.findAll();
+    const activeProfile = await this.channelProfiles.getActive();
+    const hasScopedData = !activeProfile || Boolean(activeProfile.projectId || activeProfile.usesLegacyWorkspaceData);
+    const projectId = activeProfile?.projectId ?? null;
+    const persisted = hasScopedData ? await this.snapshots.findAll({ projectId }) : [];
     let reach = [] as Awaited<ReturnType<VideoReachSnapshotRepository['findAll']>>;
-    try { reach = await this.reachSnapshots.findAll(); } catch { reach = []; }
+    try { reach = hasScopedData ? await this.reachSnapshots.findAll({ projectId }) : []; } catch { reach = []; }
     const latestByVideo = new Map<string, (typeof persisted)[number]>();
     for (const snapshot of persisted) {
       if (!latestByVideo.has(snapshot.videoId)) latestByVideo.set(snapshot.videoId, snapshot);
@@ -38,7 +43,7 @@ export class AnalyticsModule {
       0,
     );
     let audience = null;
-    try { audience = await this.audienceIntelligence.summary(); } catch { audience = null; }
+    try { audience = hasScopedData ? await this.audienceIntelligence.summary(projectId) : null; } catch { audience = null; }
     return {
       performance: {
         views: records.length ? total('views') : null,

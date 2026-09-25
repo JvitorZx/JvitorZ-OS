@@ -8,6 +8,7 @@ import {
 } from '../services/GoogleService';
 import { ChannelDataService } from '../services/ChannelDataService';
 import { ChannelContentService, ChannelContentValidationError, ChannelVideoNotFoundError } from '../services/ChannelContentService';
+import { ChannelProfileService } from '../services/ChannelProfileService';
 
 type YouTubeRouteDependencies = {
   googleService: Pick<GoogleService, 'isAuthenticated'>;
@@ -20,7 +21,7 @@ export const createYouTubeRouter = (dependencies: Partial<YouTubeRouteDependenci
   const googleService = dependencies.googleService ?? new GoogleService();
   const createChannelService = dependencies.createChannelService ?? (() => new ChannelService());
   const channelDataService = dependencies.channelDataService ?? new ChannelDataService();
-  const channelContentService = dependencies.channelContentService ?? new ChannelContentService();
+  const channelContentService = dependencies.channelContentService ?? new ChannelContentService(undefined, new ChannelProfileService());
   const legacyDependencies = Boolean(dependencies.googleService || dependencies.createChannelService);
   const router = Router();
   router.get('/channel', async (_req, res) => {

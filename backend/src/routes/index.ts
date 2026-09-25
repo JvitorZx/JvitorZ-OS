@@ -21,11 +21,13 @@ import chaptersRoutes from './chapters';
 import shortsRoutes from './shorts';
 import mediaRoutes from './media';
 import renderRoutes from './renders';
+import channelProfilesRoutes from './channelProfiles';
 
 const router = Router();
 
 router.use('/auth', authRoutes);
 router.use('/youtube', youtubeRoutes);
+router.use('/channel-profiles', channelProfilesRoutes);
 router.use('/dashboard', dashboardRoutes);
 router.use('/operators', operatorsRoutes);
 router.use('/orchestrator', orchestratorRoutes);

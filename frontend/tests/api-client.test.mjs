@@ -808,4 +808,49 @@ describe('Editorial Decision API client', { concurrency: false }, () => {
       globalThis.fetch = originalFetch;
     }
   });
+
+  test('uses strict channel profile contracts without sending arbitrary channel data', async () => {
+    const originalFetch = globalThis.fetch;
+    const calls = [];
+    globalThis.fetch = async (...args) => {
+      calls.push(args);
+      return response(args[1]?.method === 'POST' && !String(args[0]).endsWith('/activate') && !String(args[0]).endsWith('/connect') ? 201 : 200, { id: 'profile/1', profiles: [] });
+    };
+    try {
+      const api = createApiClient(baseUrl);
+      await api.listChannelProfiles();
+      await api.createChannelProfile({ displayName: 'JvitorZx' });
+      await api.activateChannelProfile('profile/1');
+      await api.connectChannelProfile('profile/1');
+      await api.adoptLegacyChannelData('profile/1');
+      assert.deepEqual(calls[0], [`${baseUrl}/api/channel-profiles`, undefined]);
+      assert.deepEqual(calls[1], [`${baseUrl}/api/channel-profiles`, {
+        method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ displayName: 'JvitorZx' }),
+      }]);
+      assert.deepEqual(calls[2], [`${baseUrl}/api/channel-profiles/profile%2F1/activate`, {
+        method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}',
+      }]);
+      assert.deepEqual(calls[3], [`${baseUrl}/api/channel-profiles/profile%2F1/connect`, {
+        method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}',
+      }]);
+      assert.deepEqual(calls[4], [`${baseUrl}/api/channel-profiles/profile%2F1/adopt-legacy-data`, {
+        method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}',
+      }]);
+    } finally { globalThis.fetch = originalFetch; }
+  });
+
+  test('rejects invalid channel profile inputs before network access', async () => {
+    const originalFetch = globalThis.fetch;
+    let calls = 0;
+    globalThis.fetch = async () => { calls += 1; return response(200, {}); };
+    try {
+      const api = createApiClient(baseUrl);
+      await assert.rejects(api.createChannelProfile({ displayName: ' ' }), TypeError);
+      await assert.rejects(api.createChannelProfile(null), TypeError);
+      await assert.rejects(api.activateChannelProfile(''), TypeError);
+      await assert.rejects(api.connectChannelProfile(null), TypeError);
+      await assert.rejects(api.adoptLegacyChannelData(' '), TypeError);
+      assert.equal(calls, 0);
+    } finally { globalThis.fetch = originalFetch; }
+  });
 });

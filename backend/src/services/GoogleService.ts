@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import { google } from 'googleapis';
 import type { Credentials, OAuth2Client } from 'google-auth-library';
+import { ChannelProfileSession } from './ChannelProfileSession';
 
 type GoogleRequestError = {
   name?: unknown;
@@ -14,7 +15,7 @@ type GoogleRequestError = {
   };
 };
 
-let observedReauthenticationRequired = false;
+const observedReauthenticationRequired = new Set<string>();
 
 const safeIdentifier = (value: unknown): string | undefined =>
   typeof value === 'string' && /^[A-Za-z][A-Za-z0-9_.-]{0,63}$/.test(value)
@@ -51,7 +52,24 @@ export const getSafeGoogleRequestError = (error: unknown): Record<string, unknow
 };
 
 export class GoogleService {
-  constructor(private readonly tokenFilePath = path.resolve(__dirname, '../../google-tokens.json')) {}
+  private readonly legacyTokenFilePath: string;
+  private readonly explicitTokenFilePath?: string;
+
+  constructor(
+    tokenFilePath?: string,
+    private readonly requireActiveProfileToken = false,
+    private readonly profileSession = new ChannelProfileSession(),
+  ) {
+    this.legacyTokenFilePath = tokenFilePath ?? path.resolve(__dirname, '../../google-tokens.json');
+    this.explicitTokenFilePath = tokenFilePath;
+  }
+
+  private getTokenFilePath(): string {
+    if (this.explicitTokenFilePath) return this.explicitTokenFilePath;
+    const profileTokenPath = this.profileSession.getTokenFilePath();
+    if (profileTokenPath && (this.requireActiveProfileToken || fs.existsSync(profileTokenPath))) return profileTokenPath;
+    return this.legacyTokenFilePath;
+  }
 
   isConfigured(): boolean {
     return Boolean(
@@ -62,7 +80,7 @@ export class GoogleService {
   }
 
   loadTokens(): Credentials | null {
-    const tokenFilePath = this.tokenFilePath;
+    const tokenFilePath = this.getTokenFilePath();
 
     // Se o arquivo não existe, retornamos null para indicar ausência de tokens
     if (!fs.existsSync(tokenFilePath)) {
@@ -82,22 +100,23 @@ export class GoogleService {
   }
 
   saveTokens(tokens: Credentials): void {
-    const tokenFilePath = this.tokenFilePath;
+    const tokenFilePath = this.getTokenFilePath();
     const existing = this.loadTokens() ?? {};
     const merged: Credentials = { ...existing, ...tokens };
     const temporaryPath = `${tokenFilePath}.tmp`;
+    fs.mkdirSync(path.dirname(tokenFilePath), { recursive: true });
     fs.writeFileSync(temporaryPath, JSON.stringify(merged, null, 2), { encoding: 'utf-8' });
     fs.renameSync(temporaryPath, tokenFilePath);
-    observedReauthenticationRequired = false;
+    observedReauthenticationRequired.delete(tokenFilePath);
   }
 
   markReauthenticationRequired(): void {
-    observedReauthenticationRequired = true;
+    observedReauthenticationRequired.add(this.getTokenFilePath());
   }
 
   getAuthenticationState(): 'NOT_CONFIGURED' | 'AUTH_REQUIRED' | 'CONNECTED' {
     if (!this.isConfigured()) return 'NOT_CONFIGURED';
-    if (observedReauthenticationRequired) return 'AUTH_REQUIRED';
+    if (observedReauthenticationRequired.has(this.getTokenFilePath())) return 'AUTH_REQUIRED';
     const tokens = this.loadTokens();
     if (!tokens) return 'AUTH_REQUIRED';
     if (typeof tokens.refresh_token === 'string' && tokens.refresh_token.length > 0) return 'CONNECTED';
@@ -108,6 +127,7 @@ export class GoogleService {
   }
 
   getClient(): OAuth2Client {
+    const tokenOwner = new GoogleService(this.getTokenFilePath());
     // Lê as variáveis de ambiente que definem as credenciais do OAuth2
     const clientId = process.env.GOOGLE_CLIENT_ID;
     const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
@@ -121,7 +141,7 @@ export class GoogleService {
     const oauth2Client = new google.auth.OAuth2(clientId, clientSecret, redirectUri);
 
     // Tenta carregar tokens salvos do arquivo
-    const tokens = this.loadTokens();
+    const tokens = tokenOwner.loadTokens();
 
     if (!tokens) {
       throw new Error('User is not authenticated with Google');
@@ -129,7 +149,7 @@ export class GoogleService {
 
     // Configura o cliente OAuth2 com os tokens carregados
     oauth2Client.setCredentials(tokens);
-    oauth2Client.on('tokens', (refreshed) => this.saveTokens(refreshed));
+    oauth2Client.on('tokens', (refreshed) => tokenOwner.saveTokens(refreshed));
 
     return oauth2Client;
   }

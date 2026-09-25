@@ -48,6 +48,7 @@ model Project {
   channelContextEntries ChannelContextEntry[]
   contentPackagings ContentPackaging[]
   contentProductions ContentProduction[]
+  channelProfile     ChannelProfile?
   createdAt        DateTime           @default(now())
   updatedAt        DateTime           @updatedAt
 }
@@ -76,6 +77,26 @@ model Message {
   createdAt      DateTime  @default(now())
 }
 
+// A profile is the explicit boundary between a creator channel and its workspace data.
+// Existing records remain unassigned until they are deliberately associated with a profile.
+model ChannelProfile {
+  id               String            @id @default(cuid())
+  projectId        String?           @unique
+  project          Project?          @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  youtubeChannelId String?           @unique
+  displayName      String
+  thumbnailUrl     String?
+  usesLegacyWorkspaceData Boolean @default(false)
+  legacyDataAdoptedAt DateTime?
+  connectionState  String            @default("DISCONNECTED")
+  isActive         Boolean           @default(false)
+  snapshots        ChannelSnapshot[]
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+
+  @@index([isActive])
+}
+
 model Operator {
   id          String    @id @default(cuid())
   name        String
@@ -87,6 +108,8 @@ model Operator {
 
 model ChannelSnapshot {
   id              String   @id @default(cuid())
+  channelProfileId String?
+  channelProfile   ChannelProfile? @relation(fields: [channelProfileId], references: [id], onDelete: SetNull)
   channelId       String   @unique
   title           String
   subscriberCount String?
@@ -99,6 +122,7 @@ model ChannelSnapshot {
   updatedAt       DateTime @updatedAt
 
   @@index([collectedAt])
+  @@index([channelProfileId, collectedAt])
 }
 
 model LibraryItem {

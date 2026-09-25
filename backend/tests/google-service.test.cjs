@@ -10,6 +10,7 @@ const {
   isGoogleReauthenticationRequired,
   isGoogleTemporarilyUnavailable,
 } = require('../dist/services/GoogleService.js');
+const { ChannelProfileSession } = require('../dist/services/ChannelProfileSession.js');
 
 const withConfiguredGoogle = async (callback) => {
   const previous = {
@@ -137,5 +138,27 @@ test('shares observed invalid-grant health until fresh credentials are saved', a
 
     second.saveTokens({ refresh_token: 'new-refresh', access_token: 'new-access' });
     assert.equal(first.getAuthenticationState(), 'CONNECTED');
+  });
+});
+
+test('keeps credentials isolated for each selected channel profile', async (t) => {
+  await withConfiguredGoogle(async () => {
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'jvitorz-channel-profile-'));
+    t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
+    const session = new ChannelProfileSession(directory);
+
+    session.setActiveProfileId('music');
+    const music = new GoogleService(undefined, true, session);
+    music.saveTokens({ refresh_token: 'music-refresh' });
+
+    session.setActiveProfileId('games');
+    const games = new GoogleService(undefined, true, session);
+    assert.equal(games.getAuthenticationState(), 'AUTH_REQUIRED');
+    games.saveTokens({ refresh_token: 'games-refresh' });
+
+    session.setActiveProfileId('music');
+    assert.equal(music.loadTokens().refresh_token, 'music-refresh');
+    session.setActiveProfileId('games');
+    assert.equal(games.loadTokens().refresh_token, 'games-refresh');
   });
 });

@@ -1,6 +1,8 @@
 import type { ChannelSnapshot, PrismaClient } from '@prisma/client';
 
-export type SaveChannelSnapshotData = Omit<ChannelSnapshot, 'id' | 'createdAt' | 'updatedAt'>;
+export type SaveChannelSnapshotData = Omit<ChannelSnapshot, 'id' | 'createdAt' | 'updatedAt' | 'channelProfileId'> & {
+  channelProfileId?: string | null;
+};
 
 export class ChannelSnapshotRepository {
   private readonly delegate: PrismaClient['channelSnapshot'];
@@ -17,8 +19,9 @@ export class ChannelSnapshotRepository {
     });
   }
 
-  async findLatest(): Promise<ChannelSnapshot | null> {
+  async findLatest(channelProfileId?: string | null): Promise<ChannelSnapshot | null> {
     return this.delegate.findFirst({
+      where: channelProfileId === undefined ? undefined : { channelProfileId },
       orderBy: [{ collectedAt: 'desc' }, { id: 'asc' }],
     });
   }
