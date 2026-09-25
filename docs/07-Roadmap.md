@@ -1865,6 +1865,20 @@ Entregas:
 
 Limite atual: outcomes, learnings e experimentos acessados diretamente por ID serão submetidos à mesma guarda de propriedade nas próximas etapas de isolamento. Nenhum conteúdo é movido automaticamente entre workspaces.
 
+## Sprint 106 - Monitoring Channel Boundary - CONCLUÍDA
+
+**Objetivo:** impedir que o painel de Monitoramento apresente ou altere sinais estratégicos de outro canal.
+
+Entregas:
+
+- listagem e avaliação de monitoramento usam o `Project` do canal ativo;
+- abertura, reconhecimento, dispensa e resolução verificam a propriedade do sinal;
+- sinais de outro workspace são tratados como inexistentes;
+- perfil ainda sem workspace recebe estado explícito em vez de herdar sinais legados;
+- regressão HTTP confirma isolamento de lista e detalhe.
+
+Limite atual: o controle de cadência do runtime é operacional e compartilhado pela instalação; ele não executa ações externas nem representa dados editoriais de um canal.
+
 ### Revisao de encerramento apos Sprint 53
 
 Renderer compartilhado entre rotas e servidor; shutdown bloqueia novos pedidos, preserva trabalhos interrompidos e aguarda o processo de video antes de desconectar o banco. Tres testes de regressao adicionados: total final 1.223 aprovados. Smoke adicional com servidor real em banco isolado confirmou enqueue HTTP seguido de shutdown, estado INTERRUPTED e worker ocioso antes do fechamento do banco. Sem migration adicional.

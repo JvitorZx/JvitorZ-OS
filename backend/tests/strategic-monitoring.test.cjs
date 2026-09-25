@@ -135,6 +135,26 @@ describe('strategic monitoring', { concurrency: false }, () => {
     assert.equal((await request('/evaluate', { method: 'POST', body: '{"extra":true}' })).status, 400);
   });
 
+  test('an active channel cannot read another workspace signal', async () => {
+    const signal = (await service.list())[0];
+    const isolatedApp = express(); isolatedApp.use(express.json());
+    isolatedApp.use(createMonitoringRouter(service, undefined, {
+      getActive: async () => ({ id: 'games', projectId: 'project-games', usesLegacyWorkspaceData: false }),
+    }));
+    const isolatedServer = await new Promise((resolve) => {
+      const instance = isolatedApp.listen(0, '127.0.0.1', () => resolve(instance));
+    });
+    try {
+      const base = `http://127.0.0.1:${isolatedServer.address().port}`;
+      assert.deepEqual(await (await fetch(`${base}/signals`)).json(), []);
+      const response = await fetch(`${base}/signals/${signal.id}`);
+      assert.equal(response.status, 404);
+      assert.deepEqual(await response.json(), { error: 'Strategic signal not found' });
+    } finally {
+      await new Promise((resolve) => isolatedServer.close(resolve));
+    }
+  });
+
   test('manager recognizes monitoring questions as an explicit read-only intent', () => {
     assert.equal(classifyManagerIntent('quais sinais estrategicos precisam de atencao?'), 'STRATEGIC_MONITORING');
     assert.equal(isEditorialQuestion('o que mudou no canal?'), true);

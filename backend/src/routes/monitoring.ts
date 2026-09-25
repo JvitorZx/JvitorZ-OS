@@ -9,6 +9,7 @@ import {
   StrategicSignalNotFoundError,
 } from '../services/strategic-monitoring';
 import { automationRuntime } from '../services/automation/AutomationRuntimeService';
+import { ChannelProfileService } from '../services/ChannelProfileService';
 
 const isObject = (value: unknown): value is Record<string, unknown> => Boolean(value && typeof value === 'object' && !Array.isArray(value));
 const hasOnly = (value: Record<string, unknown>, fields: readonly string[]) => Object.keys(value).every((field) => fields.includes(field));
@@ -29,11 +30,42 @@ const sendError = (res: Parameters<Parameters<Router['get']>[1]>[1], error: unkn
 export const createMonitoringRouter = (
   service: StrategicMonitoringService = new StrategicMonitoringService(),
   providedControl?: MonitoringControlService,
+  channelProfiles: Pick<ChannelProfileService, 'getActive'> = new ChannelProfileService(),
 ): Router => {
   const router = Router();
   const control = providedControl ?? new MonitoringControlService(
     undefined, service, undefined, undefined, () => automationRuntime.getHealth(),
   );
+
+  const activeProject = async (res: Parameters<Parameters<Router['get']>[1]>[1]) => {
+    try {
+      const profile = await channelProfiles.getActive();
+      if (!profile) return { scoped: false as const, projectId: null };
+      if (!profile.projectId && !profile.usesLegacyWorkspaceData) {
+        res.status(409).json({ error: 'Active channel workspace is not ready' });
+        return null;
+      }
+      return { scoped: true as const, projectId: profile.usesLegacyWorkspaceData ? null : profile.projectId };
+    } catch {
+      return { scoped: false as const, projectId: null };
+    }
+  };
+
+  const resolvedProjectId = (scope: { scoped: boolean; projectId: string | null }, requested: unknown) =>
+    scope.scoped ? scope.projectId : (typeof requested === 'string' ? requested || null : undefined);
+
+  const belongsToActiveProject = async (res: Parameters<Parameters<Router['get']>[1]>[1], id: string) => {
+    const scope = await activeProject(res);
+    if (!scope) return false;
+    if (!scope.scoped) return true;
+    try {
+      if ((await service.get(id)).projectId === scope.projectId) return true;
+    } catch {
+      // An inaccessible signal must not disclose another channel's records.
+    }
+    res.status(404).json({ error: 'Strategic signal not found' });
+    return false;
+  };
 
   router.get('/control', async (req, res) => {
     if (Object.keys(req.query).length) return res.status(400).json({ error: 'invalid monitoring control query' });
@@ -76,8 +108,11 @@ export const createMonitoringRouter = (
       return res.status(400).json({ error: 'invalid monitoring query' });
     }
     try {
+      const scope = await activeProject(res);
+      if (!scope) return;
+      const projectId = resolvedProjectId(scope, req.query.projectId);
       return res.status(200).json(await service.list({
-        ...('projectId' in req.query ? { projectId: req.query.projectId || null } : {}),
+        ...(projectId !== undefined ? { projectId } : {}),
         ...(req.query.state ? { state: req.query.state } : {}),
         ...(req.query.severity ? { severity: req.query.severity } : {}),
         ...(req.query.type ? { type: req.query.type } : {}),
@@ -91,7 +126,9 @@ export const createMonitoringRouter = (
       return res.status(400).json({ error: 'invalid monitoring evaluation payload' });
     }
     try {
-      const result = await control.runNow('projectId' in req.body ? req.body.projectId || null : undefined);
+      const scope = await activeProject(res);
+      if (!scope) return;
+      const result = await control.runNow(resolvedProjectId(scope, req.body.projectId));
       return res.status(200).json(result.evaluation);
     }
     catch (error) { return sendError(res, error); }
@@ -100,6 +137,7 @@ export const createMonitoringRouter = (
   router.get('/signals/:id', async (req, res) => {
     const id = req.params.id?.trim();
     if (!id || Object.keys(req.query).length) return res.status(400).json({ error: 'invalid strategic signal id' });
+    if (!await belongsToActiveProject(res, id)) return;
     try { return res.status(200).json(await service.get(id)); }
     catch (error) { return sendError(res, error); }
   });
@@ -112,6 +150,7 @@ export const createMonitoringRouter = (
     if (!id || !isObject(req.body) || !hasOnly(req.body, ['reason']) || !optionalText(req.body.reason)) {
       return res.status(400).json({ error: `invalid strategic signal ${action} payload` });
     }
+    if (!await belongsToActiveProject(res, id)) return;
     try { return res.status(200).json(await service[action](id, req.body.reason as string | null | undefined)); }
     catch (error) { return sendError(res, error); }
   };
