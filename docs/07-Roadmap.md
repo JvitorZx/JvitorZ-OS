@@ -1852,6 +1852,19 @@ Entregas:
 
 Limite atual: operações direcionadas a um item ou plano específico serão migradas gradualmente para a mesma verificação de propriedade. A interface já não pode usar a consulta de plano atual para atravessar a fronteira entre canais.
 
+## Sprint 105 - Planning Resource Ownership - CONCLUÍDA
+
+**Objetivo:** aplicar o isolamento do canal também às operações que chegam por IDs já conhecidos.
+
+Entregas:
+
+- abertura, edição, conclusão, execução, reordenação e vínculo de resultado de itens do Planejamento verificam o `Project` do plano antes da operação;
+- um item ou plano pertencente a outro canal é tratado como inexistente, sem revelar sua presença;
+- históricos de planejamento e execução filtram pela mesma workspace ativa, inclusive quando a consulta não traz um ID;
+- regressão verifica link direto e histórico de outro canal.
+
+Limite atual: outcomes, learnings e experimentos acessados diretamente por ID serão submetidos à mesma guarda de propriedade nas próximas etapas de isolamento. Nenhum conteúdo é movido automaticamente entre workspaces.
+
 ### Revisao de encerramento apos Sprint 53
 
 Renderer compartilhado entre rotas e servidor; shutdown bloqueia novos pedidos, preserva trabalhos interrompidos e aguarda o processo de video antes de desconectar o banco. Tres testes de regressao adicionados: total final 1.223 aprovados. Smoke adicional com servidor real em banco isolado confirmou enqueue HTTP seguido de shutdown, estado INTERRUPTED e worker ocioso antes do fechamento do banco. Sem migration adicional.

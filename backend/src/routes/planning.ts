@@ -100,6 +100,26 @@ export const createPlanningRouter = (
     requested: unknown,
   ): string | null | undefined => scope.scoped ? scope.projectId : (typeof requested === 'string' ? requested || null : undefined);
 
+  const belongsToActiveProject = async (
+    res: Parameters<Parameters<Router['get']>[1]>[1],
+    resource: 'plan' | 'item',
+    id: string,
+  ): Promise<boolean> => {
+    const scope = await activeProject(res);
+    if (!scope) return false;
+    if (!scope.scoped) return true;
+    try {
+      const projectId = resource === 'plan'
+        ? (await service.getById(id)).projectId
+        : (await service.getItemById(id)).plan.projectId;
+      if (projectId === scope.projectId) return true;
+    } catch {
+      // Cross-channel records deliberately look the same as missing records.
+    }
+    res.status(404).json({ error: resource === 'plan' ? 'Content plan not found' : 'Planned content item not found' });
+    return false;
+  };
+
   router.get('/current/guidance', async (req, res) => {
     if (!hasOnly(req.query as Record<string, unknown>, ['projectId', 'horizon'])
       || !optionalText(req.query.projectId) || !optionalText(req.query.horizon)) {
@@ -160,6 +180,7 @@ export const createPlanningRouter = (
       return res.status(400).json({ error: 'invalid planning item payload' });
     }
     try {
+      if (!await belongsToActiveProject(res, 'plan', req.body.planId)) return;
       const item = await service.createItem({
         planId: req.body.planId, title: req.body.title, reason: req.body.reason,
         ...(req.body.candidateType ? { candidateType: req.body.candidateType } : {}),
@@ -176,6 +197,7 @@ export const createPlanningRouter = (
     if (!id || !isObject(req.body) || !hasOnly(req.body, ['status', 'priority', 'effort', 'reason', 'requestResearch'])) {
       return res.status(400).json({ error: 'invalid planning item payload' });
     }
+    if (!await belongsToActiveProject(res, 'item', id)) return;
     if (req.body.requestResearch === true) {
       if (Object.keys(req.body).length !== 1) return res.status(400).json({ error: 'research request cannot contain other fields' });
       try { return res.status(200).json(await service.requestResearch(id)); }
@@ -201,6 +223,7 @@ export const createPlanningRouter = (
     if (!id || !isObject(req.body) || !hasOnly(req.body, ['reason']) || !optionalText(req.body.reason)) {
       return res.status(400).json({ error: 'invalid completion payload' });
     }
+    if (!await belongsToActiveProject(res, 'item', id)) return;
     try { return res.status(200).json(await service.completeItem(id, req.body.reason || undefined)); }
     catch (error) { return sendError(res, error); }
   });
@@ -213,6 +236,7 @@ export const createPlanningRouter = (
       || (req.body.note !== undefined && typeof req.body.note !== 'string')) {
       return res.status(400).json({ error: 'invalid planning execution payload' });
     }
+    if (!await belongsToActiveProject(res, 'item', id)) return;
     try {
       return res.status(200).json(await service.transitionExecution(id, {
         state: req.body.state as never,
@@ -228,6 +252,7 @@ export const createPlanningRouter = (
       || !Array.isArray(req.body.itemIds) || !req.body.itemIds.every((id) => typeof id === 'string')) {
       return res.status(400).json({ error: 'invalid reorder payload' });
     }
+    if (!await belongsToActiveProject(res, 'plan', req.body.planId)) return;
     try { return res.status(200).json(await service.reorder(req.body.planId, req.body.itemIds, req.body.reason)); }
     catch (error) { return sendError(res, error); }
   });
@@ -239,7 +264,10 @@ export const createPlanningRouter = (
       return res.status(400).json({ error: 'invalid planning history query' });
     }
     try {
+      const scope = await activeProject(res);
+      if (!scope) return;
       return res.status(200).json(await service.listHistory({
+        ...(scope.scoped ? { projectId: scope.projectId } : {}),
         ...(req.query.planId ? { planId: req.query.planId } : {}),
         ...(req.query.itemId ? { itemId: req.query.itemId } : {}),
         ...(req.query.limit ? { limit: Number(req.query.limit) } : {}),
@@ -254,7 +282,10 @@ export const createPlanningRouter = (
       return res.status(400).json({ error: 'invalid planning execution history query' });
     }
     try {
+      const scope = await activeProject(res);
+      if (!scope) return;
       return res.status(200).json(await service.listExecutionHistory({
+        ...(scope.scoped ? { projectId: scope.projectId } : {}),
         ...(req.query.planId ? { planId: req.query.planId } : {}),
         ...(req.query.itemId ? { itemId: req.query.itemId } : {}),
         ...(req.query.limit ? { limit: Number(req.query.limit) } : {}),
@@ -265,6 +296,7 @@ export const createPlanningRouter = (
   router.get('/items/:id/video-candidates', async (req, res) => {
     const id = req.params.id?.trim();
     if (!id || Object.keys(req.query).length > 0) return res.status(400).json({ error: 'invalid planning item id' });
+    if (!await belongsToActiveProject(res, 'item', id)) return;
     try { return res.status(200).json(await outcomeService.listVideoCandidates(id)); }
     catch (error) { return sendError(res, error); }
   });
@@ -272,6 +304,7 @@ export const createPlanningRouter = (
   router.get('/items/:id/outcome', async (req, res) => {
     const id = req.params.id?.trim();
     if (!id || Object.keys(req.query).length > 0) return res.status(400).json({ error: 'invalid planning item id' });
+    if (!await belongsToActiveProject(res, 'item', id)) return;
     try { return res.status(200).json(await outcomeService.getItemOutcome(id)); }
     catch (error) { return sendError(res, error); }
   });
@@ -282,6 +315,7 @@ export const createPlanningRouter = (
       || typeof req.body.snapshotId !== 'string' || !optionalText(req.body.reason)) {
       return res.status(400).json({ error: 'invalid planning video link payload' });
     }
+    if (!await belongsToActiveProject(res, 'item', id)) return;
     try {
       const result = await outcomeService.associateVideo(id, { snapshotId: req.body.snapshotId, reason: req.body.reason });
       return res.status(result.created ? 201 : 200).json(result);
@@ -293,6 +327,7 @@ export const createPlanningRouter = (
     if (!id || !isObject(req.body) || !hasOnly(req.body, ['reason']) || typeof req.body.reason !== 'string') {
       return res.status(400).json({ error: 'invalid planning video unlink payload' });
     }
+    if (!await belongsToActiveProject(res, 'item', id)) return;
     try { return res.status(200).json(await outcomeService.unlinkVideo(id, req.body.reason)); }
     catch (error) { return sendError(res, error); }
   });
@@ -302,6 +337,7 @@ export const createPlanningRouter = (
     if (!id || !isObject(req.body) || !hasOnly(req.body, ['snapshotId']) || !optionalText(req.body.snapshotId)) {
       return res.status(400).json({ error: 'invalid planning outcome payload' });
     }
+    if (!await belongsToActiveProject(res, 'item', id)) return;
     try {
       const result = await outcomeService.captureOutcome(id, req.body.snapshotId);
       return res.status(result.created ? 201 : 200).json(result);
@@ -448,6 +484,7 @@ export const createPlanningRouter = (
   router.get('/:id', async (req, res) => {
     const id = req.params.id?.trim();
     if (!id || Object.keys(req.query).length > 0) return res.status(400).json({ error: 'invalid plan id' });
+    if (!await belongsToActiveProject(res, 'plan', id)) return;
     try { return res.status(200).json(await service.getById(id)); }
     catch (error) { return sendError(res, error); }
   });

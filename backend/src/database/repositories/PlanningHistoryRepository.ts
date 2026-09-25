@@ -14,9 +14,13 @@ export class PlanningHistoryRepository {
     return this.client.planningHistory.create({ data });
   }
 
-  async findAll(filters: { planId?: string; itemId?: string; limit?: number } = {}): Promise<PlanningHistory[]> {
+  async findAll(filters: { projectId?: string | null; planId?: string; itemId?: string; limit?: number } = {}): Promise<PlanningHistory[]> {
     return this.client.planningHistory.findMany({
-      where: { ...(filters.planId ? { planId: filters.planId } : {}), ...(filters.itemId ? { itemId: filters.itemId } : {}) },
+      where: {
+        ...('projectId' in filters ? { plan: { projectId: filters.projectId } } : {}),
+        ...(filters.planId ? { planId: filters.planId } : {}),
+        ...(filters.itemId ? { itemId: filters.itemId } : {}),
+      },
       orderBy: [{ createdAt: 'desc' }, { id: 'asc' }],
       take: filters.limit ?? 100,
     });

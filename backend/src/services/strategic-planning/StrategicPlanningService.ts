@@ -279,6 +279,12 @@ export class StrategicPlanningService {
     return plan;
   }
 
+  async getItemById(id: string) {
+    const item = await this.items.findById(normalizeId(id, 'item id'));
+    if (!item) throw new PlannedContentItemNotFoundError();
+    return item;
+  }
+
   async createItem(input: CreateManualPlanningItemInput) {
     const plan = await this.getById(input.planId);
     const title = normalizeText(input.title, 'title', 240);
@@ -354,8 +360,7 @@ export class StrategicPlanningService {
   }
 
   async updateItem(id: string, input: UpdatePlanningItemInput) {
-    const item = await this.items.findById(normalizeId(id, 'item id'));
-    if (!item) throw new PlannedContentItemNotFoundError();
+    const item = await this.getItemById(id);
     const reason = normalizeText(input.reason, 'reason', 500);
     const data: Prisma.PlannedContentItemUpdateInput = {};
     const executionState = input.status === 'IN_PROGRESS' ? 'in_progress'
@@ -411,8 +416,7 @@ export class StrategicPlanningService {
   }
 
   async requestResearch(id: string) {
-    const item = await this.items.findById(normalizeId(id, 'item id'));
-    if (!item) throw new PlannedContentItemNotFoundError();
+    const item = await this.getItemById(id);
     if (item.readiness !== 'NEEDS_RESEARCH') throw new StrategicPlanningValidationError('item does not require research');
     const result = await this.research.research({
       query: `Investigue evidencias para o item editorial: ${item.title}`,
@@ -429,9 +433,9 @@ export class StrategicPlanningService {
     }, 'RESEARCH_REQUESTED', 'Pesquisa controlada solicitada para resolver dados faltantes.');
   }
 
-  async listHistory(filters: { planId?: string; itemId?: string; limit?: number } = {}) {
+  async listHistory(filters: { projectId?: string | null; planId?: string; itemId?: string; limit?: number } = {}) {
     if (filters.limit !== undefined && (!Number.isInteger(filters.limit) || filters.limit < 1 || filters.limit > 200)) throw new StrategicPlanningValidationError('invalid history limit');
-    return this.history.findAll({ ...filters, ...(filters.planId ? { planId: normalizeId(filters.planId, 'plan id') } : {}), ...(filters.itemId ? { itemId: normalizeId(filters.itemId, 'item id') } : {}) });
+    return this.history.findAll({ ...filters, ...('projectId' in filters ? { projectId: filters.projectId?.trim() || null } : {}), ...(filters.planId ? { planId: normalizeId(filters.planId, 'plan id') } : {}), ...(filters.itemId ? { itemId: normalizeId(filters.itemId, 'item id') } : {}) });
   }
 
   async getCurrentGuidance(filters: { projectId?: string | null; horizon?: PlanningHorizon } = {}) {
@@ -481,11 +485,12 @@ export class StrategicPlanningService {
     });
   }
 
-  async listExecutionHistory(filters: { planId?: string; itemId?: string; limit?: number } = {}) {
+  async listExecutionHistory(filters: { projectId?: string | null; planId?: string; itemId?: string; limit?: number } = {}) {
     if (filters.limit !== undefined && (!Number.isInteger(filters.limit) || filters.limit < 1 || filters.limit > 200)) {
       throw new StrategicPlanningValidationError('invalid execution history limit');
     }
     return this.execution.findAll({
+      ...('projectId' in filters ? { projectId: filters.projectId?.trim() || null } : {}),
       ...(filters.planId ? { planId: normalizeId(filters.planId, 'plan id') } : {}),
       ...(filters.itemId ? { itemId: normalizeId(filters.itemId, 'item id') } : {}),
       ...(filters.limit ? { limit: filters.limit } : {}),

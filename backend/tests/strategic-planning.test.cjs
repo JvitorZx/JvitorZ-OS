@@ -153,6 +153,25 @@ describe('strategic planning persistence, API and integrations', { concurrency: 
       await new Promise((resolve) => isolatedServer.close(resolve));
     }
   });
+  test('a direct planning link from another channel is treated as missing', async () => {
+    const isolatedApp = express(); isolatedApp.use(express.json());
+    isolatedApp.use(createPlanningRouter(service, undefined, undefined, undefined, {
+      getActive: async () => ({ id: 'games', projectId: 'project-games', usesLegacyWorkspaceData: false }),
+    }));
+    const isolatedServer = await new Promise((resolve) => {
+      const instance = isolatedApp.listen(0, '127.0.0.1', () => resolve(instance));
+    });
+    try {
+      const response = await fetch(`http://127.0.0.1:${isolatedServer.address().port}/${currentPlan.id}`);
+      assert.equal(response.status, 404);
+      assert.deepEqual(await response.json(), { error: 'Content plan not found' });
+      const history = await fetch(`http://127.0.0.1:${isolatedServer.address().port}/history`);
+      assert.equal(history.status, 200);
+      assert.deepEqual(await history.json(), []);
+    } finally {
+      await new Promise((resolve) => isolatedServer.close(resolve));
+    }
+  });
   test('combines persisted Research and EditorialDecision origins without duplicating ranking logic', async () => {
     await client.$executeRawUnsafe("INSERT INTO ResearchHistory(id) VALUES ('research-source')");
     await client.$executeRawUnsafe("INSERT INTO ResearchOpportunity(id) VALUES ('opportunity-source')");

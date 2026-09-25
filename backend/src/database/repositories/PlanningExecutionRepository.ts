@@ -91,9 +91,10 @@ export class PlanningExecutionRepository {
     });
   }
 
-  async findAll(filters: { planId?: string; itemId?: string; limit?: number } = {}): Promise<PlanningExecutionEvent[]> {
+  async findAll(filters: { projectId?: string | null; planId?: string; itemId?: string; limit?: number } = {}): Promise<PlanningExecutionEvent[]> {
     return this.client.planningExecutionEvent.findMany({
       where: {
+        ...('projectId' in filters ? { plan: { projectId: filters.projectId } } : {}),
         ...(filters.planId ? { planId: filters.planId } : {}),
         ...(filters.itemId ? { itemId: filters.itemId } : {}),
       },

@@ -1027,3 +1027,5 @@ O perfil que adotou explicitamente o acervo anterior usa somente o escopo legado
 O Dashboard resolve o escopo uma vez antes de montar os resumos: workspace próprio usa seu `projectId`, o perfil legado autorizado usa `null` e perfil pendente usa um escopo vazio. Operadores e Supervisor propagam a mesma escolha às leituras estratégicas. Assim, uma troca de canal não pode preencher cards operacionais com dados do canal anterior.
 
 O Planejamento aplica a mesma regra no servidor: plano atual, guidance, aprendizados e experimentos recebem o projeto do perfil ativo, e geração não confia em um `projectId` vindo do navegador. Um perfil conectado que ainda não tenha workspace recebe resposta explícita de preparação; ele nunca recai sobre os registros legados de outro canal.
+
+Operações por ID seguem a fronteira do plano: editar item, alterar execução, reordenar, consultar candidatos de vídeo e registrar outcome só continuam quando o plano pertence ao workspace ativo. Históricos de planejamento e de execução também são filtrados pela relação com o plano, evitando que uma tela de histórico sem filtro revele atividade de outro canal.
