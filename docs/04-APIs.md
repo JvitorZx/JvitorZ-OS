@@ -1086,6 +1086,16 @@ Coleta o canal autenticado e persiste o último resultado válido. Retorna `200`
 
 Executa uma atualização explícita e única do canal. Não recebe body. Retorna `200` somente depois que o snapshot atualizado foi persistido. Autorização ausente ou expirada retorna `401` com `AUTH_REQUIRED`; configuração ausente e indisponibilidade temporária retornam `503` com `CONFIG_MISSING` ou `PROVIDER_UNAVAILABLE`; falha inesperada retorna `500` sanitizado. Dados anteriores nunca são apagados por falha externa.
 
+### Perfis de canal
+
+- `GET /api/channel-profiles`: lista os perfis configurados e o identificador do perfil ativo;
+- `POST /api/channel-profiles`: cria um perfil a partir de `{ "displayName": "..." }` e opcionalmente um `projectId` existente;
+- `POST /api/channel-profiles/:id/activate`: torna um único perfil ativo;
+- `POST /api/channel-profiles/:id/connect`: associa explicitamente o canal da conta Google autorizada ao perfil ativo;
+- `POST /api/channel-profiles/:id/adopt-legacy-data`: permite que o perfil ativo assuma a leitura do histórico anterior sem perfil.
+
+As rotas não recebem token, ID de canal ou conteúdo de vídeo do navegador. O callback OAuth usa um `state` de curta duração ligado ao perfil escolhido e persiste credenciais somente no armazenamento local daquele perfil. Um perfil sem token próprio retorna o estado de autenticação necessário, nunca um token legado de outro perfil.
+
 ### `GET /api/youtube/videos?limit=12`
 
 Lista o snapshot persistido mais recente de cada vídeo, em ordem de coleta, sem acessar a rede externa. `limit` é opcional, inteiro entre 1 e 50. Retorna somente identidade, formato, datas e métricas realmente armazenadas; campos ausentes permanecem `null`. Payload inválido retorna `400` e falha inesperada retorna `500` sanitizado.

@@ -591,6 +591,20 @@ Sincronização recente consulta IDs de uploads e sincronização por período d
 
 Desde a Sprint 54, a workspace Canal oferece reconexão e sincronização explícitas. O fluxo é `Canal -> API client -> POST /api/youtube/channel/sync -> ChannelDataService -> YouTube Data API -> ChannelSnapshotRepository`. A UI bloqueia cliques concorrentes, ignora respostas após unmount e recarrega o estado global somente depois da persistência. Um snapshot existente continua visível durante falhas, mas OAuth expirado permanece identificado como `AUTH_REQUIRED`, não como indisponibilidade genérica.
 
+## Perfis de canal — Sprint 101
+
+```text
+seletor de perfil
+  -> POST /api/channel-profiles/:id/activate
+  -> sessão local seleciona o perfil
+  -> GET /api/channel-profiles atualiza identidade da sidebar
+  -> OAuth Google (state inclui o perfil)
+  -> token local exclusivo do perfil
+  -> vínculo explícito do canal e snapshot correspondente
+```
+
+O perfil ativo é a fronteira de leitura para Canal e Analytics. Histórico legado sem perfil só aparece depois de uma adoção explícita pelo perfil escolhido; essa ação não copia nem altera os registros anteriores. Perfil sem token próprio não usa token de outro perfil e mostra a necessidade de conexão de forma explícita.
+
 ## Reach Reporting e observabilidade — Sprint 32
 
 ```text

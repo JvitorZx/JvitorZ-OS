@@ -59,15 +59,18 @@ export class GoogleService {
     tokenFilePath?: string,
     private readonly requireActiveProfileToken = false,
     private readonly profileSession = new ChannelProfileSession(),
+    legacyTokenFilePath?: string,
   ) {
-    this.legacyTokenFilePath = tokenFilePath ?? path.resolve(__dirname, '../../google-tokens.json');
+    this.legacyTokenFilePath = legacyTokenFilePath ?? tokenFilePath ?? path.resolve(__dirname, '../../google-tokens.json');
     this.explicitTokenFilePath = tokenFilePath;
   }
 
   private getTokenFilePath(): string {
     if (this.explicitTokenFilePath) return this.explicitTokenFilePath;
     const profileTokenPath = this.profileSession.getTokenFilePath();
-    if (profileTokenPath && (this.requireActiveProfileToken || fs.existsSync(profileTokenPath))) return profileTokenPath;
+    // A selected channel is an isolation boundary. Falling back to the old shared
+    // token here could silently query a different creator account.
+    if (profileTokenPath) return profileTokenPath;
     return this.legacyTokenFilePath;
   }
 

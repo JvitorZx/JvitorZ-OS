@@ -162,3 +162,22 @@ test('keeps credentials isolated for each selected channel profile', async (t) =
     assert.equal(games.loadTokens().refresh_token, 'games-refresh');
   });
 });
+
+test('never falls back to legacy credentials while a selected profile has no token', async (t) => {
+  await withConfiguredGoogle(async () => {
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'jvitorz-channel-profile-fallback-'));
+    t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
+    const session = new ChannelProfileSession(directory);
+    const legacyTokenFile = path.join(directory, 'legacy-tokens.json');
+    fs.writeFileSync(legacyTokenFile, JSON.stringify({ refresh_token: 'legacy-refresh' }), 'utf8');
+
+    session.setActiveProfileId('new-channel');
+    const selectedProfile = new GoogleService(undefined, false, session, legacyTokenFile);
+    assert.equal(selectedProfile.loadTokens(), null);
+    assert.equal(selectedProfile.getAuthenticationState(), 'AUTH_REQUIRED');
+
+    fs.rmSync(path.join(directory, 'active.json'));
+    const noSelectedProfile = new GoogleService(undefined, false, session, legacyTokenFile);
+    assert.equal(noSelectedProfile.loadTokens().refresh_token, 'legacy-refresh');
+  });
+});

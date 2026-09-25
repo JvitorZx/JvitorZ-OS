@@ -1786,7 +1786,25 @@ Arquitetura e fluxo de dados foram alinhados ao workbench real. A regressão int
 
 O ciclo 81-100 consolida seleção e comparação factual, compatibilidade por formato e coleta, coortes de cobertura, tendências estritamente observadas, paginação backend/frontend, total persistido, tamanho de página e exportação CSV segura. Contratos antigos permanecem compatíveis, leituras continuam locais e nenhuma conclusão editorial, causalidade ou previsão é fabricada.
 
-**Proximo checkpoint: Sprint 101 - NAO INICIADA; escopo ainda nao definido.**
+## Sprint 101 - Multi-Channel Release Readiness - CONCLUIDA
+
+**Objetivo:** preparar o OSS para operar mais de um canal sem reutilizar silenciosamente credenciais, snapshots ou histórico de outro perfil.
+
+Escopo:
+
+- perfil ativo como fronteira explícita de leitura do Canal e Analytics;
+- tokens OAuth locais isolados por perfil de canal;
+- vínculo explícito entre perfil e canal retornado pelo Google;
+- foto e nome reais do canal ativo na navegação;
+- adoção deliberada, auditável e reversível por dados de histórico anteriores ao modelo de perfis;
+- validação de release sem versionar `dev.db`, tokens ou documentos pessoais;
+- regressão que garante que um perfil selecionado sem token próprio fica em `AUTH_REQUIRED` e nunca recorre à credencial legada de outro canal.
+
+Limites: a Sprint não migra automaticamente todos os domínios estratégicos antigos para múltiplos canais, não inventa dados de Analytics e não conclui consentimentos Google pendentes. Cada canal adicional exige autorização explícita da conta correta.
+
+**Validação externa pendente, não bloqueadora:** conectar cada conta adicional pelo seletor de perfil e concluir o consentimento Google correspondente.
+
+**Próximo checkpoint:** Sprint 102 - NÃO INICIADA; escopo deve ser definido a partir da operação real dos perfis conectados.
 
 ### Revisao de encerramento apos Sprint 53
 

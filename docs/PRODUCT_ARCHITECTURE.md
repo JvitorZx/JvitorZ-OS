@@ -450,6 +450,22 @@ A Sprint 55 apresenta o mesmo contrato consolidado na workspace Canal como contr
 
 A Sprint 56 reconcilia presença de token com saúde observada. Um `invalid_grant` confirmado por chamada real marca o OAuth como `AUTH_REQUIRED` em todas as instâncias do processo. O marcador é efêmero, não contém credenciais e só é limpo quando o callback persiste novos tokens. O arquivo anterior não é removido automaticamente.
 
+## Perfis de canal e isolamento de credenciais
+
+O OSS usa `ChannelProfile` como fronteira de canal dentro da instalação local. O perfil ativo é persistido apenas na sessão local; cada perfil pode ter um canal YouTube, uma imagem de identidade e um token OAuth próprio. O fluxo é explícito:
+
+```text
+selecionar perfil
+  -> autorizar Google com state vinculado ao perfil
+  -> callback salva token somente no perfil escolhido
+  -> vincular conta consulta o canal autorizado
+  -> ChannelDataService persiste o snapshot sob aquele perfil
+```
+
+Quando há um perfil selecionado, `GoogleService` nunca recorre ao token legado compartilhado. Ausência de token próprio resulta em `AUTH_REQUIRED`, em vez de consultar outro canal por acidente. O token legado só serve para a compatibilidade de instalações sem perfil ativo; ele não é promovido automaticamente.
+
+Dados históricos anteriores a `ChannelProfile` permanecem sem dono até uma ação explícita de adoção. A adoção marca somente o perfil escolhido e mantém a trilha temporal original; um perfil novo sem projeto ou adoção não recebe o histórico de outro canal.
+
 ## Reach Reporting e Data Quality
 
 A Sprint 32 adiciona `GoogleYouTubeReachProvider`, uma integração separada com a YouTube Reporting API. O report type oficial `channel_reach_basic_a1` entrega `date`, `channel_id`, `video_id`, `video_thumbnail_impressions` e `video_thumbnail_impressions_ctr`. O provider reutiliza jobs remotos, trata conflito concorrente de criação, limita a leitura a 31 relatórios e usa parser CSV estruturado.
